@@ -19,8 +19,8 @@ const options = {
         description: 'Development server',
       },
       {
-        url: process.env.API_URL || 'https://api.lingualearn.com',
-        description: 'Production server',
+        url: 'https://lingualearn-back-second.onrender.com',
+        description: 'Production server (Render)',
       },
     ],
     components: {
