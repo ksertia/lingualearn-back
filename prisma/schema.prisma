@@ -1,4 +1,4 @@
-// Prisma Schema Definition - Authentication Only
+// Prisma Schema - LinguaLearn Learning Platform
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,54 +8,121 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Main users table
+// ============================================================================
+// USERS & AUTHENTICATION
+// ============================================================================
+
 model User {
-  id                  String         @id @default(cuid())
-  email               String?        @unique
-  phone               String?        @unique
-  passwordHash        String
-  username            String?        @unique
-  userType            UserType       @default(parent)
-  parentId            String?        // Self-referential
-  familyId            String?
-  isVerified          Boolean        @default(false)
-  subscriptionPlan    String         @default("free")
-  subscriptionEndsAt  DateTime?
-  lastLogin           DateTime?
-  lastActive          DateTime?
-  status              UserStatus     @default(active)
+  id                    String   @id @default(cuid())
+  parentUserId          String?  // null pour compte principal, lier aux sous-comptes
+  accountType           String   @db.VarChar(20) // admin, user, sub_account
+  email                 String?  @unique @db.VarChar(255)
+  phone                 String?  @unique @db.VarChar(20)
+  passwordHash          String   @db.VarChar(255)
+  username              String   @unique @db.VarChar(100)
+  isVerified            Boolean  @default(false)
+  isActive              Boolean  @default(true)
+  subscriptionId        String?
+  subscriptionEndsAt    DateTime?
+  createdBy             String?  // qui a créé ce compte
+  createdAt             DateTime @default(now())
+  lastLogin             DateTime?
+  lastActive            DateTime?
+
+  // Relations - Hiérarchie des comptes (compte principal -> sous-comptes)
+  parentUser            User?    @relation("ParentToSubAccounts", fields: [parentUserId], references: [id], onDelete: SetNull)
+  subAccounts           User[]   @relation("ParentToSubAccounts")
+  createdByUser         User?    @relation("CreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  createdUsers          User[]   @relation("CreatedBy")
   
-  // Timestamps
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+  // Core relations
+  profile               Profile?
+  subscription          Subscription?
+  refreshTokens         RefreshToken[]
+  passwordResetTokens   PasswordResetToken[]
+  verificationCodes     VerificationCode[]
+  loginAttempts         LoginAttempt[]
+  sessions              Session[]
   
-  // Relations
-  parent              User?          @relation("UserParent", fields: [parentId], references: [id])
-  children            User[]         @relation("UserParent")
-  refreshTokens       RefreshToken[]
-  passwordResetTokens PasswordResetToken[]
-  verificationCodes   VerificationCode[]
-  loginAttempts       LoginAttempt[]
-  sessions            Session[]
+  // Learning progress
+  languageProgress      UserLanguageProgress[]
+  levelProgress         UserLevelProgress[]
+  trackProgress         UserTrackProgress[]
+  courseProgress        UserCourseProgress[]
+  lessonProgress        UserLessonProgress[]
+  exerciseAttempts      UserExerciseAttempt[]
+  certificates          UserCertificate[]
+  badges                UserBadge[]
+  dailyChallenges       UserDailyChallenge[]
+  stats                 UserStats?
+  dailyActivity         UserDailyActivity[]
   
+  // Shop & Inventory
+  purchases             UserPurchase[]
+  inventory             UserInventory[]
+  
+  // Account management (for parent accounts)
+  subAccountManagement  SubAccountManagement[] @relation("ParentManagement")
+  managedByParent       SubAccountManagement[] @relation("SubAccountManaged")
+  subAccountControls    SubAccountControl[] @relation("ParentControls")
+  controlledByParent    SubAccountControl[] @relation("SubAccountControlled")
+  
+  // Reporting
+  reportsSent           AccountReport[] @relation("ReportsSent")
+  reportsGenerated      AccountReport[] @relation("ReportsGenerated")
+  awardedCertificates   UserCertificate[] @relation("AwardedBy")
+  
+  // Communication
+  notifications         Notification[]
+  gameSessions          GameSession[]
+  transactions          Transaction[]
+
+  @@index([parentUserId])
+  @@index([accountType])
   @@map("users")
 }
 
-// Refresh tokens for JWT rotation
+model Profile {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  firstName             String   @db.VarChar(100)
+  lastName              String   @db.VarChar(100)
+  displayName           String?  @db.VarChar(100)
+  accountLabel          String?  @db.VarChar(100) // nom personnalisé pour sous-compte
+  birthDate             DateTime?
+  avatarUrl             String?  @db.VarChar(500)
+  avatarColor           String?  @db.VarChar(7)
+  timezone              String   @default("Europe/Paris") @db.VarChar(50)
+  preferredLanguage     String   @default("fr") @db.VarChar(10)
+  gender                String?  @db.VarChar(20)
+  bio                   String?  @db.Text
+  location              String?  @db.VarChar(100)
+  websiteUrl            String?  @db.VarChar(500)
+  socialLinks           Json?
+  customFields          Json?
+  settings              Json?
+  isLearningProfile     Boolean  @default(false) // true si profil enfant/élève
+  learningPreferences   Json?    // préférences d'apprentissage
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
 model RefreshToken {
   id        String   @id @default(cuid())
   token     String   @db.Text
   userId    String
   expiresAt DateTime
   createdAt DateTime @default(now())
-  
-  // Relations
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@map("refresh_tokens")
 }
 
-// Password reset tokens
 model PasswordResetToken {
   id        String   @id @default(cuid())
   token     String   @db.Text
@@ -63,33 +130,29 @@ model PasswordResetToken {
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
-  
-  // Relations
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@map("password_reset_tokens")
 }
 
-// Email verification codes
 model VerificationCode {
-  id          String     @id @default(cuid())
-  userId      String?
-  contactType String     // 'email', 'phone'
-  contactValue String    // email or phone number
-  code        String
-  type        String     // 'registration', 'password_reset', 'phone_change', 'email_change'
-  isUsed      Boolean    @default(false)
-  expiresAt   DateTime
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  
-  // Relations
+  id            String   @id @default(cuid())
+  userId        String?
+  contactType   String   // 'email', 'phone'
+  contactValue  String
+  code          String
+  type          String   // 'registration', 'password_reset', 'phone_change', 'email_change'
+  isUsed        Boolean  @default(false)
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@map("verification_codes")
 }
 
-// Login attempts tracking
 model LoginAttempt {
   id        String   @id @default(cuid())
   userId    String?
@@ -97,16 +160,14 @@ model LoginAttempt {
   phone     String?
   success   Boolean
   ipAddress String?
-  userAgent String?
+  userAgent String?  @db.Text
   createdAt DateTime @default(now())
-  
-  // Relations
+
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@map("login_attempts")
 }
 
-// User sessions
 model Session {
   id           String   @id @default(cuid())
   userId       String
@@ -116,24 +177,868 @@ model Session {
   lastActivity DateTime @default(now())
   expiresAt    DateTime
   createdAt    DateTime @default(now())
-  
-  // Relations
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@map("sessions")
 }
 
-// Enums
-enum UserType {
-  admin
-  parent
-  child
-  teacher
+// ============================================================================
+// SUB-ACCOUNT MANAGEMENT
+// ============================================================================
+
+model SubAccountManagement {
+  id                String   @id @default(cuid())
+  parentUserId      String   // le compte principal
+  subAccountId      String   // le sous-compte
+  relationshipType  String   @default("family") @db.VarChar(30) // family, student, business, other
+  permissions       Json     // {"can_learn": true, "can_play_games": true, "can_purchase": false, ...}
+  isActive          Boolean  @default(true)
+  addedAt           DateTime @default(now())
+  removedAt         DateTime?
+  settings          Json?    // paramètres spécifiques
+
+  parentUser User @relation("ParentManagement", fields: [parentUserId], references: [id], onDelete: Cascade)
+  subAccount User @relation("SubAccountManaged", fields: [subAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([parentUserId, subAccountId])
+  @@map("sub_account_management")
 }
 
-enum UserStatus {
-  active
-  inactive
-  suspended
-  deleted
+model SubAccountControl {
+  id                        String   @id @default(cuid())
+  parentUserId              String
+  subAccountId              String
+  dailyTimeLimitMinutes     Int      @default(120)
+  weeklyTimeLimitMinutes    Int      @default(840)
+  bedtimeStart              String   @default("21:00") @db.VarChar(10)
+  bedtimeEnd                String   @default("07:00") @db.VarChar(10)
+  allowedDays               Json?
+  contentFilters            Json?    // filtres par âge, catégorie
+  gameTimeLimitMinutes      Int      @default(60)
+  canPurchase               Boolean  @default(false)
+  spendingLimitCoins        Int      @default(0)
+  spendingLimitGems         Int      @default(0)
+  notificationsEnabled      Boolean  @default(true)
+  progressReportsEnabled    Boolean  @default(true)
+  reportFrequency           String   @default("weekly") @db.VarChar(20) // daily, weekly, monthly
+  learningGoals             Json?    // objectifs d'apprentissage
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  parentUser User @relation("ParentControls", fields: [parentUserId], references: [id], onDelete: Cascade)
+  subAccount User @relation("SubAccountControlled", fields: [subAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([parentUserId, subAccountId])
+  @@map("sub_account_controls")
+}
+
+// ============================================================================
+// SUBSCRIPTIONS
+// ============================================================================
+
+model SubscriptionPlan {
+  id                       String   @id @default(cuid())
+  planCode                 String   @unique @db.VarChar(50)
+  planName                 String   @db.VarChar(100)
+  description              String?  @db.Text
+  priceMonthly             Decimal? @db.Decimal(10, 2)
+  priceYearly              Decimal? @db.Decimal(10, 2)
+  currency                 String   @default("EUR") @db.VarChar(3)
+  features                 Json
+  maxSubAccounts           Int      @default(0)
+  maxDevices               Int      @default(1)
+  hasOfflineAccess         Boolean  @default(false)
+  hasPremiumContent        Boolean  @default(false)
+  hasAnalyticsDashboard    Boolean  @default(false)
+  hasProgressReports       Boolean  @default(false)
+  sortOrder                Int      @default(0)
+  isActive                 Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  subscriptions Subscription[]
+
+  @@map("subscription_plans")
+}
+
+model Subscription {
+  id                       String   @id @default(cuid())
+  userId                   String   @unique // le compte principal qui paie
+  planId                   String
+  status                   String   @default("active") @db.VarChar(20) // active, canceled, expired, pending
+  billingCycle             String   @default("monthly") @db.VarChar(20) // monthly, yearly
+  currentPeriodStart       DateTime
+  currentPeriodEnd         DateTime
+  cancelAtPeriodEnd        Boolean  @default(false)
+  canceledAt               DateTime?
+  stripeSubscriptionId     String?  @db.VarChar(255)
+  stripeCustomerId         String?  @db.VarChar(255)
+  includesSubAccounts      Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@map("subscriptions")
+}
+
+// ============================================================================
+// LANGUAGES & LEARNING STRUCTURE
+// ============================================================================
+
+model Language {
+  id           String   @id @default(cuid())
+  code         String   @unique @db.VarChar(10)
+  name         String   @db.VarChar(100)
+  nativeName   String?  @db.VarChar(100)
+  flagEmoji    String?  @db.VarChar(10)
+  iconUrl      String?  @db.VarChar(500)
+  colorCode    String?  @db.VarChar(7)
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  levels               Level[]
+  userLanguageProgress UserLanguageProgress[]
+
+  @@map("languages")
+}
+
+model Level {
+  id                  String   @id @default(cuid())
+  languageId          String
+  levelCode           String   @db.VarChar(20)
+  levelName           String   @db.VarChar(100)
+  description         String?  @db.Text
+  iconUrl             String?  @db.VarChar(500)
+  bannerUrl           String?  @db.VarChar(500)
+  colorCode           String?  @db.VarChar(7)
+  sortOrder           Int
+  minAge              Int?
+  maxAge              Int?
+  estimatedDurationWeeks Int?
+  requiredForNextId   String?
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  language            Language @relation(fields: [languageId], references: [id], onDelete: Cascade)
+  requiredForNext     Level?   @relation("LevelPrerequisites", fields: [requiredForNextId], references: [id], onDelete: SetNull)
+  prerequisiteFor     Level[]  @relation("LevelPrerequisites")
+  tracks              Track[]
+  userLevelProgress   UserLevelProgress[]
+  certificates        Certificate[]
+
+  @@unique([languageId, levelCode])
+  @@unique([languageId, sortOrder])
+  @@map("levels")
+}
+
+model Track {
+  id                    String   @id @default(cuid())
+  levelId               String
+  trackCode             String   @db.VarChar(5)
+  trackName             String   @db.VarChar(100)
+  description           String?  @db.Text
+  iconUrl               String?  @db.VarChar(500)
+  colorCode             String?  @db.VarChar(7)
+  sortOrder             Int
+  difficulty            String   @default("medium") @db.VarChar(20)
+  estimatedDurationHours Int?
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  level               Level @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  courses             Course[]
+  userTrackProgress   UserTrackProgress[]
+  certificates        Certificate[]
+
+  @@unique([levelId, trackCode])
+  @@unique([levelId, sortOrder])
+  @@map("tracks")
+}
+
+model Course {
+  id                        String   @id @default(cuid())
+  trackId                   String
+  courseNumber              Int
+  courseCode                String   @unique @db.VarChar(50)
+  title                     String   @db.VarChar(200)
+  description               String?  @db.Text
+  thumbnailUrl              String?  @db.VarChar(500)
+  videoPreviewUrl           String?  @db.VarChar(500)
+  estimatedDurationMinutes  Int      @default(60)
+  difficultyLevel           String   @default("beginner") @db.VarChar(20)
+  isPublished               Boolean  @default(false)
+  publishedAt               DateTime?
+  sortOrder                 Int
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  track               Track @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  lessons             Lesson[]
+  userCourseProgress  UserCourseProgress[]
+
+  @@unique([trackId, courseNumber])
+  @@map("courses")
+}
+
+model Lesson {
+  id                          String   @id @default(cuid())
+  courseId                    String
+  lessonNumber                Int
+  title                       String   @db.VarChar(200)
+  contentType                 String   @db.VarChar(30)
+  contentUrl                  String?  @db.VarChar(500)
+  contentText                 String?  @db.Text
+  interactiveData             Json?
+  estimatedDurationMinutes    Int      @default(15)
+  isFreePreview               Boolean  @default(false)
+  sortOrder                   Int
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  course              Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  exercises           Exercise[]
+  userLessonProgress  UserLessonProgress[]
+
+  @@unique([courseId, lessonNumber])
+  @@map("lessons")
+}
+
+model Exercise {
+  id                  String   @id @default(cuid())
+  lessonId            String
+  exerciseType        String   @db.VarChar(30)
+  title               String   @db.VarChar(200)
+  instructions        String?  @db.Text
+  content             Json
+  correctAnswers      Json?
+  hints               Json?
+  points              Int      @default(10)
+  xpReward            Int      @default(10)
+  coinReward          Int      @default(5)
+  maxAttempts         Int      @default(3)
+  timeLimitSeconds    Int?
+  sortOrder           Int
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  lesson              Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  attempts            UserExerciseAttempt[]
+
+  @@index([lessonId, sortOrder])
+  @@map("exercises")
+}
+
+// ============================================================================
+// GAMES
+// ============================================================================
+
+model GameCategory {
+  id          String   @id @default(cuid())
+  categoryCode String  @unique @db.VarChar(50)
+  categoryName String  @db.VarChar(100)
+  description String?  @db.Text
+  iconUrl     String?  @db.VarChar(500)
+  colorCode   String?  @db.VarChar(7)
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  games EducationalGame[]
+
+  @@map("game_categories")
+}
+
+model EducationalGame {
+  id                      String   @id @default(cuid())
+  gameCode                String   @unique @db.VarChar(50)
+  gameName                String   @db.VarChar(100)
+  categoryId              String?
+  description             String?  @db.Text
+  iconUrl                 String?  @db.VarChar(500)
+  bannerUrl               String?  @db.VarChar(500)
+  minAge                  Int?
+  maxAge                  Int?
+  minPlayers              Int      @default(1)
+  maxPlayers              Int      @default(1)
+  estimatedDurationMinutes Int?
+  learningObjectives      Json?
+  skillsDeveloped         Json?
+  difficultyLevel         String   @default("easy") @db.VarChar(20)
+  gameConfig              Json?
+  isMultiplayer           Boolean  @default(false)
+  isCompetitive           Boolean  @default(false)
+  requiresInternet        Boolean  @default(true)
+  isActive                Boolean  @default(true)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  category      GameCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  sessions      GameSession[]
+
+  @@map("educational_games")
+}
+
+model GameSession {
+  id                String   @id @default(cuid())
+  userId            String
+  gameId            String
+  sessionCode       String?  @unique @db.VarChar(50)
+  status            String   @default("active") @db.VarChar(20)
+  score             Int      @default(0)
+  maxScore          Int?
+  accuracy          Decimal? @db.Decimal(5, 2)
+  timeSpentSeconds  Int?
+  movesCount        Int?
+  correctMoves      Int?
+  incorrectMoves    Int?
+  xpEarned          Int      @default(0)
+  coinsEarned       Int      @default(0)
+  gameData          Json?
+  startedAt         DateTime @default(now())
+  endedAt           DateTime?
+  createdAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game EducationalGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([userId, gameId, startedAt])
+  @@map("game_sessions")
+}
+
+// ============================================================================
+// USER PROGRESS TRACKING
+// ============================================================================
+
+model UserLanguageProgress {
+  id              String   @id @default(cuid())
+  userId          String
+  languageId      String
+  currentLevelId  String?
+  status          String   @default("not_started") @db.VarChar(20)
+  overallProgress Decimal  @default(0.0) @db.Decimal(5, 2)
+  totalXp         Int      @default(0)
+  totalTimeMinutes Int     @default(0)
+  lastAccessedAt  DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  language Language @relation(fields: [languageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, languageId])
+  @@map("user_language_progress")
+}
+
+model UserLevelProgress {
+  id                  String   @id @default(cuid())
+  userId              String
+  levelId             String
+  status              String   @default("locked") @db.VarChar(20)
+  unlockedAt          DateTime?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  progressPercentage  Decimal  @default(0.0) @db.Decimal(5, 2)
+  currentTrackId      String?
+  totalXp             Int      @default(0)
+  timeSpentMinutes    Int      @default(0)
+  lastAccessedAt      DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level Level @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, levelId])
+  @@map("user_level_progress")
+}
+
+model UserTrackProgress {
+  id                  String   @id @default(cuid())
+  userId              String
+  trackId             String
+  status              String   @default("locked") @db.VarChar(20)
+  unlockedAt          DateTime?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  progressPercentage  Decimal  @default(0.0) @db.Decimal(5, 2)
+  currentCourseNumber Int      @default(1)
+  totalXp             Int      @default(0)
+  timeSpentMinutes    Int      @default(0)
+  lastAccessedAt      DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track Track @relation(fields: [trackId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, trackId])
+  @@map("user_track_progress")
+}
+
+model UserCourseProgress {
+  id                  String   @id @default(cuid())
+  userId              String
+  courseId            String
+  status              String   @default("locked") @db.VarChar(20)
+  unlockedAt          DateTime?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  progressPercentage  Decimal  @default(0.0) @db.Decimal(5, 2)
+  currentLessonNumber Int      @default(1)
+  totalXp             Int      @default(0)
+  timeSpentMinutes    Int      @default(0)
+  score               Decimal? @db.Decimal(5, 2)
+  attemptsCount       Int      @default(0)
+  bestScore           Decimal? @db.Decimal(5, 2)
+  lastAccessedAt      DateTime?
+  data                Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@map("user_course_progress")
+}
+
+model UserLessonProgress {
+  id              String   @id @default(cuid())
+  userId          String
+  lessonId        String
+  status          String   @default("not_started") @db.VarChar(20)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  timeSpentSeconds Int     @default(0)
+  isCompleted     Boolean  @default(false)
+  completionDate  DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+  @@map("user_lesson_progress")
+}
+
+model UserExerciseAttempt {
+  id              String   @id @default(cuid())
+  userId          String
+  exerciseId      String
+  attemptNumber   Int
+  score           Decimal? @db.Decimal(5, 2)
+  pointsEarned    Int      @default(0)
+  xpEarned        Int      @default(0)
+  coinsEarned     Int      @default(0)
+  answers         Json?
+  timeSpentSeconds Int?
+  isCorrect       Boolean?
+  feedback        String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, exerciseId, attemptNumber])
+  @@map("user_exercise_attempts")
+}
+
+// ============================================================================
+// CERTIFICATES & ACHIEVEMENTS
+// ============================================================================
+
+model Certificate {
+  id                String   @id @default(cuid())
+  levelId           String
+  trackId           String?
+  certCode          String   @unique @db.VarChar(50)
+  certName          String   @db.VarChar(200)
+  description       String?  @db.Text
+  iconUrl           String?  @db.VarChar(500)
+  bannerUrl         String?  @db.VarChar(500)
+  requirements      Json
+  validityDays      Int?
+  unlocksNextLevel  Boolean  @default(true)
+  xpReward          Int      @default(500)
+  coinReward        Int      @default(200)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  level Level @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  track Track? @relation(fields: [trackId], references: [id], onDelete: SetNull)
+  userCertificates UserCertificate[]
+  shopItems VirtualShopItem[]
+
+  @@map("certificates")
+}
+
+model UserCertificate {
+  id                String   @id @default(cuid())
+  userId            String
+  certificateId     String
+  certificateNumber String   @unique @db.VarChar(100)
+  issueDate         DateTime
+  expiryDate        DateTime?
+  score             Decimal? @db.Decimal(5, 2)
+  status            String   @default("active") @db.VarChar(20)
+  awardedById       String?
+  downloadUrl       String?  @db.VarChar(500)
+  qrCodeUrl         String?  @db.VarChar(500)
+  data              Json?
+  createdAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  certificate Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  awardedBy User? @relation("AwardedBy", fields: [awardedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, certificateId])
+  @@map("user_certificates")
+}
+
+model XpLevel {
+  id              String   @id @default(cuid())
+  levelNumber     Int      @unique
+  levelName       String   @db.VarChar(100)
+  xpRequired      BigInt
+  badgeUrl        String?  @db.VarChar(500)
+  iconUrl         String?  @db.VarChar(500)
+  colorCode       String?  @db.VarChar(7)
+  rewards         Json?
+  unlocksFeatures Json?
+  createdAt       DateTime @default(now())
+
+  @@map("xp_levels")
+}
+
+model Badge {
+  id                  String   @id @default(cuid())
+  badgeCode           String   @unique @db.VarChar(50)
+  badgeName           String   @db.VarChar(100)
+  description         String?  @db.Text
+  category            String?  @db.VarChar(30)
+  iconUrl             String?  @db.VarChar(500)
+  unlockedIconUrl     String?  @db.VarChar(500)
+  colorCode           String?  @db.VarChar(7)
+  rarity              String   @default("common") @db.VarChar(20)
+  criteria            Json
+  xpReward            Int      @default(50)
+  coinReward          Int      @default(100)
+  displayOrder        Int?
+  isSecret            Boolean  @default(false)
+  createdAt           DateTime @default(now())
+
+  userBadges UserBadge[]
+
+  @@map("badges")
+}
+
+model UserBadge {
+  id                  String   @id @default(cuid())
+  userId              String
+  badgeId             String
+  unlockedAt          DateTime @default(now())
+  progressData        Json?
+  timesUnlocked       Int      @default(1)
+  isFavorite          Boolean  @default(false)
+  displayedOnProfile  Boolean  @default(true)
+  createdAt           DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@map("user_badges")
+}
+
+// ============================================================================
+// DAILY CHALLENGES
+// ============================================================================
+
+model DailyChallenge {
+  id              String   @id @default(cuid())
+  challengeCode   String   @unique @db.VarChar(50)
+  challengeName   String   @db.VarChar(200)
+  description     String?  @db.Text
+  challengeType   String?  @db.VarChar(30)
+  objectives      Json
+  rewards         Json?
+  difficulty      String   @default("easy") @db.VarChar(20)
+  requiredLevel   Int      @default(1)
+  availableDays   Json?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  userChallenges UserDailyChallenge[]
+
+  @@map("daily_challenges")
+}
+
+model UserDailyChallenge {
+  id                  String   @id @default(cuid())
+  userId              String
+  challengeId         String
+  date                DateTime
+  status              String   @default("active") @db.VarChar(20)
+  progressData        Json?
+  objectivesCompleted Int      @default(0)
+  totalObjectives     Int?
+  completedAt         DateTime?
+  xpEarned            Int?
+  coinsEarned         Int?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge DailyChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, challengeId, date])
+  @@map("user_daily_challenges")
+}
+
+// ============================================================================
+// USER STATISTICS
+// ============================================================================
+
+model UserStats {
+  id                          String   @id @default(cuid())
+  userId                      String   @unique
+  totalXp                     BigInt   @default(0)
+  totalCoins                  Int      @default(0)
+  currentStreak              Int      @default(0)
+  longestStreak              Int      @default(0)
+  totalStudyMinutes          Int      @default(0)
+  totalGamesPlayed           Int      @default(0)
+  totalExercisesCompleted    Int      @default(0)
+  totalLessonsCompleted      Int      @default(0)
+  totalCoursesCompleted      Int      @default(0)
+  totalTracksCompleted       Int      @default(0)
+  totalLevelsCompleted       Int      @default(0)
+  totalCertificatesEarned    Int      @default(0)
+  totalBadgesEarned          Int      @default(0)
+  currentXpLevel             Int      @default(1)
+  accuracyRate               Decimal? @db.Decimal(5, 2)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_stats")
+}
+
+model UserDailyActivity {
+  id                String   @id @default(cuid())
+  userId            String
+  activityDate      DateTime
+  studyMinutes      Int      @default(0)
+  gameMinutes       Int      @default(0)
+  lessonsCompleted  Int      @default(0)
+  exercisesCompleted Int     @default(0)
+  gamesPlayed       Int      @default(0)
+  challengesCompleted Int    @default(0)
+  xpEarned          Int      @default(0)
+  coinsEarned       Int      @default(0)
+  badgesEarned      Int      @default(0)
+  streakMaintained  Boolean?
+  firstActivityAt   DateTime?
+  lastActivityAt    DateTime?
+  createdAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, activityDate])
+  @@map("user_daily_activity")
+}
+
+// ============================================================================
+// ACCOUNT REPORTING
+// ============================================================================
+
+model AccountReport {
+  id                    String   @id @default(cuid())
+  parentUserId          String   // qui reçoit le rapport
+  subAccountId          String   // le sous-compte concerné
+  reportType            String   @default("weekly") @db.VarChar(30)
+  periodStart           DateTime
+  periodEnd             DateTime
+  summary               Json
+  achievements          Json?
+  areasForImprovement   Json?
+  recommendations       Json?
+  totalStudyMinutes     Int?
+  totalGameMinutes      Int?
+  lessonsCompleted      Int?
+  exercisesCompleted    Int?
+  gamesPlayed           Int?
+  challengesCompleted   Int?
+  xpEarned              Int?
+  coinsEarned           Int?
+  badgesEarned          Int?
+  certificatesEarned    Int?
+  streakInfo            Json?
+  timeLimitsRespected   Boolean?
+  isViewed              Boolean  @default(false)
+  viewedAt              DateTime?
+  generatedAt           DateTime @default(now())
+  createdAt             DateTime @default(now())
+
+  parentUser User @relation("ReportsSent", fields: [parentUserId], references: [id], onDelete: Cascade)
+  subAccount User @relation("ReportsGenerated", fields: [subAccountId], references: [id], onDelete: Cascade)
+
+  @@index([parentUserId, periodStart, periodEnd])
+  @@map("account_reports")
+}
+
+// ============================================================================
+// VIRTUAL SHOP & INVENTORY
+// ============================================================================
+
+model VirtualShopCategory {
+  id            String   @id @default(cuid())
+  categoryCode  String   @unique @db.VarChar(50)
+  categoryName  String   @db.VarChar(100)
+  description   String?  @db.Text
+  iconUrl       String?  @db.VarChar(500)
+  sortOrder     Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  items VirtualShopItem[]
+
+  @@map("virtual_shop_categories")
+}
+
+model VirtualShopItem {
+  id              String   @id @default(cuid())
+  categoryId      String?
+  itemCode        String   @unique @db.VarChar(50)
+  itemName        String   @db.VarChar(200)
+  itemType        String?  @db.VarChar(30)
+  description     String?  @db.Text
+  previewUrl      String?  @db.VarChar(500)
+  iconUrl         String?  @db.VarChar(500)
+  priceCoins      Int?
+  priceGems       Int?
+  rarity          String   @default("common") @db.VarChar(20)
+  requiresLevel   Int      @default(1)
+  requiresCertId  String?
+  stockQuantity   Int?
+  isLimited       Boolean  @default(false)
+  availableFrom   DateTime?
+  availableUntil  DateTime?
+  purchaseLimit   Int?
+  itemData        Json?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  category VirtualShopCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  requiresCert Certificate? @relation(fields: [requiresCertId], references: [id], onDelete: SetNull)
+  purchases UserPurchase[]
+  inventory UserInventory[]
+
+  @@map("virtual_shop_items")
+}
+
+model UserPurchase {
+  id              String   @id @default(cuid())
+  userId          String
+  itemId          String
+  purchaseType    String   @default("coins") @db.VarChar(20)
+  quantity        Int      @default(1)
+  totalPriceCoins Int?
+  totalPriceGems  Int?
+  transactionId   String?  @db.VarChar(255)
+  isActive        Boolean  @default(true)
+  expiresAt       DateTime?
+  purchasedAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item VirtualShopItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([userId, itemId, purchasedAt])
+  @@map("user_purchases")
+}
+
+model UserInventory {
+  id            String   @id @default(cuid())
+  userId        String
+  itemId        String
+  quantity      Int      @default(1)
+  isEquipped    Boolean  @default(false)
+  equippedData  Json?
+  expiresAt     DateTime?
+  purchasedAt   DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item VirtualShopItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemId])
+  @@map("user_inventory")
+}
+
+// ============================================================================
+// NOTIFICATIONS & COMMUNICATION
+// ============================================================================
+
+model Notification {
+  id                String   @id @default(cuid())
+  userId            String
+  notificationType  String?  @db.VarChar(30)
+  title             String   @db.VarChar(200)
+  message           String   @db.Text
+  iconUrl           String?  @db.VarChar(500)
+  actionUrl         String?  @db.VarChar(500)
+  actionLabel       String?  @db.VarChar(100)
+  data              Json?
+  priority          Int      @default(1)
+  channels          Json?
+  isSent            Boolean  @default(false)
+  sentAt            DateTime?
+  isRead            Boolean  @default(false)
+  readAt            DateTime?
+  expiresAt         DateTime?
+  createdAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// ============================================================================
+// TRANSACTIONS & FINANCIAL
+// ============================================================================
+
+model Transaction {
+  id              String   @id @default(cuid())
+  userId          String
+  transactionType String   @db.VarChar(30)
+  amountCoins     Int?
+  amountGems      Int?
+  description     String?  @db.VarChar(500)
+  referenceType   String?  @db.VarChar(50)
+  referenceId     String?
+  balanceCoinsAfter Int?
+  balanceGemsAfter Int?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("transactions")
 }

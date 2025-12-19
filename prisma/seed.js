@@ -21,7 +21,7 @@ async function main() {
     // Créer l'admin
     const admin = await prisma.user.create({
         data: {
-            email: 'admin@sonaby.com',
+            email: 'admin@wise.com',
             username: 'admin',
             passwordHash: hashedPassword,
             userType: 'admin',
@@ -56,17 +56,7 @@ async function main() {
         }
     });
     
-    // Créer un enseignant
-    const teacher = await prisma.user.create({
-        data: {
-            email: 'teacher@sonaby.com',
-            username: 'teacher1',
-            passwordHash: hashedPassword,
-            userType: 'teacher',
-            isVerified: true,
-            status: 'active'
-        }
-    });
+    
     
     console.log('✅ Database seeded successfully!');
     console.log('👑 Admin user:', admin.email);
