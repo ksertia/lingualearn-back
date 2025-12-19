@@ -21,23 +21,15 @@ const registerSchema = z.object({
     path: ['email']
 });
 
-// Login schema (email or phone)
+// Login schema (loginInfo: username, email, or phone)
 const loginSchema = z.object({
-    email: z.string().email('Invalid email address').optional(),
-    phone: z.string().optional(),
+    loginInfo: z.string().min(1, 'loginInfo is required'),
     password: z.string().min(1, 'Password is required')
-}).refine(data => data.email || data.phone, {
-    message: 'Either email or phone must be provided',
-    path: ['email']
 });
 
 // Forgot password schema
 const forgotPasswordSchema = z.object({
-    email: z.string().email('Invalid email address').optional(),
-    phone: z.string().optional()
-}).refine(data => data.email || data.phone, {
-    message: 'Either email or phone must be provided',
-    path: ['email']
+    loginInfo: z.string().min(1, 'loginInfo is required')
 });
 
 // Reset password schema

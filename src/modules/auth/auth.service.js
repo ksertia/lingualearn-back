@@ -11,117 +11,82 @@ class AuthService {
     // ============ INSCRIPTION ============
     async register(data) {
         const { email, phone, password, username, accountType, parentId } = data;
-        
+
         // Vérifier que l'utilisateur fournit soit email, soit phone
         if (!email && !phone) {
             throw new AppError(400, 'Either email or phone must be provided');
         }
-        
+
         // Vérifier si l'utilisateur existe déjà par email
         if (email) {
-            const existingUser = await prisma.user.findUnique({
-                where: { email }
-            });
-            
+            const existingUser = await prisma.user.findUnique({ where: { email } });
             if (existingUser) {
                 throw new AppError(400, 'A user already exists with this email');
             }
         }
-        
+
         // Vérifier si l'utilisateur existe déjà par phone
         if (phone) {
-            const existingUser = await prisma.user.findFirst({
-                where: { phone }
-            });
-            
+            const existingUser = await prisma.user.findFirst({ where: { phone } });
             if (existingUser) {
                 throw new AppError(400, 'A user already exists with this phone number');
             }
         }
-        
+
         // Vérifier si le username existe déjà
         if (username) {
-            const existingUser = await prisma.user.findUnique({
-                where: { username }
-            });
-            
+            const existingUser = await prisma.user.findUnique({ where: { username } });
             if (existingUser) {
                 throw new AppError(400, 'Username already taken');
             }
         }
-        
+
         // Vérifier le parent pour les comptes enfants
         if (accountType === 'sub_account' && parentId) {
             const parent = await prisma.user.findUnique({
                 where: { id: parentId, accountType: 'user' }
             });
-            
             if (!parent) {
-                throw new AppError(400, 'Invalid parent ID or parent not found');
+                throw new AppError(400, 'Parent account not found or invalid');
             }
         }
-        
+
         // Hasher le mot de passe
         const passwordHash = await bcrypt.hash(password, 12);
-        
-        // Générer un token de vérification
-        const verificationToken = crypto.randomBytes(32).toString('hex');
-        const verificationTokenExpires = new Date(Date.now() + appConfig.tokens.verificationTokenExpiry * 1000);
-        
+
         // Créer l'utilisateur
         const user = await prisma.user.create({
             data: {
-                email: email || null,
-                phone: phone || null,
-                username: username || null,
+                email,
+                phone,
+                username,
                 passwordHash,
                 accountType,
                 parentId: accountType === 'sub_account' ? parentId : null,
-                isVerified: false,
-                isActive: true
             },
-            select: {
-                id: true,
-                email: true,
-                phone: true,
-                username: true,
-                accountType: true,
-                isVerified: true,
-                isActive: true,
-                createdAt: true
-            }
         });
-        
-        // Envoyer l'email de vérification si email fourni
-        if (email) {
-            await this.createVerificationCode(user.id, 'email', email, 'registration', verificationToken);
-            await emailService.sendVerificationEmail(email, verificationToken);
+
+        // Générer un code de vérification si email ou phone fourni
+        if (email || phone) {
+            const code = crypto.randomBytes(3).toString('hex').toUpperCase();
+            const contactType = email ? 'email' : 'phone';
+            const contactValue = email || phone;
+            await this.createVerificationCode(user.id, contactType, contactValue, 'registration', code);
+            // Envoyer le code par email ou SMS (à implémenter)
         }
-        
-        // Pour les téléphones, on pourrait envoyer un SMS (implémentation à ajouter)
-        
-        // Log de l'inscription
-        await this.logLoginAttempt(email || phone, null, true);
-        
-        // Générer les tokens immédiatement (l'utilisateur peut se connecter même sans vérifier)
-        const tokens = await this.generateTokens(user.id, user.accountType);
-        
-        return {
-            user,
-            ...tokens,
-            requiresVerification: !user.isVerified
-        };
+
+        return { success: true, message: 'User registered successfully' };
     }
-    
+
     // ============ CONNEXION ============
     async login(data, req) {
-        const { email, phone, password } = data;
-        
-        // Trouver l'utilisateur par email ou phone
-        let user;
-        if (email) {
+        const { loginInfo, password } = data;
+        let user = null;
+
+        // Trouver l'utilisateur par email, phone ou username
+        if (loginInfo.includes('@')) {
             user = await prisma.user.findUnique({
-                where: { email },
+                where: { email: loginInfo },
                 select: {
                     id: true,
                     email: true,
@@ -131,12 +96,12 @@ class AuthService {
                     accountType: true,
                     isVerified: true,
                     isActive: true,
-                    lastLogin: true
-                }
+                    lastLogin: true,
+                },
             });
-        } else if (phone) {
+        } else if (/^\+?\d+$/.test(loginInfo)) {
             user = await prisma.user.findFirst({
-                where: { phone },
+                where: { phone: loginInfo },
                 select: {
                     id: true,
                     email: true,
@@ -146,351 +111,342 @@ class AuthService {
                     accountType: true,
                     isVerified: true,
                     isActive: true,
-                    lastLogin: true
-                }
+                    lastLogin: true,
+                },
+            });
+        } else {
+            user = await prisma.user.findUnique({
+                where: { username: loginInfo },
+                select: {
+                    id: true,
+                    email: true,
+                    phone: true,
+                    username: true,
+                    passwordHash: true,
+                    accountType: true,
+                    isVerified: true,
+                    isActive: true,
+                    lastLogin: true,
+                },
             });
         }
-        
+
+        // Vérifications
         if (!user) {
-            await this.logLoginAttempt(email || phone, null, false);
+            await this.logLoginAttempt(loginInfo, null, false);
             throw new AppError(401, 'Invalid credentials');
         }
-        
+
         if (!user.isActive) {
-            await this.logLoginAttempt(email || phone, user.id, false);
+            await this.logLoginAttempt(loginInfo, user.id, false);
             throw new AppError(401, 'Your account is not active');
         }
-        
+
         // Vérifier le mot de passe
         const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
         if (!isPasswordValid) {
-            await this.logLoginAttempt(email || phone, user.id, false);
+            await this.logLoginAttempt(loginInfo, user.id, false);
             throw new AppError(401, 'Invalid credentials');
         }
-        
+
         // Mettre à jour lastLogin
         await prisma.user.update({
             where: { id: user.id },
-            data: { lastLogin: new Date(), lastActive: new Date() }
+            data: { lastLogin: new Date(), lastActive: new Date() },
         });
-        
+
         // Générer les tokens
         const tokens = await this.generateTokens(user.id, user.accountType);
-        
+
         // Créer une session
         await this.createSession(user.id, req);
-        
+
         // Retourner les données utilisateur sans le mot de passe
         const { passwordHash, ...userWithoutPassword } = user;
-        
-        await this.logLoginAttempt(email || phone, user.id, true);
-        
+
+        await this.logLoginAttempt(loginInfo, user.id, true);
+
         return {
             user: userWithoutPassword,
-            ...tokens
+            tokens,
         };
     }
-    
-    // ============ FORGOT PASSWORD ============
-    async forgotPassword(data) {
-        const { email, phone } = data;
-        
-        // Trouver l'utilisateur
+
+    // ============ MOT DE PASSE OUBLIÉ ============
+    async forgotPassword(loginInfo) {
         let user;
-        if (email) {
-            user = await prisma.user.findUnique({
-                where: { email, isActive: true }
-            });
-        } else if (phone) {
-            user = await prisma.user.findFirst({
-                where: { phone, isActive: true }
-            });
+        if (loginInfo.includes('@')) {
+            user = await prisma.user.findUnique({ where: { email: loginInfo } });
+        } else if (/^\+?\d+$/.test(loginInfo)) {
+            user = await prisma.user.findFirst({ where: { phone: loginInfo } });
+        } else {
+            user = await prisma.user.findUnique({ where: { username: loginInfo } });
         }
-        
+
         if (!user) {
-            // Pour des raisons de sécurité, on ne révèle pas si l'utilisateur existe
             return { success: true, message: 'If an account exists, a reset link has been sent' };
         }
-        
+
         // Générer un token de réinitialisation
         const resetToken = crypto.randomBytes(32).toString('hex');
         const resetTokenExpires = new Date(Date.now() + appConfig.tokens.resetTokenExpiry * 1000);
-        
+
         // Supprimer les anciens tokens
-        await prisma.passwordResetToken.deleteMany({
-            where: { userId: user.id }
-        });
-        
+        await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+
         // Créer un nouveau token
         await prisma.passwordResetToken.create({
             data: {
                 token: resetToken,
                 userId: user.id,
-                expiresAt: resetTokenExpires
-            }
+                expiresAt: resetTokenExpires,
+            },
         });
-        
+
         // Envoyer l'email de réinitialisation
         if (user.email) {
             await emailService.sendPasswordResetEmail(user.email, resetToken);
         }
-        
-        // Pour les téléphones, on pourrait envoyer un SMS
-        
+
         return { success: true, message: 'If an account exists, a reset link has been sent' };
     }
-    
+
     // ============ RESET PASSWORD ============
     async resetPassword(data) {
         const { token, password } = data;
-        
+
         // Trouver le token
         const resetToken = await prisma.passwordResetToken.findUnique({
             where: { token },
-            include: { user: true }
+            include: { user: true },
         });
-        
+
         if (!resetToken) {
             throw new AppError(400, 'Invalid or expired reset token');
         }
-        
+
         if (resetToken.used) {
             throw new AppError(400, 'Reset token has already been used');
         }
-        
+
         if (resetToken.expiresAt < new Date()) {
             throw new AppError(400, 'Reset token has expired');
         }
-        
+
         // Hasher le nouveau mot de passe
         const passwordHash = await bcrypt.hash(password, 12);
-        
+
         // Mettre à jour le mot de passe de l'utilisateur
         await prisma.user.update({
             where: { id: resetToken.userId },
-            data: { passwordHash }
+            data: { passwordHash },
         });
-        
+
         // Marquer le token comme utilisé
         await prisma.passwordResetToken.update({
             where: { id: resetToken.id },
-            data: { used: true }
+            data: { used: true },
         });
-        
+
         // Invalider toutes les sessions existantes
-        await prisma.session.deleteMany({
-            where: { userId: resetToken.userId }
-        });
-        
+        await prisma.session.deleteMany({ where: { userId: resetToken.userId } });
+
         // Invalider tous les refresh tokens
-        await prisma.refreshToken.deleteMany({
-            where: { userId: resetToken.userId }
-        });
-        
+        await prisma.refreshToken.deleteMany({ where: { userId: resetToken.userId } });
+
         // Envoyer un email de confirmation
         if (resetToken.user.email) {
             await emailService.sendPasswordChangedEmail(resetToken.user.email);
         }
-        
+
         return { success: true, message: 'Password reset successfully' };
     }
-    
+
     // ============ VERIFY EMAIL/PHONE ============
     async verifyAccount(token) {
-        // Cette méthode pourrait être implémentée pour vérifier les emails/téléphones
-        // Pour simplifier, on va créer une méthode basique
-        
         const verification = await prisma.verificationCode.findFirst({
-            where: { 
+            where: {
                 code: token,
                 type: 'registration',
                 isUsed: false,
-                expiresAt: { gt: new Date() }
+                expiresAt: { gt: new Date() },
             },
-            include: { user: true }
+            include: { user: true },
         });
-        
+
         if (!verification) {
             throw new AppError(400, 'Invalid or expired verification token');
         }
-        
+
         // Marquer l'utilisateur comme vérifié
         await prisma.user.update({
             where: { id: verification.userId },
-            data: { isVerified: true }
+            data: { isVerified: true },
         });
-        
+
         // Marquer le code comme utilisé
         await prisma.verificationCode.update({
             where: { id: verification.id },
-            data: { isUsed: true }
+            data: { isUsed: true },
         });
-        
+
         return { success: true, message: 'Account verified successfully' };
     }
-    
+
     // ============ CHANGE PASSWORD ============
     async changePassword(userId, data) {
         const { currentPassword, newPassword } = data;
-        
+
         // Récupérer l'utilisateur avec le mot de passe
         const user = await prisma.user.findUnique({
             where: { id: userId },
-            select: { passwordHash: true }
+            select: { passwordHash: true },
         });
-        
+
         if (!user) {
             throw new AppError(404, 'User not found');
         }
-        
+
         // Vérifier l'ancien mot de passe
         const isPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
         if (!isPasswordValid) {
             throw new AppError(400, 'Current password is incorrect');
         }
-        
+
         // Hasher le nouveau mot de passe
         const newPasswordHash = await bcrypt.hash(newPassword, 12);
-        
+
         // Mettre à jour le mot de passe
         await prisma.user.update({
             where: { id: userId },
-            data: { passwordHash: newPasswordHash }
+            data: { passwordHash: newPasswordHash },
         });
-        
+
         // Invalider toutes les sessions existantes (sécurité)
-        await prisma.session.deleteMany({
-            where: { userId }
-        });
-        
+        await prisma.session.deleteMany({ where: { userId } });
+
         // Invalider tous les refresh tokens
-        await prisma.refreshToken.deleteMany({
-            where: { userId }
-        });
-        
+        await prisma.refreshToken.deleteMany({ where: { userId } });
+
         // Envoyer un email de notification
         const userDetails = await prisma.user.findUnique({
             where: { id: userId },
-            select: { email: true }
+            select: { email: true },
         });
-        
+
         if (userDetails.email) {
             await emailService.sendPasswordChangedEmail(userDetails.email);
         }
-        
+
         return { success: true, message: 'Password changed successfully' };
     }
-    
+
     // ============ LOGOUT ============
     async logout(userId, refreshToken, sessionToken) {
         // Supprimer le refresh token si fourni
         if (refreshToken) {
-            await prisma.refreshToken.deleteMany({
-                where: { token: refreshToken }
-            });
+            await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
         }
-        
+
         // Supprimer la session si fournie
         if (sessionToken) {
-            await prisma.session.deleteMany({
-                where: { sessionToken }
-            });
+            await prisma.session.deleteMany({ where: { sessionToken } });
         }
-        
+
         return { success: true, message: 'Logged out successfully' };
     }
-    
+
     // ============ REFRESH TOKEN ============
     async refreshToken(refreshToken) {
         try {
             // Vérifier le refresh token
             const decoded = jwt.verify(refreshToken, appConfig.refreshTokenSecret);
-            
+
             // Trouver le token en base
             const storedToken = await prisma.refreshToken.findUnique({
                 where: { token: refreshToken },
-                include: { user: true }
+                include: { user: true },
             });
-            
+
             if (!storedToken || storedToken.expiresAt < new Date()) {
                 throw new AppError(401, 'Invalid refresh token');
             }
-            
+
             // Supprimer l'ancien refresh token
-            await prisma.refreshToken.delete({
-                where: { id: storedToken.id }
-            });
-            
+            await prisma.refreshToken.delete({ where: { id: storedToken.id } });
+
             // Générer de nouveaux tokens
             const tokens = await this.generateTokens(storedToken.userId, storedToken.user.accountType);
-            
+
             return tokens;
         } catch (error) {
             throw new AppError(401, 'Invalid refresh token');
         }
     }
-    
+
     // ============ MÉTHODES HELPER ============
-    
+
     // Générer les tokens JWT
     async generateTokens(userId, accountType) {
-        // Access Token (15 minutes par défaut)
+        // Access Token
         const accessToken = jwt.sign(
-            { 
-                userId, 
+            {
+                userId,
                 accountType,
-                tokenType: 'access'
+                tokenType: 'access',
             },
             appConfig.jwtSecret,
-            { expiresIn: appConfig.tokens.accessTokenExpiry }
+            { expiresIn: appConfig.tokens.accessTokenExpiry },
         );
-        
-        // Refresh Token (7 jours par défaut)
+
+        // Refresh Token
         const refreshToken = jwt.sign(
-            { 
+            {
                 userId,
-                tokenType: 'refresh'
+                tokenType: 'refresh',
             },
             appConfig.refreshTokenSecret,
-            { expiresIn: appConfig.tokens.refreshTokenExpiry }
+            { expiresIn: appConfig.tokens.refreshTokenExpiry },
         );
-        
+
         // Stocker le refresh token en base
         await prisma.refreshToken.create({
             data: {
                 token: refreshToken,
                 userId,
-                expiresAt: new Date(Date.now() + appConfig.tokens.refreshTokenExpiry * 1000)
-            }
+                expiresAt: new Date(Date.now() + appConfig.tokens.refreshTokenExpiry * 1000),
+            },
         });
-        
+
         return {
             accessToken,
             refreshToken,
-            expiresIn: appConfig.tokens.accessTokenExpiry
+            expiresIn: appConfig.tokens.accessTokenExpiry,
         };
     }
-    
+
     // Créer une session utilisateur
     async createSession(userId, req) {
         const sessionToken = crypto.randomBytes(64).toString('hex');
-        
+
         await prisma.session.create({
             data: {
                 sessionToken,
                 userId,
-                deviceInfo: req ? {
-                    userAgent: req.get('User-Agent'),
-                    ip: req.ip
-                } : null,
+                deviceInfo: req
+                    ? {
+                          userAgent: req.get('User-Agent'),
+                          ip: req.ip,
+                      }
+                    : null,
                 ipAddress: req ? req.ip : null,
-                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 jours
-            }
+                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 jours
+            },
         });
-        
+
         return sessionToken;
     }
-    
+
     // Créer un code de vérification
     async createVerificationCode(userId, contactType, contactValue, type, code) {
         await prisma.verificationCode.create({
@@ -500,11 +456,11 @@ class AuthService {
                 contactValue,
                 code,
                 type,
-                expiresAt: new Date(Date.now() + appConfig.tokens.verificationTokenExpiry * 1000)
-            }
+                expiresAt: new Date(Date.now() + appConfig.tokens.verificationTokenExpiry * 1000),
+            },
         });
     }
-    
+
     // Logger les tentatives de connexion
     async logLoginAttempt(identifier, userId, success) {
         await prisma.loginAttempt.create({
@@ -512,8 +468,8 @@ class AuthService {
                 email: identifier && identifier.includes('@') ? identifier : null,
                 phone: identifier && !identifier.includes('@') ? identifier : null,
                 success,
-                userId
-            }
+                userId,
+            },
         });
     }
 }

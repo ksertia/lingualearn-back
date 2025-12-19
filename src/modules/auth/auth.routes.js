@@ -6,40 +6,142 @@ const router = express.Router();
 
 /**
  * @swagger
+ * tags:
+ *   name: Authentication
+ *   description: User authentication and account management
+ */
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     UserRegistration:
+ *       type: object
+ *       properties:
+ *         email:
+ *           type: string
+ *           format: email
+ *           example: user@example.com
+ *         phone:
+ *           type: string
+ *           example: "+22670123456"
+ *         password:
+ *           type: string
+ *           format: password
+ *           example: SecurePass123!
+ *         username:
+ *           type: string
+ *           example: john_doe
+ *         userType:
+ *           type: string
+ *           enum: [admin, parent, child, teacher]
+ *           default: parent
+ *         parentId:
+ *           type: string
+ *           example: "65a1e4b2f1d8e7c6b2a1f8e4"
+ *       required:
+ *         - password
+ *       oneOf:
+ *         - required: [email]
+ *         - required: [phone]
+ *
+ *     UserLogin:
+ *       type: object
+ *       properties:
+ *         loginInfo:
+ *           type: string
+ *           example: "user@example.com"
+ *           description: Can be email, username, or phone number
+ *         password:
+ *           type: string
+ *           format: password
+ *           example: SecurePass123!
+ *       required:
+ *         - loginInfo
+ *         - password
+ *
+ *     ForgotPassword:
+ *       type: object
+ *       properties:
+ *         email:
+ *           type: string
+ *           format: email
+ *           example: user@example.com
+ *         phone:
+ *           type: string
+ *           example: "+22670123456"
+ *       oneOf:
+ *         - required: [email]
+ *         - required: [phone]
+ *
+ *     ResetPassword:
+ *       type: object
+ *       properties:
+ *         token:
+ *           type: string
+ *           example: "a1b2c3d4e5f6g7h8i9j0"
+ *         newPassword:
+ *           type: string
+ *           format: password
+ *           example: NewSecurePass123!
+ *       required:
+ *         - token
+ *         - newPassword
+ *
+ *     VerifyAccount:
+ *       type: object
+ *       properties:
+ *         token:
+ *           type: string
+ *           example: "123456"
+ *       required:
+ *         - token
+ *
+ *     ChangePassword:
+ *       type: object
+ *       properties:
+ *         currentPassword:
+ *           type: string
+ *           format: password
+ *           example: OldSecurePass123!
+ *         newPassword:
+ *           type: string
+ *           format: password
+ *           example: NewSecurePass123!
+ *       required:
+ *         - currentPassword
+ *         - newPassword
+ *
+ *     RefreshToken:
+ *       type: object
+ *       properties:
+ *         refreshToken:
+ *           type: string
+ *           example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *       required:
+ *         - refreshToken
+ */
+
+/**
+ * @swagger
  * /api/v1/auth/register:
  *   post:
- *     tags:
- *       - Authentication
+ *     tags: [Authentication]
  *     summary: Register a new user
- *     description: Create a new user account with email and password
+ *     description: Create a new user account with email/phone and password
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - email
- *               - password
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 example: user@example.com
- *               password:
- *                 type: string
- *                 format: password
- *                 example: securePassword123!
- *               username:
- *                 type: string
- *                 example: username
+ *             $ref: '#/components/schemas/UserRegistration'
  *     responses:
  *       201:
  *         description: User successfully registered
  *       400:
  *         description: Bad request - invalid input
  *       409:
- *         description: Conflict - email already exists
+ *         description: Conflict - email or phone already exists
  */
 router.post('/register', authController.register);
 
@@ -47,35 +149,20 @@ router.post('/register', authController.register);
  * @swagger
  * /api/v1/auth/login:
  *   post:
- *     tags:
- *       - Authentication
+ *     tags: [Authentication]
  *     summary: Login user
- *     description: Authenticate user with email and password
+ *     description: Authenticate user with loginInfo (email, username, or phone) and password
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - email
- *               - password
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 example: user@example.com
- *               password:
- *                 type: string
- *                 format: password
- *                 example: securePassword123!
+ *             $ref: '#/components/schemas/UserLogin'
  *     responses:
  *       200:
  *         description: Login successful
  *       401:
  *         description: Unauthorized - invalid credentials
- *       404:
- *         description: User not found
  */
 router.post('/login', authController.login);
 
@@ -83,28 +170,18 @@ router.post('/login', authController.login);
  * @swagger
  * /api/v1/auth/forgot-password:
  *   post:
- *     tags:
- *       - Authentication
+ *     tags: [Authentication]
  *     summary: Request password reset
- *     description: Send a password reset link to the user's email
+ *     description: Send a password reset link to the user's email or phone
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - email
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 example: user@example.com
+ *             $ref: '#/components/schemas/ForgotPassword'
  *     responses:
  *       200:
- *         description: Reset link sent to email
- *       404:
- *         description: User not found
+ *         description: Reset link sent to email/phone
  */
 router.post('/forgot-password', authController.forgotPassword);
 
@@ -112,8 +189,7 @@ router.post('/forgot-password', authController.forgotPassword);
  * @swagger
  * /api/v1/auth/reset-password:
  *   post:
- *     tags:
- *       - Authentication
+ *     tags: [Authentication]
  *     summary: Reset password
  *     description: Reset user password with a valid reset token
  *     requestBody:
@@ -121,17 +197,7 @@ router.post('/forgot-password', authController.forgotPassword);
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - token
- *               - newPassword
- *             properties:
- *               token:
- *                 type: string
- *               newPassword:
- *                 type: string
- *                 format: password
- *                 example: newSecurePassword123!
+ *             $ref: '#/components/schemas/ResetPassword'
  *     responses:
  *       200:
  *         description: Password successfully reset
@@ -144,32 +210,20 @@ router.post('/reset-password', authController.resetPassword);
  * @swagger
  * /api/v1/auth/verify-account:
  *   post:
- *     tags:
- *       - Authentication
+ *     tags: [Authentication]
  *     summary: Verify user account
- *     description: Verify user account with email verification code
+ *     description: Verify user account with verification token
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - email
- *               - code
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 example: user@example.com
- *               code:
- *                 type: string
- *                 example: "123456"
+ *             $ref: '#/components/schemas/VerifyAccount'
  *     responses:
  *       200:
  *         description: Account successfully verified
  *       400:
- *         description: Invalid verification code
+ *         description: Invalid verification token
  */
 router.post('/verify-account', authController.verifyAccount);
 
@@ -177,8 +231,7 @@ router.post('/verify-account', authController.verifyAccount);
  * @swagger
  * /api/v1/auth/refresh-token:
  *   post:
- *     tags:
- *       - Authentication
+ *     tags: [Authentication]
  *     summary: Refresh access token
  *     description: Get a new access token using a refresh token
  *     requestBody:
@@ -186,12 +239,7 @@ router.post('/verify-account', authController.verifyAccount);
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - refreshToken
- *             properties:
- *               refreshToken:
- *                 type: string
+ *             $ref: '#/components/schemas/RefreshToken'
  *     responses:
  *       200:
  *         description: New access token generated
@@ -204,8 +252,7 @@ router.post('/refresh-token', authController.refreshToken);
  * @swagger
  * /api/v1/auth/logout:
  *   post:
- *     tags:
- *       - Authentication
+ *     tags: [Authentication]
  *     summary: Logout user
  *     description: Invalidate user session and tokens
  *     responses:
@@ -218,8 +265,7 @@ router.post('/logout', authController.logout);
  * @swagger
  * /api/v1/auth/profile:
  *   get:
- *     tags:
- *       - Authentication
+ *     tags: [Authentication]
  *     summary: Get user profile
  *     description: Get authenticated user's profile information
  *     security:
@@ -236,8 +282,7 @@ router.get('/profile', authMiddleware, authController.getProfile);
  * @swagger
  * /api/v1/auth/change-password:
  *   post:
- *     tags:
- *       - Authentication
+ *     tags: [Authentication]
  *     summary: Change password
  *     description: Change authenticated user's password
  *     security:
@@ -247,17 +292,7 @@ router.get('/profile', authMiddleware, authController.getProfile);
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - currentPassword
- *               - newPassword
- *             properties:
- *               currentPassword:
- *                 type: string
- *                 format: password
- *               newPassword:
- *                 type: string
- *                 format: password
+ *             $ref: '#/components/schemas/ChangePassword'
  *     responses:
  *       200:
  *         description: Password successfully changed
@@ -272,8 +307,7 @@ router.post('/change-password', authMiddleware, authController.changePassword);
  * @swagger
  * /api/v1/auth/check-auth:
  *   get:
- *     tags:
- *       - Authentication
+ *     tags: [Authentication]
  *     summary: Check authentication status
  *     description: Verify if user is authenticated
  *     security:
