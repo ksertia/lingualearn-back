@@ -10,7 +10,7 @@ const { logger } = require('../../utils/logger');
 class AuthService {
     // ============ INSCRIPTION ============
     async register(data) {
-        const { email, phone, password, username, userType, parentId } = data;
+        const { email, phone, password, username, accountType, parentId } = data;
         
         // Vérifier que l'utilisateur fournit soit email, soit phone
         if (!email && !phone) {
@@ -51,9 +51,9 @@ class AuthService {
         }
         
         // Vérifier le parent pour les comptes enfants
-        if (userType === 'child' && parentId) {
+        if (accountType === 'sub_account' && parentId) {
             const parent = await prisma.user.findUnique({
-                where: { id: parentId, userType: 'parent' }
+                where: { id: parentId, accountType: 'user' }
             });
             
             if (!parent) {
@@ -75,8 +75,8 @@ class AuthService {
                 phone: phone || null,
                 username: username || null,
                 passwordHash,
-                userType,
-                parentId: userType === 'child' ? parentId : null,
+                accountType,
+                parentId: accountType === 'sub_account' ? parentId : null,
                 isVerified: false,
                 status: 'active'
             },
@@ -85,7 +85,7 @@ class AuthService {
                 email: true,
                 phone: true,
                 username: true,
-                userType: true,
+                accountType: true,
                 isVerified: true,
                 status: true,
                 createdAt: true
@@ -104,7 +104,7 @@ class AuthService {
         await this.logLoginAttempt(email || phone, null, true);
         
         // Générer les tokens immédiatement (l'utilisateur peut se connecter même sans vérifier)
-        const tokens = await this.generateTokens(user.id, user.userType);
+        const tokens = await this.generateTokens(user.id, user.accountType);
         
         return {
             user,
@@ -128,7 +128,7 @@ class AuthService {
                     phone: true,
                     username: true,
                     passwordHash: true,
-                    userType: true,
+                    accountType: true,
                     isVerified: true,
                     status: true,
                     lastLogin: true
@@ -143,7 +143,7 @@ class AuthService {
                     phone: true,
                     username: true,
                     passwordHash: true,
-                    userType: true,
+                    accountType: true,
                     isVerified: true,
                     status: true,
                     lastLogin: true
@@ -175,7 +175,7 @@ class AuthService {
         });
         
         // Générer les tokens
-        const tokens = await this.generateTokens(user.id, user.userType);
+        const tokens = await this.generateTokens(user.id, user.accountType);
         
         // Créer une session
         await this.createSession(user.id, req);
@@ -422,7 +422,7 @@ class AuthService {
             });
             
             // Générer de nouveaux tokens
-            const tokens = await this.generateTokens(storedToken.userId, storedToken.user.userType);
+            const tokens = await this.generateTokens(storedToken.userId, storedToken.user.accountType);
             
             return tokens;
         } catch (error) {
@@ -433,12 +433,12 @@ class AuthService {
     // ============ MÉTHODES HELPER ============
     
     // Générer les tokens JWT
-    async generateTokens(userId, userType) {
+    async generateTokens(userId, accountType) {
         // Access Token (15 minutes par défaut)
         const accessToken = jwt.sign(
             { 
                 userId, 
-                userType,
+                accountType,
                 tokenType: 'access'
             },
             appConfig.jwtSecret,

@@ -1,13 +1,13 @@
 require('dotenv').config();
 
 const appConfig = {
-    port: process.env.PORT || 4000,
-    nodeEnv: process.env.NODE_ENV || 'development',
-    apiVersion: process.env.API_VERSION || 'v1',
+    port: process.env.PORT ,
+    nodeEnv: process.env.NODE_ENV ,
+    apiVersion: process.env.API_VERSION ,
     databaseUrl: process.env.DATABASE_URL,
     jwtSecret: process.env.JWT_SECRET,
     refreshTokenSecret: process.env.REFRESH_TOKEN_SECRET,
-    clientUrl: process.env.CLIENT_URL || 'http://localhost:3000',
+    clientUrl: process.env.CLIENT_URL ,
     email: {
         host: process.env.EMAIL_HOST,
         port: process.env.EMAIL_PORT,
@@ -15,10 +15,10 @@ const appConfig = {
         pass: process.env.EMAIL_PASS
     },
     tokens: {
-        resetTokenExpiry: parseInt(process.env.RESET_TOKEN_EXPIRY) || 3600,
-        verificationTokenExpiry: parseInt(process.env.VERIFICATION_TOKEN_EXPIRY) || 86400,
-        accessTokenExpiry: parseInt(process.env.ACCESS_TOKEN_EXPIRY) || 900,
-        refreshTokenExpiry: parseInt(process.env.REFRESH_TOKEN_EXPIRY) || 604800
+        resetTokenExpiry: parseInt(process.env.RESET_TOKEN_EXPIRY) ,
+        verificationTokenExpiry: parseInt(process.env.VERIFICATION_TOKEN_EXPIRY) ,
+        accessTokenExpiry: parseInt(process.env.ACCESS_TOKEN_EXPIRY) ,
+        refreshTokenExpiry: parseInt(process.env.REFRESH_TOKEN_EXPIRY) 
     }
 };
 
