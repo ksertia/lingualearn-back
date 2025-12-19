@@ -78,7 +78,7 @@ class AuthService {
                 accountType,
                 parentId: accountType === 'sub_account' ? parentId : null,
                 isVerified: false,
-                status: 'active'
+                isActive: true
             },
             select: {
                 id: true,
@@ -87,7 +87,7 @@ class AuthService {
                 username: true,
                 accountType: true,
                 isVerified: true,
-                status: true,
+                isActive: true,
                 createdAt: true
             }
         });
@@ -130,7 +130,7 @@ class AuthService {
                     passwordHash: true,
                     accountType: true,
                     isVerified: true,
-                    status: true,
+                    isActive: true,
                     lastLogin: true
                 }
             });
@@ -145,7 +145,7 @@ class AuthService {
                     passwordHash: true,
                     accountType: true,
                     isVerified: true,
-                    status: true,
+                    isActive: true,
                     lastLogin: true
                 }
             });
@@ -156,7 +156,7 @@ class AuthService {
             throw new AppError(401, 'Invalid credentials');
         }
         
-        if (user.status !== 'active') {
+        if (!user.isActive) {
             await this.logLoginAttempt(email || phone, user.id, false);
             throw new AppError(401, 'Your account is not active');
         }
@@ -199,11 +199,11 @@ class AuthService {
         let user;
         if (email) {
             user = await prisma.user.findUnique({
-                where: { email, status: 'active' }
+                where: { email, isActive: true }
             });
         } else if (phone) {
             user = await prisma.user.findFirst({
-                where: { phone, status: 'active' }
+                where: { phone, isActive: true }
             });
         }
         
