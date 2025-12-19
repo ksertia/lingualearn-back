@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const appConfig = {
-    port: process.env.PORT || 5000,
+    port: process.env.PORT || 4000,
     nodeEnv: process.env.NODE_ENV || 'development',
     apiVersion: process.env.API_VERSION || 'v1',
     databaseUrl: process.env.DATABASE_URL,
