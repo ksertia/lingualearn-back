@@ -15,12 +15,16 @@ const options = {
     },
     servers: [
       {
-        url: `http://localhost:${appConfig.port}`,
-        description: 'Development server',
+        url: 'http://localhost:4000',
+        description: 'Développement local',
+      },
+      {
+        url: 'http://213.32.120.11:4000',
+        description: 'Production (VPS)',
       },
       {
         url: 'https://lingualearn-back-second.onrender.com',
-        description: 'Production server (Render)',
+        description: 'Production (Render)',
       },
     ],
     components: {

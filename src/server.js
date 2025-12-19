@@ -15,7 +15,21 @@ const PORT = appConfig.port;
 // Middlewares de sécurité
 app.use(helmet());
 app.use(cors({
-    origin: appConfig.clientUrl,
+    origin: (origin, callback) => {
+        if (appConfig.nodeEnv === 'production') {
+            // Autoriser uniquement le Swagger en prod
+            if (origin === 'http://213.32.120.11:4000' || !origin) {
+                return callback(null, true);
+            }
+            return callback(new Error('Not allowed by CORS'));
+        } else {
+            // En dev, autoriser le client local
+            if (origin === appConfig.clientUrl || !origin) {
+                return callback(null, true);
+            }
+            return callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true
 }));
 
