@@ -102,6 +102,8 @@ https.createServer(httpsOptions, app).listen(PORT, () => {
     console.log(`   🏠 Welcome: https://localhost:${PORT}/api/${appConfig.apiVersion}`);
     console.log(`   📚 Swagger UI: https://localhost:${PORT}/api-docs`);
     console.log(`   📄 Swagger JSON: https://localhost:${PORT}/api-docs/swagger.json\n`);
+    console.log(`   📚 Swagger UI: https://213.32.120.11:${PORT}/api-docs`);
+    console.log(`   📄 Swagger JSON: https://213.32.120.11:${PORT}/api-docs/swagger.json\n`);
 
     console.log(`✅ Ready to accept requests...\n`);
 });
