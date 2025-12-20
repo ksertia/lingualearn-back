@@ -85,8 +85,8 @@ app.use(errorHandler);
 // HTTPS Server
 // =====================
 const httpsOptions = {
-    key: fs.readFileSync('./cert/server.key'),
-    cert: fs.readFileSync('./cert/server.crt')
+    key: fs.readFileSync(__dirname + '/../cert/server.key'),
+    cert: fs.readFileSync(__dirname + '/../cert/server.crt')
 };
 
 https.createServer(httpsOptions, app).listen(PORT, () => {
