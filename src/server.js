@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const swaggerUi = require('swagger-ui-express');
+const https = require('https');
+const fs = require('fs');
 require('dotenv').config();
 
 const { errorHandler } = require('./middleware/errorHandler');
@@ -20,7 +22,7 @@ app.use(helmet());
 app.use(cors({
     origin: (origin, callback) => {
         if (appConfig.nodeEnv === 'production') {
-            if (origin === `http://213.32.120.11:${PORT}` || !origin) {
+            if (origin === `https://213.32.120.11:${PORT}` || !origin) {
                 return callback(null, true);
             }
             return callback(new Error('Not allowed by CORS'));
@@ -58,7 +60,7 @@ app.use(requestLogger);
 app.use('/api-docs', swaggerUi.serve);
 app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
     swaggerOptions: {
-        url: `http://213.32.120.11:${PORT}/api-docs/swagger.json`,
+        url: `https://213.32.120.11:${PORT}/api-docs/swagger.json`,
         docExpansion: 'none',
     },
 }));
@@ -80,21 +82,26 @@ app.use(`/api/${appConfig.apiVersion}`, router);
 app.use(errorHandler);
 
 // =====================
-// Démarrage du serveur
+// HTTPS Server
 // =====================
-app.listen(PORT, () => {
+const httpsOptions = {
+    key: fs.readFileSync('./cert/server.key'),
+    cert: fs.readFileSync('./cert/server.crt')
+};
+
+https.createServer(httpsOptions, app).listen(PORT, () => {
     console.log(`\n╔════════════════════════════════════════════════════════╗`);
-    console.log(`║          🚀 API Server Started Successfully 🚀         ║`);
+    console.log(`║          🚀 HTTPS API Server Started Successfully 🚀    ║`);
     console.log(`╚════════════════════════════════════════════════════════╝\n`);
     console.log(`📍 Server running on port: ${PORT}`);
     console.log(`🌐 Environment: ${appConfig.nodeEnv}`);
     console.log(`📦 API Version: ${appConfig.apiVersion}\n`);
 
     console.log(`🔗 Useful Links:`);
-    console.log(`   📍 Health Check: http://localhost:${PORT}/health`);
-    console.log(`   🏠 Welcome: http://localhost:${PORT}/api/${appConfig.apiVersion}`);
-    console.log(`   📚 Swagger UI: http://localhost:${PORT}/api-docs`);
-    console.log(`   📄 Swagger JSON: http://localhost:${PORT}/api-docs/swagger.json\n`);
+    console.log(`   📍 Health Check: https://localhost:${PORT}/health`);
+    console.log(`   🏠 Welcome: https://localhost:${PORT}/api/${appConfig.apiVersion}`);
+    console.log(`   📚 Swagger UI: https://localhost:${PORT}/api-docs`);
+    console.log(`   📄 Swagger JSON: https://localhost:${PORT}/api-docs/swagger.json\n`);
 
     console.log(`✅ Ready to accept requests...\n`);
 });
