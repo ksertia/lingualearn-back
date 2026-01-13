@@ -15,8 +15,8 @@ const options = {
     },
     servers: [
       {
-        url: 'http://localhost:4000',
-        description: 'Développement local',
+        url: 'https://localhost:4000',
+        description: 'Développement local (HTTPS)',
       },
       {
         url: 'https://213.32.120.11:4000',

@@ -14,6 +14,7 @@ const authMiddleware = async (req, res, next) => {
         const decoded = jwt.verify(token, appConfig.jwtSecret);
         
         // Vérifier si l'utilisateur existe toujours
+
         const user = await prisma.user.findUnique({
             where: { id: decoded.userId },
             select: {
@@ -21,14 +22,14 @@ const authMiddleware = async (req, res, next) => {
                 email: true,
                 phone: true,
                 username: true,
-                userType: true,
+                accountType: true,
                 isVerified: true,
-                status: true,
+                isActive: true,
                 lastLogin: true
             }
         });
 
-        if (!user || user.status !== 'active') {
+        if (!user || !user.isActive) {
             throw new AppError(401, 'User account is disabled or does not exist.');
         }
 

@@ -38,8 +38,7 @@ const authController = {
     // Mot de passe oublié
     forgotPassword: asyncHandler(async (req, res) => {
         const validatedData = forgotPasswordSchema.parse(req.body);
-        const result = await authService.forgotPassword(validatedData);
-        
+        const result = await authService.forgotPassword(validatedData.loginInfo);
         res.json(result);
     }),
     

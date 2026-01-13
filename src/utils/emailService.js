@@ -15,15 +15,15 @@ class EmailService {
         });
     }
 
-    async sendEmail(to, subject, html) {
+    // Fonction utilitaire générique
+    async sendMail({ to, subject, html }) {
         try {
             const mailOptions = {
-                from: `"Sonaby Auth" <${appConfig.email.user}>`,
+                from: `"Lingualearn Auth" <${appConfig.email.user}>`,
                 to,
                 subject,
                 html
             };
-
             const info = await this.transporter.sendMail(mailOptions);
             logger.info(`Email sent: ${info.messageId}`);
             return true;
@@ -31,6 +31,10 @@ class EmailService {
             logger.error('Email sending failed:', error);
             return false;
         }
+    }
+
+    async sendEmail(to, subject, html) {
+        return this.sendMail({ to, subject, html });
     }
 
     async sendPasswordResetEmail(email, resetToken) {

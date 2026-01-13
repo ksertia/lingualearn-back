@@ -27,10 +27,8 @@ app.use(cors({
             }
             return callback(new Error('Not allowed by CORS'));
         } else {
-            if (origin === appConfig.clientUrl || !origin) {
-                return callback(null, true);
-            }
-            return callback(new Error('Not allowed by CORS'));
+            // Autoriser toutes les origines en développement
+            return callback(null, true);
         }
     },
     credentials: true

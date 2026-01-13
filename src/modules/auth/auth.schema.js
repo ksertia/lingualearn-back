@@ -8,13 +8,12 @@ const registerSchema = z.object({
         .refine(val => !val || /^\+?[1-9]\d{1,14}$/.test(val), 'Invalid phone number format'),
     password: z.string()
         .min(6, 'Password must be at least 6 characters')
-        .max(100, 'Password too long')
-        .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain at least one uppercase letter, one lowercase letter and one number'),
+        .max(100, 'Password too long'),
     username: z.string()
         .min(3, 'Username must be at least 3 characters')
         .max(50, 'Username too long')
         .regex(/^[a-zA-Z0-9_.]+$/, 'Username can only contain letters, numbers, dots and underscores'),
-    userType: z.enum(['admin', 'parent', 'child', 'teacher']).default('parent'),
+    accountType: z.enum(['admin', 'parent', 'child', 'teacher']).default('parent'),
     parentId: z.string().optional() // For child accounts
 }).refine(data => data.email || data.phone, {
     message: 'Either email or phone must be provided',

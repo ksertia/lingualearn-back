@@ -10,7 +10,14 @@ const { logger } = require('../../utils/logger');
 class AuthService {
     // ============ INSCRIPTION ============
     async register(data) {
-        const { email, phone, password, username, accountType, parentId } = data;
+        const { email, phone, password, username, userType, parentId } = data;
+
+        // Mapper userType (du frontend) vers accountType (pour Prisma)
+        let accountType = 'user';
+        if (userType === 'admin') accountType = 'admin';
+        else if (userType === 'parent') accountType = 'user';
+        else if (userType === 'child') accountType = 'sub_account';
+        else if (userType === 'teacher') accountType = 'teacher';
 
         // Vérifier que l'utilisateur fournit soit email, soit phone
         if (!email && !phone) {

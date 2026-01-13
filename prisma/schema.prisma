@@ -14,7 +14,7 @@ datasource db {
 
 model User {
   id                    String   @id @default(cuid())
-  parentUserId          String?  // null pour compte principal, lier aux sous-comptes
+  parentId          String?  // null pour compte principal, lier aux sous-comptes
   accountType           String   @db.VarChar(20) // admin, user, sub_account
   email                 String?  @unique @db.VarChar(255)
   phone                 String?  @unique @db.VarChar(20)
@@ -30,7 +30,7 @@ model User {
   lastActive            DateTime?
 
   // Relations - Hiérarchie des comptes (compte principal -> sous-comptes)
-  parentUser            User?    @relation("ParentToSubAccounts", fields: [parentUserId], references: [id], onDelete: SetNull)
+  parentUser            User?    @relation("ParentToSubAccounts", fields: [parentId], references: [id], onDelete: SetNull)
   subAccounts           User[]   @relation("ParentToSubAccounts")
   createdByUser         User?    @relation("CreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
   createdUsers          User[]   @relation("CreatedBy")
@@ -77,7 +77,7 @@ model User {
   gameSessions          GameSession[]
   transactions          Transaction[]
 
-  @@index([parentUserId])
+  @@index([parentId])
   @@index([accountType])
   @@map("users")
 }

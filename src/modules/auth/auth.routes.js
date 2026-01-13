@@ -28,17 +28,17 @@ const router = express.Router();
  *         password:
  *           type: string
  *           format: password
- *           example: SecurePass123!
+ *           example: password
  *         username:
  *           type: string
  *           example: john_doe
- *         userType:
+ *         accountType:
  *           type: string
  *           enum: [admin, parent, child, teacher]
  *           default: parent
  *         parentId:
  *           type: string
- *           example: "65a1e4b2f1d8e7c6b2a1f8e4"
+ *           example: "null"
  *       required:
  *         - password
  *       oneOf:
@@ -55,7 +55,7 @@ const router = express.Router();
  *         password:
  *           type: string
  *           format: password
- *           example: SecurePass123!
+ *           example: password
  *       required:
  *         - loginInfo
  *         - password
@@ -63,16 +63,12 @@ const router = express.Router();
  *     ForgotPassword:
  *       type: object
  *       properties:
- *         email:
+ *         loginInfo:
  *           type: string
- *           format: email
  *           example: user@example.com
- *         phone:
- *           type: string
- *           example: "+22670123456"
- *       oneOf:
- *         - required: [email]
- *         - required: [phone]
+ *           description: Peut être email, username ou numéro de téléphone
+ *       required:
+ *         - loginInfo
  *
  *     ResetPassword:
  *       type: object
@@ -83,7 +79,7 @@ const router = express.Router();
  *         newPassword:
  *           type: string
  *           format: password
- *           example: NewSecurePass123!
+ *           example: password
  *       required:
  *         - token
  *         - newPassword
@@ -103,11 +99,11 @@ const router = express.Router();
  *         currentPassword:
  *           type: string
  *           format: password
- *           example: OldSecurePass123!
+ *           example: Oldpassword
  *         newPassword:
  *           type: string
  *           format: password
- *           example: NewSecurePass123!
+ *           example: Newpassword
  *       required:
  *         - currentPassword
  *         - newPassword
