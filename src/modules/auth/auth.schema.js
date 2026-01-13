@@ -14,7 +14,9 @@ const registerSchema = z.object({
     username: z.string()
         .min(3, 'Username must be at least 3 characters')
         .max(50, 'Username too long')
-        .regex(/^[a-zA-Z0-9_.]+$/, 'Username can only contain letters, numbers, dots and underscores'),
+        .regex(/^[a-zA-Z0-9_.]+$/, 'Username can only contain letters, numbers, dots and underscores')
+        .optional()
+        .nullable(),
     accountType: z.enum(['admin', 'parent', 'child', 'teacher']).default('parent'),
     parentId: z.string().optional() // For child accounts
 }).refine(data => data.email || data.phone, {

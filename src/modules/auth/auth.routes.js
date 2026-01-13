@@ -37,7 +37,8 @@ const router = express.Router();
  *           example: password
  *         username:
  *           type: string
- *           example: john_doe
+ *           example: null
+ *           nullable: true
  *         accountType:
  *           type: string
  *           enum: [admin, parent, child, teacher]
