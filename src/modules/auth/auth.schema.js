@@ -18,7 +18,10 @@ const registerSchema = z.object({
         .optional()
         .nullable(),
     accountType: z.enum(['admin', 'parent', 'child', 'teacher']).default('parent'),
-    parentId: z.string().optional() // For child accounts
+    parentId: z.preprocess(
+        val => (val === 'null' ? null : val),
+        z.string().optional().nullable()
+    ) // For child accounts
 }).refine(data => data.email || data.phone, {
     message: 'Either email or phone must be provided',
     path: ['email']

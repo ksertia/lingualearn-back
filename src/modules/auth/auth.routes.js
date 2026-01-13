@@ -45,7 +45,8 @@ const router = express.Router();
  *           default: parent
  *         parentId:
  *           type: string
- *           example: "null"
+ *           example: null
+ *           nullable: true
  *       required:
  *         - firstName
  *         - lastName
