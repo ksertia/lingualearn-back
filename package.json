@@ -9,7 +9,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name init",
     "prisma:seed": "node prisma/seed.js",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "create:superadmin": "node scripts/create-superadmin.js"
   },
   "dependencies": {
     "@prisma/client": "^5.0.0",
