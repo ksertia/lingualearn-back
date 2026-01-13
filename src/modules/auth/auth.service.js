@@ -10,7 +10,7 @@ const { logger } = require('../../utils/logger');
 class AuthService {
     // ============ INSCRIPTION ============
     async register(data) {
-        const { email, phone, password, username, userType, parentId } = data;
+        const { email, phone, password, username, userType, parentId, firstName, lastName } = data;
 
         // Mapper userType (du frontend) vers accountType (pour Prisma)
         let accountType = 'user';
@@ -70,7 +70,14 @@ class AuthService {
                 passwordHash,
                 accountType,
                 parentId: accountType === 'sub_account' ? parentId : null,
+                profile: {
+                    create: {
+                        firstName,
+                        lastName
+                    }
+                }
             },
+            include: { profile: true }
         });
 
         // Générer un code de vérification si email ou phone fourni

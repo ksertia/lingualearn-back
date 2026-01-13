@@ -18,6 +18,12 @@ const router = express.Router();
  *     UserRegistration:
  *       type: object
  *       properties:
+ *         firstName:
+ *           type: string
+ *           example: John
+ *         lastName:
+ *           type: string
+ *           example: Doe
  *         email:
  *           type: string
  *           format: email
@@ -40,6 +46,8 @@ const router = express.Router();
  *           type: string
  *           example: "null"
  *       required:
+ *         - firstName
+ *         - lastName
  *         - password
  *       oneOf:
  *         - required: [email]
