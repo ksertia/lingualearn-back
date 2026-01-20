@@ -44,7 +44,6 @@ const resetPasswordSchema = z.object({
     password: z.string()
         .min(6, 'Password must be at least 6 characters')
         .max(100, 'Password too long')
-        .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain at least one uppercase letter, one lowercase letter and one number')
 });
 
 // Verify email/phone schema
@@ -58,7 +57,6 @@ const changePasswordSchema = z.object({
     newPassword: z.string()
         .min(6, 'Password must be at least 6 characters')
         .max(100, 'Password too long')
-        .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain at least one uppercase letter, one lowercase letter and one number')
 });
 
 // Refresh token schema

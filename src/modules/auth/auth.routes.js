@@ -86,13 +86,13 @@ const router = express.Router();
  *         token:
  *           type: string
  *           example: "a1b2c3d4e5f6g7h8i9j0"
- *         newPassword:
+ *         password:
  *           type: string
  *           format: password
  *           example: password
  *       required:
  *         - token
- *         - newPassword
+ *         - password
  *
  *     VerifyAccount:
  *       type: object

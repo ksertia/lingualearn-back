@@ -244,7 +244,7 @@ class AuthService {
         const { token, password } = data;
 
         // Trouver le token
-        const resetToken = await prisma.passwordResetToken.findUnique({
+        const resetToken = await prisma.passwordResetToken.findFirst({
             where: { token },
             include: { user: true },
         });
