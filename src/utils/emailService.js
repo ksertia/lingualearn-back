@@ -13,6 +13,7 @@ class EmailService {
                 pass: appConfig.email.pass
             }
         });
+        logger.info(`Nodemailer configured for user: ${appConfig.email.user}`);
     }
 
     // Fonction utilitaire générique
