@@ -13,6 +13,7 @@ datasource db {
 // ============================================================================
 
 model User {
+    firstLogin            Boolean  @default(true)
   id                    String   @id @default(cuid())
   parentId          String?  // null pour compte principal, lier aux sous-comptes
   accountType           String   @db.VarChar(20) // admin, user, sub_account

@@ -173,11 +173,20 @@ class AuthService {
             throw new AppError(401, 'Invalid credentials');
         }
 
-        // Mettre à jour lastLogin
-        await prisma.user.update({
-            where: { id: user.id },
-            data: { lastLogin: new Date(), lastActive: new Date() },
-        });
+        // Vérifier la première connexion
+        let firstLogin = user.firstLogin;
+        if (firstLogin) {
+            // Mettre à jour le flag firstLogin à false
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { firstLogin: false, lastLogin: new Date(), lastActive: new Date() },
+            });
+        } else {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { lastLogin: new Date(), lastActive: new Date() },
+            });
+        }
 
         // Générer les tokens
         const tokens = await this.generateTokens(user.id, user.accountType);
@@ -191,7 +200,7 @@ class AuthService {
         await this.logLoginAttempt(loginInfo, user.id, true);
 
         return {
-            user: userWithoutPassword,
+            user: { ...userWithoutPassword, firstLogin },
             tokens,
         };
     }
