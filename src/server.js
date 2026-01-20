@@ -2,8 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const swaggerUi = require('swagger-ui-express');
-const https = require('https');
-const fs = require('fs');
+// Suppression du HTTPS natif, car le SSL est géré par Nginx/Cloudflare
 require('dotenv').config();
 
 const { errorHandler } = require('./middleware/errorHandler');
@@ -70,28 +69,21 @@ app.use(`/api/${appConfig.apiVersion}`, router);
 app.use(errorHandler);
 
 // =====================
-// HTTPS Server
+// HTTP Server (SSL handled by Nginx/Cloudflare)
 // =====================
-const httpsOptions = {
-    key: fs.readFileSync(__dirname + '/../cert/server.key'),
-    cert: fs.readFileSync(__dirname + '/../cert/server.crt')
-};
-
-https.createServer(httpsOptions, app).listen(PORT, () => {
+app.listen(PORT, () => {
     console.log(`\n╔════════════════════════════════════════════════════════╗`);
-    console.log(`║          🚀 HTTPS API Server Started Successfully 🚀    ║`);
+    console.log(`║          🚀 API Server Started Successfully 🚀         ║`);
     console.log(`╚════════════════════════════════════════════════════════╝\n`);
     console.log(`📍 Server running on port: ${PORT}`);
     console.log(`🌐 Environment: ${appConfig.nodeEnv}`);
     console.log(`📦 API Version: ${appConfig.apiVersion}\n`);
 
     console.log(`🔗 Useful Links:`);
-    console.log(`   📍 Health Check: https://localhost:${PORT}/health`);
-    console.log(`   🏠 Welcome: https://localhost:${PORT}/api/${appConfig.apiVersion}`);
-    console.log(`   📚 Swagger UI: https://localhost:${PORT}/api-docs`);
-    console.log(`   📄 Swagger JSON: https://localhost:${PORT}/api-docs/swagger.json\n`);
-    console.log(`   📚 Swagger UI: https://213.32.120.11:${PORT}/api-docs`);
-    console.log(`   📄 Swagger JSON: https://213.32.120.11:${PORT}/api-docs/swagger.json\n`);
+    console.log(`   📍 Health Check: https://api.lingualearn.com/health`);
+    console.log(`   🏠 Welcome: https://api.lingualearn.com/api/${appConfig.apiVersion}`);
+    console.log(`   📚 Swagger UI: https://api.lingualearn.com/api-docs`);
+    console.log(`   📄 Swagger JSON: https://api.lingualearn.com/api-docs/swagger.json\n`);
 
     console.log(`✅ Ready to accept requests...\n`);
 });
