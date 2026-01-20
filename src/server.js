@@ -20,17 +20,7 @@ const PORT = appConfig.port;
 // =====================
 app.use(helmet());
 app.use(cors({
-    origin: (origin, callback) => {
-        if (appConfig.nodeEnv === 'production') {
-            if (origin === `https://213.32.120.11:${PORT}` || !origin) {
-                return callback(null, true);
-            }
-            return callback(new Error('Not allowed by CORS'));
-        } else {
-            // Autoriser toutes les origines en développement
-            return callback(null, true);
-        }
-    },
+    origin: true,
     credentials: true
 }));
 

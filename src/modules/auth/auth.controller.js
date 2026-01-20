@@ -27,10 +27,13 @@ const authController = {
     login: asyncHandler(async (req, res) => {
         const validatedData = loginSchema.parse(req.body);
         const result = await authService.login(validatedData, req);
-        
+        let loginMsg = 'Login successful';
+        if (result.user && result.user.firstLogin) {
+            loginMsg += ' (first login)';
+        }
         res.json({
             success: true,
-            message: 'Login successful',
+            message: loginMsg,
             data: result
         });
     }),
