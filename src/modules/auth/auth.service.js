@@ -86,7 +86,11 @@ class AuthService {
             const contactType = email ? 'email' : 'phone';
             const contactValue = email || phone;
             await this.createVerificationCode(user.id, contactType, contactValue, 'registration', code);
-            // Envoyer le code par email ou SMS (à implémenter)
+            // Envoi du code de vérification par email si email fourni
+            if (email) {
+                await emailService.sendVerificationEmail(email, code);
+            }
+            // (Optionnel) Envoi par SMS si phone fourni
         }
 
         return { success: true, message: 'User registered successfully' };
@@ -146,6 +150,7 @@ class AuthService {
         }
 
         // Vérifications
+
         if (!user) {
             await this.logLoginAttempt(loginInfo, null, false);
             throw new AppError(401, 'Invalid credentials');
@@ -156,6 +161,11 @@ class AuthService {
             throw new AppError(401, 'Your account is not active');
         }
 
+        if (!user.isVerified) {
+            await this.logLoginAttempt(loginInfo, user.id, false);
+            throw new AppError(401, 'Your account is not verified. Please check your email for the activation code.');
+        }
+
         // Vérifier le mot de passe
         const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
         if (!isPasswordValid) {
@@ -163,11 +173,20 @@ class AuthService {
             throw new AppError(401, 'Invalid credentials');
         }
 
-        // Mettre à jour lastLogin
-        await prisma.user.update({
-            where: { id: user.id },
-            data: { lastLogin: new Date(), lastActive: new Date() },
-        });
+        // Vérifier la première connexion
+        let firstLogin = user.firstLogin;
+        if (firstLogin) {
+            // Mettre à jour le flag firstLogin à false
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { firstLogin: false, lastLogin: new Date(), lastActive: new Date() },
+            });
+        } else {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { lastLogin: new Date(), lastActive: new Date() },
+            });
+        }
 
         // Générer les tokens
         const tokens = await this.generateTokens(user.id, user.accountType);
@@ -181,7 +200,7 @@ class AuthService {
         await this.logLoginAttempt(loginInfo, user.id, true);
 
         return {
-            user: userWithoutPassword,
+            user: { ...userWithoutPassword, firstLogin },
             tokens,
         };
     }
@@ -219,7 +238,11 @@ class AuthService {
 
         // Envoyer l'email de réinitialisation
         if (user.email) {
-            await emailService.sendPasswordResetEmail(user.email, resetToken);
+            const emailSent = await emailService.sendPasswordResetEmail(user.email, resetToken);
+            if (!emailSent) {
+                logger.error(`Password reset email failed for ${user.email}`);
+                throw new AppError(500, 'Erreur lors de l\'envoi de l\'email de réinitialisation. Contactez le support.');
+            }
         }
 
         return { success: true, message: 'If an account exists, a reset link has been sent' };
@@ -230,7 +253,7 @@ class AuthService {
         const { token, password } = data;
 
         // Trouver le token
-        const resetToken = await prisma.passwordResetToken.findUnique({
+        const resetToken = await prisma.passwordResetToken.findFirst({
             where: { token },
             include: { user: true },
         });
