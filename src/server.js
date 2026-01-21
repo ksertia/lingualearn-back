@@ -15,19 +15,20 @@ const router = require('./routes');
 
 const app = express();
 
-// ----------------------------
-// PORTS
-// HTTPS sur 4000 (depuis .env)
-// HTTP sur 80 pour redirection
-// ----------------------------
-const HTTPS_PORT = appConfig.port || 4000; // HTTPS principal
-const HTTP_PORT = 80;                       // redirection HTTP
+// =====================
+// Ports
+// =====================
+const HTTPS_PORT = appConfig.port; // HTTPS pour Swagger
+const HTTP_PORT = 4001;             // HTTP pour API front
 
 // =====================
 // Middlewares de sécurité
 // =====================
 app.use(helmet());
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({
+    origin: true,
+    credentials: true
+}));
 
 // Supprimer headers qui causent des warnings Swagger
 app.use((req, res, next) => {
@@ -48,7 +49,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 
 // =====================
-// Swagger documentation
+// Swagger documentation (HTTPS seulement)
 // =====================
 app.use('/api-docs', swaggerUi.serve);
 app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
@@ -57,8 +58,6 @@ app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
         docExpansion: 'none',
     },
 }));
-
-// Swagger JSON endpoint
 app.get('/api-docs/swagger.json', (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.send(swaggerSpec);
@@ -75,26 +74,24 @@ app.use(`/api/${appConfig.apiVersion}`, router);
 app.use(errorHandler);
 
 // =====================
-// HTTPS Server
+// HTTPS Server (Swagger + API sécurisé)
 // =====================
 const httpsOptions = {
     key: fs.readFileSync(__dirname + '/../cert/server.key'),
     cert: fs.readFileSync(__dirname + '/../cert/server.crt')
 };
 
-https.createServer(httpsOptions, app).listen(HTTPS_PORT, () => {
+https.createServer(httpsOptions, app).listen(HTTPS_PORT, '0.0.0.0', () => {
     console.log(`✅ HTTPS server running on port ${HTTPS_PORT}`);
+    console.log(`🔗 Swagger UI: https://213.32.120.11:${HTTPS_PORT}/api-docs`);
 });
 
 // =====================
-// HTTP Server (redirection vers HTTPS)
+// HTTP Server (API non sécurisé pour front)
 // =====================
-http.createServer((req, res) => {
-    const host = req.headers['host'].split(':')[0];
-    res.writeHead(301, { "Location": `https://${host}:${HTTPS_PORT}${req.url}` });
-    res.end();
-}).listen(HTTP_PORT, () => {
-    console.log(`⚡ HTTP server running on port ${HTTP_PORT} (redirecting to HTTPS)`);
+http.createServer(app).listen(HTTP_PORT, '0.0.0.0', () => {
+    console.log(`⚡ HTTP server running on port ${HTTP_PORT}`);
+    console.log(`🔗 API endpoints (HTTP): http://213.32.120.11:${HTTP_PORT}/api/${appConfig.apiVersion}`);
 });
 
 // =====================
@@ -103,13 +100,12 @@ http.createServer((req, res) => {
 console.log(`\n╔════════════════════════════════════════════════════════╗`);
 console.log(`║          🚀 API Server Ready (HTTP & HTTPS) 🚀         ║`);
 console.log(`╚════════════════════════════════════════════════════════╝\n`);
-console.log(`📍 HTTP redirect port: ${HTTP_PORT}`);
 console.log(`📍 HTTPS port: ${HTTPS_PORT}`);
+console.log(`📍 HTTP port (front): ${HTTP_PORT}`);
 console.log(`🌐 Environment: ${appConfig.nodeEnv}`);
 console.log(`📦 API Version: ${appConfig.apiVersion}\n`);
 console.log(`🔗 Useful Links:`);
-console.log(`   📚 Swagger UI (localhost): https://localhost:${HTTPS_PORT}/api-docs`);
-console.log(`   📚 Swagger UI (IP): https://213.32.120.11:${HTTPS_PORT}/api-docs`);
-console.log(`   📄 Swagger JSON (localhost): https://localhost:${HTTPS_PORT}/api-docs/swagger.json`);
-console.log(`   📄 Swagger JSON (IP): https://213.32.120.11:${HTTPS_PORT}/api-docs/swagger.json\n`);
+console.log(`   📚 Swagger UI: https://213.32.120.11:${HTTPS_PORT}/api-docs`);
+console.log(`   📄 Swagger JSON: https://213.32.120.11:${HTTPS_PORT}/api-docs/swagger.json`);
+console.log(`   📚 API HTTP endpoints: http://213.32.120.11:${HTTP_PORT}/api/${appConfig.apiVersion}\n`);
 console.log(`✅ Ready to accept requests...\n`);
