@@ -20,8 +20,8 @@ const app = express();
 // HTTPS sur 4000 (depuis .env)
 // HTTP sur 80 pour redirection
 // ----------------------------
-const HTTPS_PORT = appConfig.port; // 4000
-const HTTP_PORT = 80;
+const HTTPS_PORT = appConfig.port || 4000; // HTTPS principal
+const HTTP_PORT = 80;                       // redirection HTTP
 
 // =====================
 // Middlewares de sécurité
@@ -58,6 +58,7 @@ app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
     },
 }));
 
+// Swagger JSON endpoint
 app.get('/api-docs/swagger.json', (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.send(swaggerSpec);
@@ -107,6 +108,8 @@ console.log(`📍 HTTPS port: ${HTTPS_PORT}`);
 console.log(`🌐 Environment: ${appConfig.nodeEnv}`);
 console.log(`📦 API Version: ${appConfig.apiVersion}\n`);
 console.log(`🔗 Useful Links:`);
-console.log(`   📚 Swagger UI: https://213.32.120.11:${HTTPS_PORT}/api-docs`);
-console.log(`   📄 Swagger JSON: https://213.32.120.11:${HTTPS_PORT}/api-docs/swagger.json\n`);
+console.log(`   📚 Swagger UI (localhost): https://localhost:${HTTPS_PORT}/api-docs`);
+console.log(`   📚 Swagger UI (IP): https://213.32.120.11:${HTTPS_PORT}/api-docs`);
+console.log(`   📄 Swagger JSON (localhost): https://localhost:${HTTPS_PORT}/api-docs/swagger.json`);
+console.log(`   📄 Swagger JSON (IP): https://213.32.120.11:${HTTPS_PORT}/api-docs/swagger.json\n`);
 console.log(`✅ Ready to accept requests...\n`);
