@@ -82,7 +82,7 @@ https.createServer(httpsOptions, app).listen(PORT, () => {
     console.log(`║          🚀 HTTPS API Server Started Successfully 🚀    ║`);
     console.log(`╚════════════════════════════════════════════════════════╝\n`);
     console.log(`📍 Server running on port: ${PORT}`);
-    console.log(`🌐 Environment: ${appConfig.nodeEnv}`);
+    console.log(`🌐 Environments: ${appConfig.nodeEnv}`);
     console.log(`📦 API Version: ${appConfig.apiVersion}\n`);
 
     console.log(`🔗 Useful Links:`);
