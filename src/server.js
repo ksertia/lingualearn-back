@@ -14,17 +14,20 @@ const swaggerSpec = require('./config/swagger');
 const router = require('./routes');
 
 const app = express();
-const HTTP_PORT = 4000;             // Port HTTP pour redirection
-const HTTPS_PORT = appConfig.port;  // Port HTTPS principal
+
+// ----------------------------
+// PORTS
+// HTTPS sur 4000 (depuis .env)
+// HTTP sur 80 pour redirection
+// ----------------------------
+const HTTPS_PORT = appConfig.port; // 4000
+const HTTP_PORT = 80;
 
 // =====================
 // Middlewares de sécurité
 // =====================
 app.use(helmet());
-app.use(cors({
-    origin: true,
-    credentials: true
-}));
+app.use(cors({ origin: true, credentials: true }));
 
 // Supprimer headers qui causent des warnings Swagger
 app.use((req, res, next) => {
@@ -55,7 +58,6 @@ app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
     },
 }));
 
-// Swagger JSON endpoint
 app.get('/api-docs/swagger.json', (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.send(swaggerSpec);
@@ -87,7 +89,7 @@ https.createServer(httpsOptions, app).listen(HTTPS_PORT, () => {
 // HTTP Server (redirection vers HTTPS)
 // =====================
 http.createServer((req, res) => {
-    const host = req.headers['host'].split(':')[0]; // récupère juste l'IP ou nom de domaine
+    const host = req.headers['host'].split(':')[0];
     res.writeHead(301, { "Location": `https://${host}:${HTTPS_PORT}${req.url}` });
     res.end();
 }).listen(HTTP_PORT, () => {
