@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const swaggerUi = require('swagger-ui-express');
 const https = require('https');
+const http = require('http');
 const fs = require('fs');
 require('dotenv').config();
 
@@ -13,7 +14,8 @@ const swaggerSpec = require('./config/swagger');
 const router = require('./routes');
 
 const app = express();
-const PORT = appConfig.port;
+const HTTP_PORT = 4000;             // Port HTTP pour redirection
+const HTTPS_PORT = appConfig.port;  // Port HTTPS principal
 
 // =====================
 // Middlewares de sécurité
@@ -24,7 +26,7 @@ app.use(cors({
     credentials: true
 }));
 
-// Supprimer les headers qui causent des warnings dans Swagger
+// Supprimer headers qui causent des warnings Swagger
 app.use((req, res, next) => {
     res.removeHeader("Cross-Origin-Opener-Policy");
     res.removeHeader("Origin-Agent-Cluster");
@@ -48,7 +50,7 @@ app.use(requestLogger);
 app.use('/api-docs', swaggerUi.serve);
 app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
     swaggerOptions: {
-        url: `https://213.32.120.11:${PORT}/api-docs/swagger.json`,
+        url: `https://213.32.120.11:${HTTPS_PORT}/api-docs/swagger.json`,
         docExpansion: 'none',
     },
 }));
@@ -77,21 +79,32 @@ const httpsOptions = {
     cert: fs.readFileSync(__dirname + '/../cert/server.crt')
 };
 
-https.createServer(httpsOptions, app).listen(PORT, () => {
-    console.log(`\n╔════════════════════════════════════════════════════════╗`);
-    console.log(`║          🚀 HTTPS API Server Started Successfully 🚀    ║`);
-    console.log(`╚════════════════════════════════════════════════════════╝\n`);
-    console.log(`📍 Server running on port: ${PORT}`);
-    console.log(`🌐 Environments: ${appConfig.nodeEnv}`);
-    console.log(`📦 API Version: ${appConfig.apiVersion}\n`);
-
-    console.log(`🔗 Useful Links:`);
-    console.log(`   📍 Health Check: https://localhost:${PORT}/health`);
-    console.log(`   🏠 Welcome: https://localhost:${PORT}/api/${appConfig.apiVersion}`);
-    console.log(`   📚 Swagger UI: https://localhost:${PORT}/api-docs`);
-    console.log(`   📄 Swagger JSON: https://localhost:${PORT}/api-docs/swagger.json\n`);
-    console.log(`   📚 Swagger UI: https://213.32.120.11:${PORT}/api-docs`);
-    console.log(`   📄 Swagger JSON: https://213.32.120.11:${PORT}/api-docs/swagger.json\n`);
-
-    console.log(`✅ Ready to accept requests...\n`);
+https.createServer(httpsOptions, app).listen(HTTPS_PORT, () => {
+    console.log(`✅ HTTPS server running on port ${HTTPS_PORT}`);
 });
+
+// =====================
+// HTTP Server (redirection vers HTTPS)
+// =====================
+http.createServer((req, res) => {
+    const host = req.headers['host'].split(':')[0]; // récupère juste l'IP ou nom de domaine
+    res.writeHead(301, { "Location": `https://${host}:${HTTPS_PORT}${req.url}` });
+    res.end();
+}).listen(HTTP_PORT, () => {
+    console.log(`⚡ HTTP server running on port ${HTTP_PORT} (redirecting to HTTPS)`);
+});
+
+// =====================
+// Logs Swagger et endpoints utiles
+// =====================
+console.log(`\n╔════════════════════════════════════════════════════════╗`);
+console.log(`║          🚀 API Server Ready (HTTP & HTTPS) 🚀         ║`);
+console.log(`╚════════════════════════════════════════════════════════╝\n`);
+console.log(`📍 HTTP redirect port: ${HTTP_PORT}`);
+console.log(`📍 HTTPS port: ${HTTPS_PORT}`);
+console.log(`🌐 Environment: ${appConfig.nodeEnv}`);
+console.log(`📦 API Version: ${appConfig.apiVersion}\n`);
+console.log(`🔗 Useful Links:`);
+console.log(`   📚 Swagger UI: https://213.32.120.11:${HTTPS_PORT}/api-docs`);
+console.log(`   📄 Swagger JSON: https://213.32.120.11:${HTTPS_PORT}/api-docs/swagger.json\n`);
+console.log(`✅ Ready to accept requests...\n`);
