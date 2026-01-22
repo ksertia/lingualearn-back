@@ -19,7 +19,7 @@ const options = {
         description: 'Développement local (HTTPS)',
       },
       {
-        url: 'http://213.32.120.11:4001',
+        url: 'https://213.32.120.11:4000',
         description: 'Production (VPS)',
       },
       // {
