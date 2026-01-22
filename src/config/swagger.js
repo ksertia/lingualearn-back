@@ -19,13 +19,13 @@ const options = {
         description: 'Développement local (HTTPS)',
       },
       {
-        url: 'https://213.32.120.11:4000',
+        url: 'http://213.32.120.11:4001',
         description: 'Production (VPS)',
       },
-      {
-        url: 'https://lingualearn-back-second.onrender.com',
-        description: 'Production (Render)',
-      },
+      // {
+      //   url: 'https://lingualearn-back-second.onrender.com',
+      //   description: 'Production (Render)',
+      // },
     ],
     components: {
       securitySchemes: {
