@@ -4,7 +4,6 @@ const { appConfig } = require('./appConfig');
 const options = {
   definition: {
     openapi: '3.0.0',
-
     info: {
       title: 'LinguaLearn Authentication API',
       version: '1.0.0',
@@ -14,23 +13,20 @@ const options = {
         email: 'support@lingualearn.com',
       },
     },
-
-    // 🔴 IMPORTANT : API EN HTTP UNIQUEMENT
     servers: [
       {
-        url: 'http://localhost:4001',
-        description: 'Développement local (HTTP)',
+        url: 'https://localhost:4000',
+        description: 'Développement local (HTTPS)',
       },
       {
-        url: 'http://213.32.120.11:4001',
-        description: 'Production VPS (HTTP)',
+        url: 'https://213.32.120.11:4000',
+        description: 'Production (VPS)',
       },
       {
-        url: 'http://lingualearn-back-second.onrender.com',
-        description: 'Production Render (HTTP)',
+        url: 'https://lingualearn-back-second.onrender.com',
+        description: 'Production (Render)',
       },
     ],
-
     components: {
       securitySchemes: {
         bearerAuth: {
@@ -41,14 +37,12 @@ const options = {
         },
       },
     },
-
     security: [
       {
         bearerAuth: [],
       },
     ],
   },
-
   apis: [
     './src/routes/index.js',
     './src/modules/auth/auth.routes.js',
