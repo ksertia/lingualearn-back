@@ -5,9 +5,9 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'LinguaLearn Authentication API',
+      title: 'LinguaLearn API',
       version: '1.0.0',
-      description: 'Authentication Backend API with Node.js, Express, Prisma and JWT',
+      description: 'API complète pour la plateforme LinguaLearn - Authentication, Users & Admin',
       contact: {
         name: 'API Support',
         email: 'support@lingualearn.com',
@@ -22,10 +22,6 @@ const options = {
         url: 'https://213.32.120.11:4000',
         description: 'Production (VPS)',
       },
-      // {
-      //   url: 'https://lingualearn-back-second.onrender.com',
-      //   description: 'Production (Render)',
-      // },
     ],
     components: {
       securitySchemes: {
@@ -33,7 +29,7 @@ const options = {
           type: 'http',
           scheme: 'bearer',
           bearerFormat: 'JWT',
-          description: 'JWT Authorization header using the Bearer scheme',
+          description: 'JWT Authorization header using the Bearer scheme. Format: Bearer {token}',
         },
       },
     },
@@ -42,11 +38,34 @@ const options = {
         bearerAuth: [],
       },
     ],
+    tags: [
+      {
+        name: 'Authentication',
+        description: 'Endpoints d\'authentification (inscription, connexion, etc.)',
+      },
+      {
+        name: 'Users',
+        description: 'Gestion du profil utilisateur',
+      },
+      {
+        name: 'Admin - Dashboard',
+        description: 'Statistiques et tableau de bord administrateur',
+      },
+      {
+        name: 'Admin - Courses',
+        description: 'Gestion des cours (CRUD complet)',
+      },
+      {
+        name: 'Admin - Users',
+        description: 'Gestion des utilisateurs (admin)',
+      },
+    ],
   },
   apis: [
     './src/routes/index.js',
     './src/modules/auth/auth.routes.js',
     './src/modules/user/user.routes.js',
+    './src/modules/admin/admin.routes.js',
   ],
 };
 
