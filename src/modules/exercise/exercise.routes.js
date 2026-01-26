@@ -57,6 +57,75 @@ const router = express.Router();
  *       400:
  *         description: Données invalides
  */
+
+/**
+ * @swagger
+ * /api/v1/exercises/{id}:
+ *   get:
+ *     summary: Récupérer un exercice par ID
+ *     tags: [Exercises]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Exercice trouvé
+ *       404:
+ *         description: Exercice non trouvé
+ */
+router.get('/:id', controller.getById);
+
+/**
+ * @swagger
+ * /api/v1/exercises/{id}:
+ *   put:
+ *     summary: Modifier un exercice
+ *     tags: [Exercises]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Exercise'
+ *     responses:
+ *       200:
+ *         description: Exercice modifié
+ *       400:
+ *         description: Données invalides
+ *       404:
+ *         description: Exercice non trouvé
+ */
+router.put('/:id', controller.update);
+
+/**
+ * @swagger
+ * /api/v1/exercises/{id}:
+ *   delete:
+ *     summary: Supprimer un exercice
+ *     tags: [Exercises]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       204:
+ *         description: Exercice supprimé
+ *       404:
+ *         description: Exercice non trouvé
+ */
+router.delete('/:id', controller.remove);
+
 router.post('/', controller.create);
 
 module.exports = router;

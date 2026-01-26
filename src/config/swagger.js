@@ -79,10 +79,11 @@ const options = {
     './src/modules/auth/auth.routes.js',
     './src/modules/user/user.routes.js',
     './src/modules/learning_path/learning.path.routes.js',
-    './src/modules/level/Level.routes.js',
+    './src/modules/level/level.routes.js',
     './src/modules/learning_path/step.routes.js',
     './src/modules/exercise/exercise.routes.js',
     './src/modules/step-quizzes/step-quizzes.routes.js',
+    './src/modules/admin_dashboard/admin_dashboard.routes.js',
   ],
 };
 
