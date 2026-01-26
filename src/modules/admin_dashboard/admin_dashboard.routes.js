@@ -12,7 +12,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /admin/dashboard:
+ * api/v1/admin/dashboard:
  *   get:
  *     summary: Récupère les statistiques globales de l'application
  *     tags: [AdminDashboard]
