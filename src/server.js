@@ -99,6 +99,7 @@ http.createServer(app).listen(HTTP_PORT, '0.0.0.0', () => {
     console.log(`🔗 API endpoints (HTTP): http://213.32.120.11:${HTTP_PORT}/api/${appConfig.apiVersion}`);
 });
 
+
 // =====================
 // Logs Swagger et endpoints utiles
 // =====================
