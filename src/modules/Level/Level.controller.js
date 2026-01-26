@@ -1,5 +1,5 @@
-const service = require('./level.service');
-const { createLevelSchema, updateLevelSchema } = require('./level.schema');
+const service = require('./Level.service');
+const { createLevelSchema, updateLevelSchema } = require('./Level.schema');
 
 async function create(req, res, next) {
 	try {

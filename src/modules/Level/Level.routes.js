@@ -1,5 +1,5 @@
 const express = require('express');
-const controller = require('./level.controller');
+const controller = require('./Level.controller');
 const router = express.Router();
 
 /**
