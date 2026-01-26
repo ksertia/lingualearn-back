@@ -92,6 +92,10 @@ const options = {
         name: 'Gamification',
         description: 'Gestion des badges et récompenses'
       },
+      {
+        name: 'Courses',
+        description: 'Gestion des cours (Course)'
+      },
     ],
   },
   apis: [
@@ -100,7 +104,7 @@ const options = {
     './src/modules/user/user.routes.js',
     './src/modules/learning_path/learning.path.routes.js',
     './src/modules/level/level.routes.js',
-    './src/modules/learning_path/step.routes.js',
+    './src/modules/step/step.routes.js',
     './src/modules/exercise/exercise.routes.js',
     './src/modules/step-quizzes/step-quizzes.routes.js',
     './src/modules/admin_dashboard/admin_dashboard.routes.js',
@@ -109,6 +113,7 @@ const options = {
     './src/modules/message_ws/message_ws.routes.js',
     './src/modules/notification/notification.routes.js',
     './src/modules/gamification/gamification.routes.js',
+    './src/modules/course/course.routes.js',
   ],
 };
 

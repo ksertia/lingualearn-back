@@ -42,7 +42,7 @@ router.post('/', controller.create);
 
 /**
  * @swagger
- * /levels:
+ * /api/v1/levels:
  *   get:
  *     summary: Récupérer tous les niveaux
  *     tags: [Levels]
@@ -74,7 +74,7 @@ router.get('/:id', controller.getById);
 
 /**
  * @swagger
- * /levels/{id}:
+ * /api/v1/levels/{id}:
  *   put:
  *     summary: Mettre à jour un niveau
  *     tags: [Levels]
@@ -107,7 +107,7 @@ router.put('/:id', controller.update);
 
 /**
  * @swagger
- * /levels/{id}:
+ * /api/v1/levels/{id}:
  *   delete:
  *     summary: Supprimer un niveau
  *     tags: [Levels]
