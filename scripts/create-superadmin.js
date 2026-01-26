@@ -33,6 +33,7 @@ async function main() {
     rl.close();
     process.exit(0);
   }
+  
 
   // Crée le user admin
   const user = await prisma.user.create({
