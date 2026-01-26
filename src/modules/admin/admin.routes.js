@@ -48,7 +48,7 @@ router.get('/dashboard', adminController.getDashboard);
 
 /**
  * @swagger
- * /api/v1/admin/courses:
+ * /api/v1/admin /courses:
  *   get:
  *     summary: Get all courses with filters and pagination
  *     tags: [Admin - Courses]
