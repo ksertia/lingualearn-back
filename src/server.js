@@ -54,7 +54,7 @@ app.use(requestLogger);
 app.use('/api-docs', swaggerUi.serve);
 app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
     swaggerOptions: {
-        url: `https://213.32.120.11:${HTTPS_PORT}/api-docs/swagger.json`,
+        url: '/api-docs/swagger.json',
         docExpansion: 'none',
     },
 }));
@@ -106,6 +106,7 @@ console.log(`🌐 Environment: ${appConfig.nodeEnv}`);
 console.log(`📦 API Version: ${appConfig.apiVersion}\n`);
 console.log(`🔗 Useful Links:`);
 console.log(`   📚 Swagger UI: https://213.32.120.11:${HTTPS_PORT}/api-docs`);
+console.log(`   📚 Swagger UI (localhost): https://localhost:${HTTPS_PORT}/api-docs`);
 console.log(`   📄 Swagger JSON: https://213.32.120.11:${HTTPS_PORT}/api-docs/swagger.json`);
 console.log(`   📚 API HTTP endpoints: http://213.32.120.11:${HTTP_PORT}/api/${appConfig.apiVersion}\n`);
 console.log(`✅ Ready to accept requests...\n`);

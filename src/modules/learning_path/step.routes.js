@@ -1,20 +1,20 @@
 const express = require('express');
-const controller = require('./level.controller');
+const controller = require('./step.controller');
 const router = express.Router();
 
 /**
  * @swagger
  * tags:
- *   name: Levels
- *   description: Gestion des niveaux (Level)
+ *   name: Steps
+ *   description: Gestion des étapes (Step)
  */
 
 /**
  * @swagger
- * /api/v1/levels:
+ * /api/v1/steps:
  *   post:
- *     summary: Créer un nouveau niveau
- *     tags: [Levels]
+ *     summary: Créer une nouvelle étape
+ *     tags: [Steps]
  *     requestBody:
  *       required: true
  *       content:
@@ -22,19 +22,19 @@ const router = express.Router();
  *           schema:
  *             type: object
  *             required:
- *               - name
- *               - description
- *               - learningPathId
+ *               - title
+ *               - stepNumber
+ *               - levelId
  *             properties:
- *               name:
+ *               title:
  *                 type: string
- *               description:
- *                 type: string
- *               learningPathId:
+ *               stepNumber:
+ *                 type: integer
+ *               levelId:
  *                 type: string
  *     responses:
  *       201:
- *         description: Niveau créé
+ *         description: Étape créée
  *       400:
  *         description: Données invalides
  */
@@ -42,22 +42,22 @@ router.post('/', controller.create);
 
 /**
  * @swagger
- * /levels:
+ * /api/v1/steps:
  *   get:
- *     summary: Récupérer tous les niveaux
- *     tags: [Levels]
+ *     summary: Récupérer toutes les étapes
+ *     tags: [Steps]
  *     responses:
  *       200:
- *         description: Liste des niveaux
+ *         description: Liste des étapes
  */
 router.get('/', controller.getAll);
 
 /**
  * @swagger
- * /api/v1/levels/{id}:
+ * /api/v1/steps/{id}:
  *   get:
- *     summary: Récupérer un niveau par ID
- *     tags: [Levels]
+ *     summary: Récupérer une étape par ID
+ *     tags: [Steps]
  *     parameters:
  *       - in: path
  *         name: id
@@ -66,18 +66,18 @@ router.get('/', controller.getAll);
  *           type: string
  *     responses:
  *       200:
- *         description: Niveau trouvé
+ *         description: Étape trouvée
  *       404:
- *         description: Niveau non trouvé
+ *         description: Étape non trouvée
  */
 router.get('/:id', controller.getById);
 
 /**
  * @swagger
- * /levels/{id}:
+ * /api/v1/steps/{id}:
  *   put:
- *     summary: Mettre à jour un niveau
- *     tags: [Levels]
+ *     summary: Mettre à jour une étape
+ *     tags: [Steps]
  *     parameters:
  *       - in: path
  *         name: id
@@ -91,26 +91,26 @@ router.get('/:id', controller.getById);
  *           schema:
  *             type: object
  *             properties:
- *               name:
+ *               title:
  *                 type: string
- *               description:
- *                 type: string
+ *               stepNumber:
+ *                 type: integer
  *     responses:
  *       200:
- *         description: Niveau mis à jour
+ *         description: Étape mise à jour
  *       400:
  *         description: Données invalides
  *       404:
- *         description: Niveau non trouvé
+ *         description: Étape non trouvée
  */
 router.put('/:id', controller.update);
 
 /**
  * @swagger
- * /levels/{id}:
+ * /api/v1/steps/{id}:
  *   delete:
- *     summary: Supprimer un niveau
- *     tags: [Levels]
+ *     summary: Supprimer une étape
+ *     tags: [Steps]
  *     parameters:
  *       - in: path
  *         name: id
@@ -119,9 +119,9 @@ router.put('/:id', controller.update);
  *           type: string
  *     responses:
  *       204:
- *         description: Niveau supprimé
+ *         description: Étape supprimée
  *       404:
- *         description: Niveau non trouvé
+ *         description: Étape non trouvée
  */
 router.delete('/:id', controller.remove);
 

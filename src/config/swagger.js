@@ -1,3 +1,4 @@
+// ...existing code...
 const swaggerJsdoc = require('swagger-jsdoc');
 const { appConfig } = require('./appConfig');
 
@@ -48,16 +49,28 @@ const options = {
         description: 'Gestion du profil utilisateur',
       },
       {
-        name: 'Admin - Dashboard',
-        description: 'Statistiques et tableau de bord administrateur',
+        name: 'LearningPaths',
+        description: 'Gestion des parcours (LearningPath)'
       },
       {
-        name: 'Admin - Courses',
-        description: 'Gestion des cours (CRUD complet)',
+        name: 'Levels',
+        description: 'Gestion des niveaux (Level)'
       },
       {
-        name: 'Admin - Users',
-        description: 'Gestion des utilisateurs (admin)',
+        name: 'Steps',
+        description: 'Gestion des étapes (Step)'
+      },
+      {
+        name: 'Exercises',
+        description: 'Gestion des exercices (Exercise)'
+      },
+      {
+        name: 'StepQuizzes',
+        description: 'Gestion des quiz d\'étape (StepQuiz)'
+      },
+      {
+        name: 'AdminDashboard',
+        description: 'Statistiques et état global de la plateforme'
       },
     ],
   },
@@ -65,10 +78,15 @@ const options = {
     './src/routes/index.js',
     './src/modules/auth/auth.routes.js',
     './src/modules/user/user.routes.js',
-    './src/modules/admin/admin.routes.js',
+    './src/modules/learning_path/learning.path.routes.js',
+    './src/modules/level/Level.routes.js',
+    './src/modules/learning_path/step.routes.js',
+    './src/modules/exercise/exercise.routes.js',
+    './src/modules/step-quizzes/step-quizzes.routes.js',
   ],
 };
 
 const swaggerSpec = swaggerJsdoc(options);
 
 module.exports = swaggerSpec;
+
