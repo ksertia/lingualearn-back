@@ -12,6 +12,8 @@ const exerciseRoutes = require('../modules/exercise/exercise.routes');
 const stepQuizRoutes = require('../modules/step-quizzes/step-quizzes.routes');
 const subscriptionPlanRoutes = require('../modules/subscription_plan/subscription_plan.routes');
 const subscriptionRoutes = require('../modules/subscription/subscription.routes');
+const messageWsRoutes = require('../modules/message_ws/message_ws.routes');
+const gamificationRoutes = require('../modules/gamification/gamification.routes');
 
 
 router.use('/admin', adminDashboardRoutes);
@@ -21,6 +23,8 @@ router.use('/exercises', exerciseRoutes);
 router.use('/step-quizzes', stepQuizRoutes);
 router.use('/subscription-plans', subscriptionPlanRoutes);
 router.use('/subscriptions', subscriptionRoutes);
+router.use('/messages-ws', messageWsRoutes);
+router.use('/gamification', gamificationRoutes);
 
 router.get('/', (req, res) => {
   res.json({

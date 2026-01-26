@@ -5,6 +5,7 @@ const swaggerUi = require('swagger-ui-express');
 const https = require('https');
 const http = require('http');
 const fs = require('fs');
+const setupWebSocket = require('./ws');
 require('dotenv').config();
 
 const { errorHandler } = require('./middleware/errorHandler');
@@ -81,10 +82,14 @@ const httpsOptions = {
     cert: fs.readFileSync(__dirname + '/../cert/server.crt')
 };
 
-https.createServer(httpsOptions, app).listen(HTTPS_PORT, '0.0.0.0', () => {
+
+const httpsServer = https.createServer(httpsOptions, app);
+httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
     console.log(`✅ HTTPS server running on port ${HTTPS_PORT}`);
     console.log(`🔗 Swagger UI: https://213.32.120.11:${HTTPS_PORT}/api-docs`);
 });
+// WebSocket (Socket.IO) sur HTTPS
+setupWebSocket(httpsServer);
 
 // =====================
 // HTTP Server (API non sécurisé pour front)
