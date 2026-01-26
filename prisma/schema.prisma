@@ -251,7 +251,7 @@ model Step {
   title                  String    @db.VarChar(200)
   description            String?   @db.Text
   stepNumber             Int
-  stepCode               String    @db.VarChar(50)
+  stepCode               String?   @db.VarChar(50)
   thumbnailUrl           String?   @db.VarChar(500)
   iconUrl                String?   @db.VarChar(500)
   estimatedDurationHours Int?      @default(1)
