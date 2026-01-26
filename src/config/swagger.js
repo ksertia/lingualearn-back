@@ -93,7 +93,7 @@ const options = {
         description: 'Gestion des badges et récompenses'
       },
       {
-        name: 'Courses',
+        name: 'Course',
         description: 'Gestion des cours (Course)'
       },
     ],

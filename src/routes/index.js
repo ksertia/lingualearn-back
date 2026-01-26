@@ -9,6 +9,7 @@ const learningPathsRoutes = require('../modules/learning_path/learning.path.rout
 const levelRoutes = require('../modules/Level/Level.routes');
 const stepRoutes = require('../modules/step/step.routes');
 const exerciseRoutes = require('../modules/exercise/exercise.routes');
+const courseRoutes = require('../modules/course/course.routes');
 const stepQuizRoutes = require('../modules/step-quizzes/step-quizzes.routes');
 const subscriptionPlanRoutes = require('../modules/subscription_plan/subscription_plan.routes');
 const subscriptionRoutes = require('../modules/subscription/subscription.routes');
@@ -20,6 +21,7 @@ router.use('/admin', adminDashboardRoutes);
 router.use('/levels', levelRoutes);
 router.use('/steps', stepRoutes);
 router.use('/exercises', exerciseRoutes);
+router.use('/courses', courseRoutes);
 router.use('/step-quizzes', stepQuizRoutes);
 router.use('/subscription-plans', subscriptionPlanRoutes);
 router.use('/subscriptions', subscriptionRoutes);

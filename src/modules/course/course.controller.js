@@ -1,175 +1,211 @@
-// ============================================================================
-// OPTION B: COURSE MANAGEMENT CONTROLLERS
-// ============================================================================
-
-/**
- * @desc    Get all courses with filters
- * @route   GET /api/admin/courses
- * @access  Private/Admin
- */
-const getCourses = async (req, res) => {
-  try {
-    const filters = {
-      page: req.query.page,
-      limit: req.query.limit,
-      search: req.query.search,
-      trackId: req.query.trackId,
-      isPublished: req.query.isPublished,
-      sortBy: req.query.sortBy,
-      sortOrder: req.query.sortOrder,
-    };
-
-    const result = await adminService.getAllCourses(filters);
-    
-    res.status(200).json({
-      success: true,
-      ...result,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-
-/**
- * @desc    Get single course by ID
- * @route   GET /api/admin/courses/:id
- * @access  Private/Admin
- */
-const getCourse = async (req, res) => {
-  try {
-    const course = await adminService.getCourseById(req.params.id);
-    
-    res.status(200).json({
-      success: true,
-      data: course,
-    });
-  } catch (error) {
-    res.status(404).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-
-/**
- * @desc    Create new course
- * @route   POST /api/admin/courses
- * @access  Private/Admin
- */
-const { createCourseSchema } = require('./course.schema');
 const courseService = require('./course.service');
+const {
+	createCourseSchema,
+	updateCourseSchema,
+	patchCourseSchema
+} = require('./course.schema');
 
+// Get all courses with filters
+const getCourses = async (req, res) => {
+	try {
+		const filters = {
+			page: parseInt(req.query.page) || 1,
+			limit: parseInt(req.query.limit) || 20,
+			search: req.query.search,
+			stepId: req.query.stepId,
+			isPublished: req.query.isPublished !== undefined ? req.query.isPublished === 'true' : undefined,
+			isActive: req.query.isActive !== undefined ? req.query.isActive === 'true' : undefined,
+			sortBy: req.query.sortBy || 'createdAt',
+			sortOrder: req.query.sortOrder || 'desc',
+		};
+		const result = await courseService.getCourses(filters);
+		res.status(200).json({
+			success: true,
+			...result,
+		});
+	} catch (error) {
+		res.status(500).json({
+			success: false,
+			message: error.message || 'Erreur lors de la récupération des cours',
+		});
+	}
+};
+
+// Get single course by ID
+const getCourse = async (req, res) => {
+	try {
+		const { id } = req.params;
+		const course = await courseService.getCourse(id);
+		res.status(200).json({
+			success: true,
+			data: course,
+		});
+	} catch (error) {
+		res.status(404).json({
+			success: false,
+			message: error.message || 'Cours non trouvé',
+		});
+	}
+};
+
+// Create new course
 const createCourse = async (req, res) => {
-  try {
-    const { error, value } = createCourseSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: error.details[0].message,
-      });
-    }
-    const course = await courseService.createCourse(value);
-    res.status(201).json({
-      success: true,
-      data: course,
-      message: 'Le cours a été créé avec succès.',
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: error.message,
-    });
-  }
+	try {
+		const { error, value } = createCourseSchema.validate(req.body);
+		if (error) {
+			return res.status(400).json({
+				success: false,
+				message: error.details[0].message,
+			});
+		}
+		const course = await courseService.createCourse(value);
+		res.status(201).json({
+			success: true,
+			data: course,
+			message: 'Le cours a été créé avec succès.',
+		});
+	} catch (error) {
+		res.status(400).json({
+			success: false,
+			message: error.message || 'Erreur lors de la création du cours',
+		});
+	}
 };
 
-/**
- * @desc    Update course
- * @route   PUT /api/admin/courses/:id
- * @access  Private/Admin
- */
+// Update course
 const updateCourse = async (req, res) => {
-  try {
-    const course = await adminService.updateCourse(req.params.id, req.body);
-    
-    res.status(200).json({
-      success: true,
-      data: course,
-      message: 'Course updated successfully',
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: error.message,
-    });
-  }
+	try {
+		const { error, value } = updateCourseSchema.validate(req.body);
+		if (error) {
+			return res.status(400).json({
+				success: false,
+				message: error.details[0].message,
+			});
+		}
+		const { id } = req.params;
+		const course = await courseService.updateCourse(id, value);
+		res.status(200).json({
+			success: true,
+			data: course,
+			message: 'Cours mis à jour avec succès',
+		});
+	} catch (error) {
+		const statusCode = error.message && error.message.includes('non trouvé') ? 404 : 400;
+		res.status(statusCode).json({
+			success: false,
+			message: error.message || 'Erreur lors de la mise à jour du cours',
+		});
+	}
 };
 
-/**
- * @desc    Delete course
- * @route   DELETE /api/admin/courses/:id
- * @access  Private/Admin
- */
+// Update course partially
+const patchCourse = async (req, res) => {
+	try {
+		const { error, value } = patchCourseSchema.validate(req.body);
+		if (error) {
+			return res.status(400).json({
+				success: false,
+				message: error.details[0].message,
+			});
+		}
+		const { id } = req.params;
+		const course = await courseService.patchCourse(id, value);
+		res.status(200).json({
+			success: true,
+			data: course,
+			message: 'Cours mis à jour partiellement avec succès',
+		});
+	} catch (error) {
+		const statusCode = error.message && error.message.includes('non trouvé') ? 404 : 400;
+		res.status(statusCode).json({
+			success: false,
+			message: error.message || 'Erreur lors de la mise à jour partielle du cours',
+		});
+	}
+};
+
+// Delete course
 const deleteCourse = async (req, res) => {
-  try {
-    const result = await adminService.deleteCourse(req.params.id);
-    
-    res.status(200).json({
-      success: true,
-      message: result.message,
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: error.message,
-    });
-  }
+	try {
+		const { id } = req.params;
+		await courseService.deleteCourse(id);
+		res.status(200).json({
+			success: true,
+			message: 'Cours supprimé avec succès',
+		});
+	} catch (error) {
+		const statusCode = error.message && error.message.includes('non trouvé') ? 404 : 400;
+		res.status(statusCode).json({
+			success: false,
+			message: error.message || 'Erreur lors de la suppression du cours',
+		});
+	}
 };
 
-/**
- * @desc    Duplicate course
- * @route   POST /api/admin/courses/:id/duplicate
- * @access  Private/Admin
- */
+// Duplicate course
 const duplicateCourse = async (req, res) => {
-  try {
-    const course = await adminService.duplicateCourse(req.params.id);
-    
-    res.status(201).json({
-      success: true,
-      data: course,
-      message: 'Course duplicated successfully',
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: error.message,
-    });
-  }
+	try {
+		const { id } = req.params;
+		const course = await courseService.duplicateCourse(id);
+		res.status(201).json({
+			success: true,
+			data: course,
+			message: 'Cours dupliqué avec succès',
+		});
+	} catch (error) {
+		const statusCode = error.message && error.message.includes('non trouvé') ? 404 : 400;
+		res.status(statusCode).json({
+			success: false,
+			message: error.message || 'Erreur lors de la duplication du cours',
+		});
+	}
 };
 
-/**
- * @desc    Toggle course publish status
- * @route   PATCH /api/admin/courses/:id/toggle-publish
- * @access  Private/Admin
- */
+// Toggle course publish status
 const toggleCoursePublish = async (req, res) => {
-  try {
-    const course = await adminService.toggleCoursePublish(req.params.id);
-    
-    res.status(200).json({
-      success: true,
-      data: course,
-      message: `Course ${course.isPublished ? 'published' : 'unpublished'} successfully`,
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: error.message,
-    });
-  }
+	try {
+		const { id } = req.params;
+		const course = await courseService.toggleCoursePublish(id);
+		res.status(200).json({
+			success: true,
+			data: course,
+			message: `Cours ${course.isPublished ? 'publié' : 'dépublié'} avec succès`,
+		});
+	} catch (error) {
+		const statusCode = error.message && error.message.includes('non trouvé') ? 404 : 400;
+		res.status(statusCode).json({
+			success: false,
+			message: error.message || 'Erreur lors de la modification du statut de publication',
+		});
+	}
+};
+
+// Get courses by level (étape)
+const getCoursesByLevel = async (req, res) => {
+	try {
+		const { levelId } = req.params;
+		const courses = await courseService.getCoursesByLevel(levelId);
+		res.status(200).json({
+			success: true,
+			data: courses,
+		});
+	} catch (error) {
+		const statusCode = error.message && error.message.includes('non trouvé') ? 404 : 400;
+		res.status(statusCode).json({
+			success: false,
+			message: error.message || "Erreur lors de la récupération des cours de l'étape",
+		});
+	}
+};
+
+module.exports = {
+	getCourses,
+	getCourse,
+	createCourse,
+	updateCourse,
+	patchCourse,
+	deleteCourse,
+	duplicateCourse,
+	toggleCoursePublish,
+	getCoursesByLevel,
 };
