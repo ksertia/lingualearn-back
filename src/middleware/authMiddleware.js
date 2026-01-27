@@ -46,7 +46,7 @@ const allowRoles = (...roles) => {
             return next(new AppError(401, 'Authentication required.'));
         }
 
-        if (!roles.includes(req.user.userType)) {
+        if (!roles.includes(req.user.accountType)) {
             return next(new AppError(403, 'Insufficient permissions.'));
         }
 

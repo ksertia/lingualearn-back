@@ -22,11 +22,13 @@ router.use('/levels', levelRoutes);
 router.use('/steps', stepRoutes);
 router.use('/exercises', exerciseRoutes);
 router.use('/courses', courseRoutes);
+
 router.use('/step-quizzes', stepQuizRoutes);
 router.use('/subscription-plans', subscriptionPlanRoutes);
 router.use('/subscriptions', subscriptionRoutes);
 router.use('/messages-ws', messageWsRoutes);
 router.use('/gamification', gamificationRoutes);
+
 
 router.get('/', (req, res) => {
   res.json({

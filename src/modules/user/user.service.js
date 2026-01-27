@@ -10,7 +10,7 @@ class UserService {
         const where = {};
         
         if (userType) {
-            where.userType = userType;
+            where.accountType = userType;
         }
         
         if (status) {
@@ -33,9 +33,8 @@ class UserService {
                     email: true,
                     phone: true,
                     username: true,
-                    userType: true,
+                    accountType: true,
                     isVerified: true,
-                    status: true,
                     lastLogin: true,
                     lastActive: true,
                     createdAt: true
@@ -67,7 +66,7 @@ class UserService {
                 email: true,
                 phone: true,
                 username: true,
-                userType: true,
+                    accountType: true,
                 parentId: true,
                 familyId: true,
                 isVerified: true,
@@ -90,7 +89,7 @@ class UserService {
                         id: true,
                         email: true,
                         username: true,
-                        userType: true
+                        accountType: true
                     }
                 }
             }
@@ -139,7 +138,7 @@ class UserService {
         
         // Seul l'admin peut modifier ces champs
         if (currentUserType === 'admin') {
-            if (data.userType !== undefined) updateData.userType = data.userType;
+            if (data.accountType !== undefined) updateData.accountType = data.accountType;
             if (data.status !== undefined) updateData.status = data.status;
             if (data.subscriptionPlan !== undefined) updateData.subscriptionPlan = data.subscriptionPlan;
             if (data.subscriptionEndsAt !== undefined) updateData.subscriptionEndsAt = data.subscriptionEndsAt;
@@ -154,7 +153,7 @@ class UserService {
                 email: true,
                 phone: true,
                 username: true,
-                userType: true,
+                accountType: true,
                 isVerified: true,
                 status: true,
                 subscriptionPlan: true,
@@ -211,6 +210,10 @@ class UserService {
                 COUNT(CASE WHEN "userType" = 'parent' THEN 1 END) as parent_users,
                 COUNT(CASE WHEN "userType" = 'child' THEN 1 END) as child_users,
                 COUNT(CASE WHEN "userType" = 'teacher' THEN 1 END) as teacher_users,
+                    COUNT(CASE WHEN "accountType" = 'admin' THEN 1 END) as admin_users,
+                    COUNT(CASE WHEN "accountType" = 'parent' THEN 1 END) as parent_users,
+                    COUNT(CASE WHEN "accountType" = 'child' THEN 1 END) as child_users,
+                    COUNT(CASE WHEN "accountType" = 'teacher' THEN 1 END) as teacher_users,
                 DATE("createdAt") as date,
                 COUNT(*) as daily_signups
             FROM users

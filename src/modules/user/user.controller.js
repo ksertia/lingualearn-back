@@ -5,7 +5,7 @@ const userController = {
     // Récupérer tous les utilisateurs (admin seulement)
     getAllUsers: asyncHandler(async (req, res) => {
         // Vérifier si l'utilisateur est admin
-        if (req.user.userType !== 'admin') {
+        if (req.user.accountType !== 'admin') {
             return res.status(403).json({
                 success: false,
                 error: 'Only administrators can access this resource'
@@ -15,7 +15,7 @@ const userController = {
         const filters = {
             page: req.query.page,
             limit: req.query.limit,
-            userType: req.query.userType,
+            accountType: req.query.userType,
             status: req.query.status,
             search: req.query.search
         };
@@ -33,7 +33,7 @@ const userController = {
         const { id } = req.params;
         
         // Vérifier les permissions
-        if (req.user.userType !== 'admin' && req.user.id !== id) {
+        if (req.user.accountType !== 'admin' && req.user.id !== id) {
             return res.status(403).json({
                 success: false,
                 error: 'You can only view your own profile'
@@ -51,7 +51,7 @@ const userController = {
     // Mettre à jour un utilisateur
     updateUser: asyncHandler(async (req, res) => {
         const { id } = req.params;
-        const updatedUser = await userService.updateUser(id, req.body, req.user.id, req.user.userType);
+        const updatedUser = await userService.updateUser(id, req.body, req.user.id, req.user.accountType);
         
         res.json({
             success: true,
@@ -63,14 +63,14 @@ const userController = {
     // Supprimer un utilisateur
     deleteUser: asyncHandler(async (req, res) => {
         const { id } = req.params;
-        const result = await userService.deleteUser(id, req.user.id, req.user.userType);
+        const result = await userService.deleteUser(id, req.user.id, req.user.accountType);
         
         res.json(result);
     }),
     
     // Récupérer les statistiques (admin seulement)
     getStats: asyncHandler(async (req, res) => {
-        if (req.user.userType !== 'admin') {
+        if (req.user.accountType !== 'admin') {
             return res.status(403).json({
                 success: false,
                 error: 'Only administrators can access statistics'
