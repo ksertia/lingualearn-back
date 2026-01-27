@@ -5,9 +5,7 @@ async function createLearningPath(data) {
 }
 
 async function getAllLearningPaths() {
-	return prisma.learningPath.findMany({
-		orderBy: { sortOrder: 'asc' }
-	});
+	return prisma.learningPath.findMany();
 }
 
 async function getLearningPathById(id) {

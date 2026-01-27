@@ -72,6 +72,30 @@ const options = {
         name: 'AdminDashboard',
         description: 'Statistiques et état global de la plateforme'
       },
+      {
+        name: 'SubscriptionPlans',
+        description: 'Gestion des plans d\'abonnement'
+      },
+      {
+        name: 'Subscriptions',
+        description: 'Gestion des abonnements clients'
+      },
+      {
+        name: 'MessagesWS',
+        description: 'Messagerie temps réel (WebSocket)'
+      },
+      {
+        name: 'Notifications',
+        description: 'Gestion des notifications (REST + WebSocket)'
+      },
+      {
+        name: 'Gamification',
+        description: 'Gestion des badges et récompenses'
+      },
+      {
+        name: 'Course',
+        description: 'Gestion des cours (Course)'
+      },
     ],
   },
   apis: [
@@ -79,11 +103,17 @@ const options = {
     './src/modules/auth/auth.routes.js',
     './src/modules/user/user.routes.js',
     './src/modules/learning_path/learning.path.routes.js',
-    './src/modules/level/level.routes.js',
-    './src/modules/learning_path/step.routes.js',
+    './src/modules/Level/Level.routes.js',
+    './src/modules/step/step.routes.js',
     './src/modules/exercise/exercise.routes.js',
     './src/modules/step-quizzes/step-quizzes.routes.js',
     './src/modules/admin_dashboard/admin_dashboard.routes.js',
+    './src/modules/subscription_plan/subscription_plan.routes.js',
+    './src/modules/subscription/subscription.routes.js',
+    './src/modules/message_ws/message_ws.routes.js',
+    './src/modules/notification/notification.routes.js',
+    './src/modules/gamification/gamification.routes.js',
+    './src/modules/course/course.routes.js',
   ],
 };
 

@@ -39,7 +39,7 @@ router.post('/', controller.create);
 
 /**
  * @swagger
- * /learning-paths:
+ * /api/v1/learning-paths:
  *   get:
  *     summary: Récupérer tous les parcours
  *     tags: [LearningPaths]
@@ -71,7 +71,7 @@ router.get('/:id', controller.getById);
 
 /**
  * @swagger
- * /learning-paths/{id}:
+ * /api/v1/learning-paths/{id}:
  *   put:
  *     summary: Mettre à jour un parcours
  *     tags: [LearningPaths]
@@ -122,7 +122,7 @@ router.put('/:id', controller.update);
 
 /**
  * @swagger
- * /learning-paths/{id}:
+ * /api/v1/learning-paths/{id}:
  *   delete:
  *     summary: Supprimer un parcours
  *     tags: [LearningPaths]
