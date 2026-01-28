@@ -5,6 +5,7 @@ const swaggerUi = require('swagger-ui-express');
 const https = require('https');
 const http = require('http');
 const fs = require('fs');
+const setupWebSocket = require('./ws');
 require('dotenv').config();
 
 const { errorHandler } = require('./middleware/errorHandler');
@@ -54,7 +55,7 @@ app.use(requestLogger);
 app.use('/api-docs', swaggerUi.serve);
 app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
     swaggerOptions: {
-        url: `https://213.32.120.11:${HTTPS_PORT}/api-docs/swagger.json`,
+        url: '/api-docs/swagger.json',
         docExpansion: 'none',
     },
 }));
@@ -81,10 +82,14 @@ const httpsOptions = {
     cert: fs.readFileSync(__dirname + '/../cert/server.crt')
 };
 
-https.createServer(httpsOptions, app).listen(HTTPS_PORT, '0.0.0.0', () => {
+
+const httpsServer = https.createServer(httpsOptions, app);
+httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
     console.log(`✅ HTTPS server running on port ${HTTPS_PORT}`);
     console.log(`🔗 Swagger UI: https://213.32.120.11:${HTTPS_PORT}/api-docs`);
 });
+// WebSocket (Socket.IO) sur HTTPS
+setupWebSocket(httpsServer);
 
 // =====================
 // HTTP Server (API non sécurisé pour front)
@@ -93,6 +98,7 @@ http.createServer(app).listen(HTTP_PORT, '0.0.0.0', () => {
     console.log(`⚡ HTTP server running on port ${HTTP_PORT}`);
     console.log(`🔗 API endpoints (HTTP): http://213.32.120.11:${HTTP_PORT}/api/${appConfig.apiVersion}`);
 });
+
 
 // =====================
 // Logs Swagger et endpoints utiles
@@ -106,6 +112,7 @@ console.log(`🌐 Environment: ${appConfig.nodeEnv}`);
 console.log(`📦 API Version: ${appConfig.apiVersion}\n`);
 console.log(`🔗 Useful Links:`);
 console.log(`   📚 Swagger UI: https://213.32.120.11:${HTTPS_PORT}/api-docs`);
+console.log(`   📚 Swagger UI (localhost): https://localhost:${HTTPS_PORT}/api-docs`);
 console.log(`   📄 Swagger JSON: https://213.32.120.11:${HTTPS_PORT}/api-docs/swagger.json`);
 console.log(`   📚 API HTTP endpoints: http://213.32.120.11:${HTTP_PORT}/api/${appConfig.apiVersion}\n`);
 console.log(`✅ Ready to accept requests...\n`);
