@@ -13,11 +13,14 @@ class AuthService {
         const { email, phone, password, username, accountType, parentId, firstName, lastName } = data;
 
         // Mapper accountType (du frontend) vers accountType (pour Prisma)
-        let finalAccountType = 'user';
-        if (accountType === 'admin') finalAccountType = 'admin';
-        else if (accountType === 'parent') finalAccountType = 'user';
-        else if (accountType === 'child') finalAccountType = 'sub_account';
-        else if (accountType === 'teacher') finalAccountType = 'teacher';
+            const ACCOUNT_TYPE_MAP = {
+                admin: 'admin',
+                user: 'learner',
+                sub_user: 'sub_account_learner',
+                teacher: 'teacher',
+                manager: 'plateform_manager',
+            };
+            const finalAccountType = ACCOUNT_TYPE_MAP[accountType] || 'learner';
 
         // Vérifier que l'utilisateur fournit soit email, soit phone
         if (!email && !phone) {
@@ -49,36 +52,36 @@ class AuthService {
         }
 
         // Vérifier le parent pour les comptes enfants
-        if (accountType === 'sub_account' && parentId) {
-            const parent = await prisma.user.findUnique({
-                where: { id: parentId, accountType: 'user' }
-            });
-            if (!parent) {
-                throw new AppError(400, 'Parent account not found or invalid');
+            if (finalAccountType === 'sub_account_learner' && parentId) {
+                const parent = await prisma.user.findFirst({
+                    where: { id: parentId, accountType: 'learner' }
+                });
+                if (!parent) {
+                    throw new AppError(400, 'Parent account not found or invalid');
+                }
             }
-        }
 
         // Hasher le mot de passe
         const passwordHash = await bcrypt.hash(password, 12);
 
         // Créer l'utilisateur
-        const user = await prisma.user.create({
-            data: {
-                email,
-                phone,
-                username,
-                passwordHash,
-                accountType,
-                parentId: accountType === 'sub_account' ? parentId : null,
-                profile: {
-                    create: {
-                        firstName,
-                        lastName
+            const user = await prisma.user.create({
+                data: {
+                    email,
+                    phone,
+                    username,
+                    passwordHash,
+                    accountType: finalAccountType,
+                    parentId: finalAccountType === 'sub_account_learner' ? parentId : null,
+                    profile: {
+                        create: {
+                            firstName,
+                            lastName
+                        }
                     }
-                }
-            },
-            include: { profile: true }
-        });
+                },
+                include: { profile: true }
+            });
 
         // Générer un code de vérification si email ou phone fourni
         if (email || phone) {
@@ -190,6 +193,8 @@ class AuthService {
 
         // Générer les tokens
         const tokens = await this.generateTokens(user.id, user.accountType);
+            // Générer les tokens
+            const tokens = await this.generateTokens(user.id, user.accountType);
 
         // Créer une session
         await this.createSession(user.id, req);
