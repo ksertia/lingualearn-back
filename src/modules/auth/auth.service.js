@@ -193,8 +193,7 @@ class AuthService {
 
         // Générer les tokens
         const tokens = await this.generateTokens(user.id, user.accountType);
-            // Générer les tokens
-            const tokens = await this.generateTokens(user.id, user.accountType);
+        
 
         // Créer une session
         await this.createSession(user.id, req);
