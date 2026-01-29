@@ -51,7 +51,7 @@ const router = express.Router();
  *         name: sortBy
  *         schema:
  *           type: string
- *         description: Champ de tri (ex: createdAt)
+ *         description: Champ de tri, exemple: createdAt
  *       - in: query
  *         name: sortOrder
  *         schema:
