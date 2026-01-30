@@ -23,3 +23,4 @@ exports.remove = async (id) => {
 	await prisma.language.delete({ where: { id } });
 	return true;
 };
+

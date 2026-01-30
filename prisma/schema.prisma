@@ -173,7 +173,7 @@ model Path {
 // 5. STEP (in each path) - This is where content happens
 model Step {
   id              String   @id @default(cuid())
-  pathId          String
+  pathId          String 
   title           String   @db.VarChar(200)
   description     String?  @db.Text
   stepType        String   @db.VarChar(20)  // "lesson", "exercise", "quiz"
