@@ -1,6 +1,7 @@
 const express = require('express');
 const controller = require('./language.controller');
 const router = express.Router();
+const { authMiddleware, allowRoles } = require('../../middleware/authMiddleware');
 
 /**
  * @swagger
@@ -46,7 +47,7 @@ const router = express.Router();
  *       400:
  *         description: Données invalides
  */
-router.post('/', controller.create);
+router.post('/', authMiddleware, allowRoles('admin', 'plateform_manager'), controller.create);
 
 /**
  * @swagger
@@ -117,7 +118,7 @@ router.get('/:id', controller.getById);
  *       404:
  *         description: Langue non trouvée
  */
-router.put('/:id', controller.update);
+router.put('/:id', authMiddleware, allowRoles('admin', 'plateform_manager'), controller.update);
 
 /**
  * @swagger
@@ -137,7 +138,7 @@ router.put('/:id', controller.update);
  *       404:
  *         description: Langue non trouvée
  */
-router.delete('/:id', controller.remove);
+router.delete('/:id', authMiddleware, allowRoles('admin', 'plateform_manager'), controller.remove);
 
 module.exports = router;
 

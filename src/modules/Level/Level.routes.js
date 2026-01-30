@@ -1,6 +1,7 @@
 const express = require('express');
 const controller = require('./Level.controller');
 const router = express.Router();
+const { authMiddleware, allowRoles } = require('../../middleware/authMiddleware');
 
 /**
  * @swagger
@@ -22,23 +23,38 @@ const router = express.Router();
  *           schema:
  *             type: object
  *             required:
+ *               - languageId
+ *               - code
  *               - name
- *               - description
- *               - learningPathId
  *             properties:
+ *               languageId:
+ *                 type: string
+ *                 description: ID de la langue parente
+ *               code:
+ *                 type: string
+ *                 maxLength: 20
+ *                 example: beginner
  *               name:
  *                 type: string
+ *                 maxLength: 100
+ *                 example: Débutant
  *               description:
  *                 type: string
- *               learningPathId:
- *                 type: string
+ *                 example: Niveau pour les débutants
+ *               index:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: Ordre d'affichage (auto si non fourni)
+ *               isActive:
+ *                 type: boolean
+ *                 default: true
  *     responses:
  *       201:
  *         description: Niveau créé
  *       400:
  *         description: Données invalides
  */
-router.post('/', controller.create);
+router.post('/', authMiddleware, allowRoles('admin', 'plateform_manager'), controller.create);
 
 /**
  * @swagger
@@ -103,7 +119,7 @@ router.get('/:id', controller.getById);
  *       404:
  *         description: Niveau non trouvé
  */
-router.put('/:id', controller.update);
+router.put('/:id', authMiddleware, allowRoles('admin', 'plateform_manager'), controller.update);
 
 /**
  * @swagger
@@ -123,6 +139,6 @@ router.put('/:id', controller.update);
  *       404:
  *         description: Niveau non trouvé
  */
-router.delete('/:id', controller.remove);
+router.delete('/:id', authMiddleware, allowRoles('admin', 'plateform_manager'), controller.remove);
 
 module.exports = router;

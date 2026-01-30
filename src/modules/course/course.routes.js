@@ -2,7 +2,6 @@ const express = require('express');
 const controller = require('./course.controller');
 const router = express.Router();
 
-
 /**
  * @swagger
  * tags:
@@ -51,7 +50,7 @@ const router = express.Router();
  *         name: sortBy
  *         schema:
  *           type: string
- *         description: "Champ de tri, exemple: createdAt"
+*         description: "Champ de tri (ex: createdAt)"
  *       - in: query
  *         name: sortOrder
  *         schema:
@@ -386,4 +385,5 @@ router.get('/level/:levelId', controller.getCoursesByLevel);
  *           type: boolean
  *           example: true
  */
+
 module.exports = router;
