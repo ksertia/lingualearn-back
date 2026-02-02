@@ -1,21 +1,21 @@
 const express = require('express');
-const controller = require('./Level.controller');
+const controller = require('./language.controller');
 const router = express.Router();
 const { authMiddleware, allowRoles } = require('../../middleware/authMiddleware');
 
 /**
  * @swagger
  * tags:
- *   name: Levels
- *   description: Gestion des niveaux (Level)
+ *   name: Languages
+ *   description: Gestion des langues
  */
 
 /**
  * @swagger
- * /api/v1/levels:
+ * /api/v1/languages:
  *   post:
- *     summary: Créer un nouveau niveau
- *     tags: [Levels]
+ *     summary: Créer une nouvelle langue
+ *     tags: [Languages]
  *     requestBody:
  *       required: true
  *       content:
@@ -23,34 +23,27 @@ const { authMiddleware, allowRoles } = require('../../middleware/authMiddleware'
  *           schema:
  *             type: object
  *             required:
- *               - languageId
  *               - code
  *               - name
  *             properties:
- *               languageId:
- *                 type: string
- *                 description: ID de la langue parente
  *               code:
  *                 type: string
- *                 maxLength: 20
- *                 example: beginner
+ *                 example: fr
  *               name:
  *                 type: string
- *                 maxLength: 100
- *                 example: Débutant
+ *                 example: Français
  *               description:
  *                 type: string
- *                 example: Niveau pour les débutants
- *               index:
- *                 type: integer
- *                 minimum: 0
- *                 description: Ordre d'affichage (auto si non fourni)
+ *                 example: Langue française
+ *               iconUrl:
+ *                 type: string
+ *                 example: https://cdn.lingualearn.com/icons/fr.png
  *               isActive:
  *                 type: boolean
- *                 default: true
+ *                 example: true
  *     responses:
  *       201:
- *         description: Niveau créé
+ *         description: Langue créée
  *       400:
  *         description: Données invalides
  */
@@ -58,22 +51,22 @@ router.post('/', authMiddleware, allowRoles('admin', 'plateform_manager'), contr
 
 /**
  * @swagger
- * /api/v1/levels:
+ * /api/v1/languages:
  *   get:
- *     summary: Récupérer tous les niveaux
- *     tags: [Levels]
+ *     summary: Lister toutes les langues
+ *     tags: [Languages]
  *     responses:
  *       200:
- *         description: Liste des niveaux
+ *         description: Liste des langues
  */
 router.get('/', controller.getAll);
 
 /**
  * @swagger
- * /api/v1/levels/{id}:
+ * /api/v1/languages/{id}:
  *   get:
- *     summary: Récupérer un niveau par ID
- *     tags: [Levels]
+ *     summary: Obtenir une langue par ID
+ *     tags: [Languages]
  *     parameters:
  *       - in: path
  *         name: id
@@ -82,18 +75,18 @@ router.get('/', controller.getAll);
  *           type: string
  *     responses:
  *       200:
- *         description: Niveau trouvé
+ *         description: Langue trouvée
  *       404:
- *         description: Niveau non trouvé
+ *         description: Langue non trouvée
  */
 router.get('/:id', controller.getById);
 
 /**
  * @swagger
- * /api/v1/levels/{id}:
+ * /api/v1/languages/{id}:
  *   put:
- *     summary: Mettre à jour un niveau
- *     tags: [Levels]
+ *     summary: Modifier une langue
+ *     tags: [Languages]
  *     parameters:
  *       - in: path
  *         name: id
@@ -107,26 +100,32 @@ router.get('/:id', controller.getById);
  *           schema:
  *             type: object
  *             properties:
+ *               code:
+ *                 type: string
  *               name:
  *                 type: string
  *               description:
  *                 type: string
+ *               iconUrl:
+ *                 type: string
+ *               isActive:
+ *                 type: boolean
  *     responses:
  *       200:
- *         description: Niveau mis à jour
+ *         description: Langue modifiée
  *       400:
  *         description: Données invalides
  *       404:
- *         description: Niveau non trouvé
+ *         description: Langue non trouvée
  */
 router.put('/:id', authMiddleware, allowRoles('admin', 'plateform_manager'), controller.update);
 
 /**
  * @swagger
- * /api/v1/levels/{id}:
+ * /api/v1/languages/{id}:
  *   delete:
- *     summary: Supprimer un niveau
- *     tags: [Levels]
+ *     summary: Supprimer une langue
+ *     tags: [Languages]
  *     parameters:
  *       - in: path
  *         name: id
@@ -135,9 +134,9 @@ router.put('/:id', authMiddleware, allowRoles('admin', 'plateform_manager'), con
  *           type: string
  *     responses:
  *       204:
- *         description: Niveau supprimé
+ *         description: Langue supprimée
  *       404:
- *         description: Niveau non trouvé
+ *         description: Langue non trouvée
  */
 router.delete('/:id', authMiddleware, allowRoles('admin', 'plateform_manager'), controller.remove);
 

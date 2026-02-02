@@ -33,6 +33,20 @@ const options = {
           description: 'JWT Authorization header using the Bearer scheme. Format: Bearer {token}',
         },
       },
+      schemas: {
+        Language: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', example: 'clq1x2abc0000v2l3k9x9x9x9' },
+            code: { type: 'string', example: 'FR' },
+            name: { type: 'string', example: 'Français' },
+            description: { type: 'string', example: 'Langue française' },
+            iconUrl: { type: 'string', example: 'https://cdn.lingualearn.com/icons/fr.png' },
+            isActive: { type: 'boolean', example: true },
+            index: { type: 'integer', example: 1 }
+          }
+        }
+      }
     },
     security: [
       {
@@ -41,61 +55,109 @@ const options = {
     ],
     tags: [
       {
-        name: 'Authentication',
-        description: 'Endpoints d\'authentification (inscription, connexion, etc.)',
+        name: 'Discover',
+        description: 'Découverte de l\'application, choix de langue, exercices de découverte, etc.'
       },
-      {
-        name: 'Users',
-        description: 'Gestion du profil utilisateur',
-      },
-      {
-        name: 'LearningPaths',
-        description: 'Gestion des parcours (LearningPath)'
-      },
-      {
-        name: 'Levels',
-        description: 'Gestion des niveaux (Level)'
-      },
-      {
-        name: 'Steps',
-        description: 'Gestion des étapes (Step)'
-      },
-      {
-        name: 'Exercises',
-        description: 'Gestion des exercices (Exercise)'
-      },
-      {
-        name: 'StepQuizzes',
-        description: 'Gestion des quiz d\'étape (StepQuiz)'
-      },
-      {
-        name: 'AdminDashboard',
-        description: 'Statistiques et état global de la plateforme'
-      },
-      {
-        name: 'SubscriptionPlans',
-        description: 'Gestion des plans d\'abonnement'
-      },
-      {
-        name: 'Subscriptions',
-        description: 'Gestion des abonnements clients'
-      },
-      {
-        name: 'MessagesWS',
-        description: 'Messagerie temps réel (WebSocket)'
-      },
-      {
-        name: 'Notifications',
-        description: 'Gestion des notifications (REST + WebSocket)'
-      },
-      {
-        name: 'Gamification',
-        description: 'Gestion des badges et récompenses'
-      },
-      {
-        name: 'Course',
-        description: 'Gestion des cours (Course)'
-      },
+    //   {
+    //     name: 'Authentication',
+    //     description: 'Endpoints d\'authentification (inscription, connexion, etc.)',
+    //   },
+    //   {
+    //     name: 'Users',
+    //     description: 'Gestion du profil utilisateur',
+    //   },
+    //   {
+    //     name: 'LearningPaths',
+    //     description: 'Gestion des parcours (LearningPath)'
+    //   },
+    //   {
+    //     name: 'Levels',
+    //     description: 'Gestion des niveaux (Level)'
+    //   },
+    //   {
+    //     name: 'Steps',
+    //     description: 'Gestion des étapes (Step)'
+    //   },
+    //   {
+    //     name: 'Exercises',
+    //     description: 'Gestion des exercices (Exercise)'
+    //   },
+    //   {
+    //     name: 'StepQuizzes',
+    //     description: 'Gestion des quiz d\'étape (StepQuiz)'
+    //   },
+    //   {
+    //     name: 'AdminDashboard',
+    //     description: 'Statistiques et état global de la plateforme'
+    //   },
+    //   {
+    //     name: 'SubscriptionPlans',
+    //     description: 'Gestion des plans d\'abonnement'
+    //   },
+    //   {
+    //     name: 'Subscriptions',
+    //     description: 'Gestion des abonnements clients'
+    //   },
+    //   {
+    //     name: 'MessagesWS',
+    //     description: 'Messagerie temps réel (WebSocket)'
+    //   },
+    //   {
+    //     name: 'Notifications',
+    //     description: 'Gestion des notifications (REST + WebSocket)'
+    //   },
+    //   {
+    //     name: 'Gamification',
+    //     description: 'Gestion des badges et récompenses'
+    //   },
+    //   {
+    //     name: 'Course',
+    //     description: 'Gestion des cours (Course)'
+    //   },
+    //   {
+    //     name: 'Levels',
+    //     description: 'Gestion des niveaux (Level)'
+    //   },
+    //   {
+    //     name: 'Steps',
+    //     description: 'Gestion des étapes (Step)'
+    //   },
+    //   {
+    //     name: 'Exercises',
+    //     description: 'Gestion des exercices (Exercise)'
+    //   },
+    //   {
+    //     name: 'StepQuizzes',
+    //     description: 'Gestion des quiz d\'étape (StepQuiz)'
+    //   },
+    //   {
+    //     name: 'AdminDashboard',
+    //     description: 'Statistiques et état global de la plateforme'
+    //   },
+    //   {
+    //     name: 'SubscriptionPlans',
+    //     description: 'Gestion des plans d\'abonnement'
+    //   },
+    //   {
+    //     name: 'Subscriptions',
+    //     description: 'Gestion des abonnements clients'
+    //   },
+    //   {
+    //     name: 'MessagesWS',
+    //     description: 'Messagerie temps réel (WebSocket)'
+    //   },
+    //   {
+    //     name: 'Notifications',
+    //     description: 'Gestion des notifications (REST + WebSocket)'
+    //   },
+    //   {
+    //     name: 'Gamification',
+    //     description: 'Gestion des badges et récompenses'
+    //   },
+    //   {
+    //     name: 'Course',
+    //     description: 'Gestion des cours (Course)'
+    //   },
     ],
   },
   apis: [
@@ -114,6 +176,10 @@ const options = {
     './src/modules/notification/notification.routes.js',
     './src/modules/gamification/gamification.routes.js',
     './src/modules/course/course.routes.js',
+    './src/modules/module/module.routes.js',
+    './src/modules/language/language.routes.js',
+    './src/modules/evaluation/evaluation.routes.js',
+    './src/modules/discover/discover.routes.js',
   ],
 };
 

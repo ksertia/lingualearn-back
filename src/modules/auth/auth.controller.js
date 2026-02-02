@@ -16,10 +16,12 @@ const authController = {
     register: asyncHandler(async (req, res) => {
         const validatedData = registerSchema.parse(req.body);
         const result = await authService.register(validatedData);
-        
+        // Ajoute le username et l'email dans la réponse si présents
         res.status(201).json({
             success: true,
-            message: 'User registered successfully',
+            message: result.message,
+            username: result.username,
+            email: result.email,
             data: result
         });
     }),

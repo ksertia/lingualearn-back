@@ -41,8 +41,8 @@ const router = express.Router();
  *           nullable: true
  *         accountType:
  *           type: string
- *           enum: [admin, parent, child, teacher]
- *           default: parent
+ *           enum: [admin, learner, sub_account_learner, plateform_manager, teacher]
+ *           default: learner
  *         parentId:
  *           type: string
  *           example: null

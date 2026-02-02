@@ -91,7 +91,7 @@ router.delete('/me', userController.deleteUser);
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.get('/', allowRoles('admin'), userController.getAllUsers);
+router.get('/', allowRoles('admin', 'plateform_manager'), userController.getAllUsers);
 
 /**
  * @swagger

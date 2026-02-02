@@ -11,10 +11,11 @@ class EmailService {
             auth: {
                 user: appConfig.email.user,
                 pass: appConfig.email.pass
-            }
+            },
+            tls: { rejectUnauthorized: false }
         });
 
-        logger.info(`Nodemailer configured for user: ${appConfig.email.user}`);
+        logger.info(`[EMAIL] Nodemailer config: host=${appConfig.email.host}, port=${appConfig.email.port}, user=${appConfig.email.user}`);
     }
 
     /* =========================
@@ -97,12 +98,15 @@ class EmailService {
                 subject,
                 html
             };
-
+            logger.info(`[EMAIL] Attempting to send email to: ${to}, subject: ${subject}`);
+            logger.info(`[EMAIL] SMTP config: host=${appConfig.email.host}, port=${appConfig.email.port}, user=${appConfig.email.user}`);
             const info = await this.transporter.sendMail(mailOptions);
-            logger.info(`Email sent successfully: ${info.messageId}`);
+            logger.info(`[EMAIL] Email sent successfully: ${info.messageId}`);
             return true;
         } catch (error) {
-            logger.error('Email sending failed:', error);
+            logger.error('[EMAIL] Email sending failed:', error);
+            if (error.response) logger.error('[EMAIL] SMTP response:', error.response);
+            if (error.code) logger.error('[EMAIL] SMTP error code:', error.code);
             return false;
         }
     }
@@ -167,6 +171,27 @@ class EmailService {
         });
 
         return this.sendEmail(email, 'Password Changed Successfully', html);
+    }
+
+    /* =========================
+       BIENVENUE & INSCRIPTION ENFANT
+    ========================== */
+    async sendWelcomeChildEmail(email, username) {
+        const html = this.emailTemplate({
+            title: 'Bienvenue sur Lingualearn !',
+            message: `
+                <p>Votre compte enfant a bien été créé.</p>
+                <p>Voici vos informations de connexion :</p>
+                <ul>
+                  <li><strong>Nom d'utilisateur :</strong> <span style="color:#2563eb;">${username}</span></li>
+                  <li><strong>Mot de passe :</strong> Celui que vous avez défini ou reçu</li>
+                </ul>
+                <p>Conservez bien ces informations pour accéder à la plateforme.</p>
+            `,
+            color: '#2563eb',
+            footerNote: 'Pour toute question, contactez notre support.'
+        });
+        return this.sendEmail(email, 'Bienvenue sur Lingualearn', html);
     }
 }
 

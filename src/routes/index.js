@@ -15,20 +15,33 @@ const subscriptionPlanRoutes = require('../modules/subscription_plan/subscriptio
 const subscriptionRoutes = require('../modules/subscription/subscription.routes');
 const messageWsRoutes = require('../modules/message_ws/message_ws.routes');
 const gamificationRoutes = require('../modules/gamification/gamification.routes');
+const notificationRoutes = require('../modules/notification/notification.routes');
+const moduleRoutes = require('../modules/module/module.routes');
+const languageRoutes = require('../modules/language/language.routes');  
+const discoverRoutes = require('../modules/discover/discover.routes');
+const evaluationRoutes = require('../modules/evaluation/evaluation.routes');
 
-
+// Mounting module routes
+router.use('/notifications', notificationRoutes);
 router.use('/admin', adminDashboardRoutes);
 router.use('/levels', levelRoutes);
 router.use('/steps', stepRoutes);
 router.use('/exercises', exerciseRoutes);
 router.use('/courses', courseRoutes);
-
 router.use('/step-quizzes', stepQuizRoutes);
 router.use('/subscription-plans', subscriptionPlanRoutes);
 router.use('/subscriptions', subscriptionRoutes);
 router.use('/messages-ws', messageWsRoutes);
 router.use('/gamification', gamificationRoutes);
+router.use('/auth', authRoutes);
+router.use('/users', userRoutes);
+router.use('/learning-paths', learningPathsRoutes);
+router.use('/modules', moduleRoutes);
 
+
+router.use('/languages', languageRoutes);
+router.use('/discover', discoverRoutes);
+router.use('/evaluation', evaluationRoutes);
 
 router.get('/', (req, res) => {
   res.json({
@@ -37,10 +50,5 @@ router.get('/', (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
-
-// Routes des modules
-router.use('/auth', authRoutes);
-router.use('/users', userRoutes);
-router.use('/learning-paths', learningPathsRoutes);
 
 module.exports = router;

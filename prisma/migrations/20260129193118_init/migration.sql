@@ -8,7 +8,7 @@ CREATE TABLE `users` (
     `passwordHash` VARCHAR(255) NOT NULL,
     `username` VARCHAR(100) NULL,
     `firstLogin` BOOLEAN NOT NULL DEFAULT true,
-    `isVerified` BOOLEAN NOT NULL DEFAULT false,
+    `isVerified` BOOLEAN NOT NULL DEFAULT true,
     `isActive` BOOLEAN NOT NULL DEFAULT true,
     `subscriptionId` VARCHAR(191) NULL,
     `subscriptionEndsAt` DATETIME(3) NULL,
@@ -40,6 +40,312 @@ CREATE TABLE `profiles` (
     `updatedAt` DATETIME(3) NOT NULL,
 
     UNIQUE INDEX `profiles_userId_key`(`userId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `languages` (
+    `id` VARCHAR(191) NOT NULL,
+    `code` VARCHAR(10) NOT NULL,
+    `name` VARCHAR(100) NOT NULL,
+    `description` TEXT NULL,
+    `iconUrl` VARCHAR(500) NULL,
+    `isActive` BOOLEAN NOT NULL DEFAULT true,
+    `index` INTEGER NOT NULL DEFAULT 0,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `languages_code_key`(`code`),
+    INDEX `languages_index_idx`(`index`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `levels` (
+    `id` VARCHAR(191) NOT NULL,
+    `languageId` VARCHAR(191) NOT NULL,
+    `code` VARCHAR(20) NOT NULL,
+    `name` VARCHAR(100) NOT NULL,
+    `description` TEXT NULL,
+    `index` INTEGER NOT NULL DEFAULT 0,
+    `isActive` BOOLEAN NOT NULL DEFAULT true,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `levels_languageId_code_key`(`languageId`, `code`),
+    UNIQUE INDEX `levels_languageId_index_key`(`languageId`, `index`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `modules` (
+    `id` VARCHAR(191) NOT NULL,
+    `levelId` VARCHAR(191) NOT NULL,
+    `title` VARCHAR(200) NOT NULL,
+    `description` TEXT NULL,
+    `iconUrl` VARCHAR(500) NULL,
+    `index` INTEGER NOT NULL DEFAULT 0,
+    `isActive` BOOLEAN NOT NULL DEFAULT true,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `modules_levelId_index_key`(`levelId`, `index`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `paths` (
+    `id` VARCHAR(191) NOT NULL,
+    `moduleId` VARCHAR(191) NOT NULL,
+    `title` VARCHAR(200) NOT NULL,
+    `description` TEXT NULL,
+    `index` INTEGER NOT NULL DEFAULT 0,
+    `tempResaListime` INTEGER NULL,
+    `thumbnailUrl` VARCHAR(500) NULL,
+    `difficulty` VARCHAR(20) NOT NULL DEFAULT 'medium',
+    `estimatedHours` INTEGER NULL DEFAULT 10,
+    `isActive` BOOLEAN NOT NULL DEFAULT true,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `paths_moduleId_index_key`(`moduleId`, `index`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `steps` (
+    `id` VARCHAR(191) NOT NULL,
+    `pathId` VARCHAR(191) NOT NULL,
+    `title` VARCHAR(200) NOT NULL,
+    `description` TEXT NULL,
+    `stepType` VARCHAR(20) NOT NULL,
+    `index` INTEGER NOT NULL DEFAULT 0,
+    `estimatedMinutes` INTEGER NOT NULL DEFAULT 15,
+    `isActive` BOOLEAN NOT NULL DEFAULT true,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `steps_pathId_index_key`(`pathId`, `index`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `lessons` (
+    `id` VARCHAR(191) NOT NULL,
+    `stepId` VARCHAR(191) NOT NULL,
+    `title` VARCHAR(200) NOT NULL,
+    `content` TEXT NOT NULL,
+    `videoUrl` VARCHAR(500) NULL,
+    `attachments` JSON NULL,
+    `index` INTEGER NOT NULL DEFAULT 0,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `lessons_stepId_key`(`stepId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `exercises` (
+    `id` VARCHAR(191) NOT NULL,
+    `stepId` VARCHAR(191) NOT NULL,
+    `title` VARCHAR(200) NOT NULL,
+    `instructions` TEXT NOT NULL,
+    `content` JSON NOT NULL,
+    `correctAnswers` JSON NULL,
+    `hints` JSON NULL,
+    `explanation` TEXT NULL,
+    `maxAttempts` INTEGER NOT NULL DEFAULT 3,
+    `points` INTEGER NOT NULL DEFAULT 10,
+    `xpReward` INTEGER NOT NULL DEFAULT 20,
+    `coinReward` INTEGER NOT NULL DEFAULT 10,
+    `index` INTEGER NOT NULL DEFAULT 0,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `exercises_stepId_key`(`stepId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `quizzes` (
+    `id` VARCHAR(191) NOT NULL,
+    `stepId` VARCHAR(191) NOT NULL,
+    `title` VARCHAR(200) NOT NULL,
+    `questions` JSON NOT NULL,
+    `passingScore` INTEGER NOT NULL DEFAULT 70,
+    `maxAttempts` INTEGER NOT NULL DEFAULT 2,
+    `timeLimitMinutes` INTEGER NULL DEFAULT 10,
+    `xpReward` INTEGER NOT NULL DEFAULT 30,
+    `coinReward` INTEGER NOT NULL DEFAULT 15,
+    `index` INTEGER NOT NULL DEFAULT 0,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `quizzes_stepId_key`(`stepId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `path_quizzes` (
+    `id` VARCHAR(191) NOT NULL,
+    `pathId` VARCHAR(191) NOT NULL,
+    `title` VARCHAR(200) NOT NULL,
+    `description` TEXT NULL,
+    `questions` JSON NOT NULL,
+    `passingScore` INTEGER NOT NULL DEFAULT 70,
+    `maxAttempts` INTEGER NOT NULL DEFAULT 3,
+    `timeLimitMinutes` INTEGER NOT NULL DEFAULT 30,
+    `xpReward` INTEGER NOT NULL DEFAULT 100,
+    `coinReward` INTEGER NOT NULL DEFAULT 50,
+    `isActive` BOOLEAN NOT NULL DEFAULT true,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `path_quizzes_pathId_key`(`pathId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `user_language_progress` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `languageId` VARCHAR(191) NOT NULL,
+    `status` VARCHAR(20) NOT NULL DEFAULT 'not_started',
+    `overallProgress` DECIMAL(5, 2) NOT NULL DEFAULT 0.0,
+    `totalXp` INTEGER NOT NULL DEFAULT 0,
+    `totalTimeMinutes` INTEGER NOT NULL DEFAULT 0,
+    `startedAt` DATETIME(3) NULL,
+    `completedAt` DATETIME(3) NULL,
+    `lastAccessedAt` DATETIME(3) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `user_language_progress_userId_languageId_key`(`userId`, `languageId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `user_level_progress` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `levelId` VARCHAR(191) NOT NULL,
+    `status` VARCHAR(20) NOT NULL DEFAULT 'locked',
+    `progressPercentage` DECIMAL(5, 2) NOT NULL DEFAULT 0.0,
+    `totalXp` INTEGER NOT NULL DEFAULT 0,
+    `timeSpentMinutes` INTEGER NOT NULL DEFAULT 0,
+    `unlockedAt` DATETIME(3) NULL,
+    `startedAt` DATETIME(3) NULL,
+    `completedAt` DATETIME(3) NULL,
+    `lastAccessedAt` DATETIME(3) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `user_level_progress_userId_levelId_key`(`userId`, `levelId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `user_module_progress` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `moduleId` VARCHAR(191) NOT NULL,
+    `status` VARCHAR(20) NOT NULL DEFAULT 'locked',
+    `progressPercentage` DECIMAL(5, 2) NOT NULL DEFAULT 0.0,
+    `totalXp` INTEGER NOT NULL DEFAULT 0,
+    `timeSpentMinutes` INTEGER NOT NULL DEFAULT 0,
+    `unlockedAt` DATETIME(3) NULL,
+    `startedAt` DATETIME(3) NULL,
+    `completedAt` DATETIME(3) NULL,
+    `lastAccessedAt` DATETIME(3) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `user_module_progress_userId_moduleId_key`(`userId`, `moduleId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `user_path_progress` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `pathId` VARCHAR(191) NOT NULL,
+    `status` VARCHAR(20) NOT NULL DEFAULT 'locked',
+    `currentStepIndex` INTEGER NOT NULL DEFAULT 0,
+    `progressPercentage` DECIMAL(5, 2) NOT NULL DEFAULT 0.0,
+    `totalXp` INTEGER NOT NULL DEFAULT 0,
+    `timeSpentMinutes` INTEGER NOT NULL DEFAULT 0,
+    `quizScore` DECIMAL(5, 2) NULL,
+    `unlockedAt` DATETIME(3) NULL,
+    `startedAt` DATETIME(3) NULL,
+    `completedAt` DATETIME(3) NULL,
+    `lastAccessedAt` DATETIME(3) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `user_path_progress_userId_pathId_key`(`userId`, `pathId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `user_step_progress` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `stepId` VARCHAR(191) NOT NULL,
+    `status` VARCHAR(20) NOT NULL DEFAULT 'not_started',
+    `progress` DECIMAL(5, 2) NOT NULL DEFAULT 0.0,
+    `score` DECIMAL(5, 2) NULL,
+    `completedAt` DATETIME(3) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `user_step_progress_userId_stepId_key`(`userId`, `stepId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `quiz_attempts` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `quizType` VARCHAR(20) NOT NULL,
+    `quizId` VARCHAR(191) NULL,
+    `pathQuizId` VARCHAR(191) NULL,
+    `attemptNumber` INTEGER NOT NULL,
+    `score` DECIMAL(5, 2) NOT NULL,
+    `answers` JSON NOT NULL,
+    `timeSpentSeconds` INTEGER NOT NULL,
+    `status` VARCHAR(20) NOT NULL,
+    `passed` BOOLEAN NOT NULL,
+    `feedback` TEXT NULL,
+    `xpEarned` INTEGER NOT NULL DEFAULT 0,
+    `coinsEarned` INTEGER NOT NULL DEFAULT 0,
+    `startedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `completedAt` DATETIME(3) NULL,
+    `gradedAt` DATETIME(3) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    UNIQUE INDEX `quiz_attempts_userId_quizType_quizId_attemptNumber_key`(`userId`, `quizType`, `quizId`, `attemptNumber`),
+    UNIQUE INDEX `quiz_attempts_userId_quizType_pathQuizId_attemptNumber_key`(`userId`, `quizType`, `pathQuizId`, `attemptNumber`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `exercise_attempts` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `exerciseId` VARCHAR(191) NOT NULL,
+    `attemptNumber` INTEGER NOT NULL,
+    `answers` JSON NOT NULL,
+    `score` DECIMAL(5, 2) NULL,
+    `pointsEarned` INTEGER NOT NULL DEFAULT 0,
+    `xpEarned` INTEGER NOT NULL DEFAULT 0,
+    `coinsEarned` INTEGER NOT NULL DEFAULT 0,
+    `timeSpentSeconds` INTEGER NULL,
+    `isCorrect` BOOLEAN NULL,
+    `feedback` TEXT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    UNIQUE INDEX `exercise_attempts_userId_exerciseId_attemptNumber_key`(`userId`, `exerciseId`, `attemptNumber`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -170,292 +476,9 @@ CREATE TABLE `subscriptions` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `learning_paths` (
-    `id` VARCHAR(191) NOT NULL,
-    `title` VARCHAR(200) NOT NULL,
-    `description` TEXT NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `levels` (
-    `id` VARCHAR(191) NOT NULL,
-    `learningPathId` VARCHAR(191) NOT NULL,
-    `name` VARCHAR(100) NOT NULL,
-    `description` TEXT NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `steps` (
-    `id` VARCHAR(191) NOT NULL,
-    `levelId` VARCHAR(191) NOT NULL,
-    `title` VARCHAR(200) NOT NULL,
-    `description` TEXT NULL,
-    `stepNumber` INTEGER NOT NULL,
-    `stepCode` VARCHAR(50) NULL,
-    `thumbnailUrl` VARCHAR(500) NULL,
-    `iconUrl` VARCHAR(500) NULL,
-    `estimatedDurationHours` INTEGER NULL DEFAULT 1,
-    `difficultyLevel` VARCHAR(20) NOT NULL DEFAULT 'beginner',
-    `isPublished` BOOLEAN NOT NULL DEFAULT false,
-    `publishedAt` DATETIME(3) NULL,
-    `sortOrder` INTEGER NOT NULL,
-    `isActive` BOOLEAN NOT NULL DEFAULT true,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    UNIQUE INDEX `steps_levelId_stepNumber_key`(`levelId`, `stepNumber`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `lessons` (
-    `id` VARCHAR(191) NOT NULL,
-    `stepId` VARCHAR(191) NOT NULL,
-    `title` VARCHAR(200) NOT NULL,
-    `lessonNumber` INTEGER NOT NULL,
-    `contentType` VARCHAR(30) NOT NULL,
-    `contentUrl` VARCHAR(500) NULL,
-    `contentText` TEXT NULL,
-    `interactiveData` JSON NULL,
-    `estimatedDurationMinutes` INTEGER NOT NULL DEFAULT 15,
-    `isFreePreview` BOOLEAN NOT NULL DEFAULT false,
-    `sortOrder` INTEGER NOT NULL,
-    `isActive` BOOLEAN NOT NULL DEFAULT true,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    UNIQUE INDEX `lessons_stepId_lessonNumber_key`(`stepId`, `lessonNumber`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `exercises` (
-    `id` VARCHAR(191) NOT NULL,
-    `lessonId` VARCHAR(191) NOT NULL,
-    `title` VARCHAR(200) NOT NULL,
-    `exerciseType` VARCHAR(30) NOT NULL,
-    `instructions` TEXT NULL,
-    `content` JSON NOT NULL,
-    `correctAnswers` JSON NULL,
-    `hints` JSON NULL,
-    `explanation` TEXT NULL,
-    `points` INTEGER NOT NULL DEFAULT 10,
-    `xpReward` INTEGER NOT NULL DEFAULT 10,
-    `coinReward` INTEGER NOT NULL DEFAULT 5,
-    `maxAttempts` INTEGER NOT NULL DEFAULT 3,
-    `timeLimitSeconds` INTEGER NULL,
-    `sortOrder` INTEGER NOT NULL,
-    `isActive` BOOLEAN NOT NULL DEFAULT true,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    INDEX `exercises_lessonId_sortOrder_idx`(`lessonId`, `sortOrder`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `step_quizzes` (
-    `id` VARCHAR(191) NOT NULL,
-    `stepId` VARCHAR(191) NOT NULL,
-    `title` VARCHAR(200) NOT NULL,
-    `description` TEXT NULL,
-    `questions` JSON NOT NULL,
-    `passingScore` INTEGER NOT NULL DEFAULT 70,
-    `maxAttempts` INTEGER NOT NULL DEFAULT 3,
-    `timeLimitMinutes` INTEGER NOT NULL DEFAULT 20,
-    `xpReward` INTEGER NOT NULL DEFAULT 80,
-    `coinReward` INTEGER NOT NULL DEFAULT 40,
-    `isActive` BOOLEAN NOT NULL DEFAULT true,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    UNIQUE INDEX `step_quizzes_stepId_key`(`stepId`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `level_exams` (
-    `id` VARCHAR(191) NOT NULL,
-    `levelId` VARCHAR(191) NOT NULL,
-    `title` VARCHAR(200) NOT NULL,
-    `description` TEXT NULL,
-    `sections` JSON NOT NULL,
-    `passingScore` INTEGER NOT NULL DEFAULT 75,
-    `maxAttempts` INTEGER NOT NULL DEFAULT 2,
-    `timeLimitMinutes` INTEGER NOT NULL DEFAULT 60,
-    `xpReward` INTEGER NOT NULL DEFAULT 500,
-    `coinReward` INTEGER NOT NULL DEFAULT 200,
-    `unlocksCertificate` BOOLEAN NOT NULL DEFAULT true,
-    `isActive` BOOLEAN NOT NULL DEFAULT true,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    UNIQUE INDEX `level_exams_levelId_key`(`levelId`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `final_exams` (
-    `id` VARCHAR(191) NOT NULL,
-    `learningPathId` VARCHAR(191) NOT NULL,
-    `title` VARCHAR(200) NOT NULL,
-    `description` TEXT NULL,
-    `sections` JSON NOT NULL,
-    `passingScore` INTEGER NOT NULL DEFAULT 80,
-    `maxAttempts` INTEGER NOT NULL DEFAULT 1,
-    `timeLimitMinutes` INTEGER NOT NULL DEFAULT 120,
-    `xpReward` INTEGER NOT NULL DEFAULT 1000,
-    `coinReward` INTEGER NOT NULL DEFAULT 500,
-    `awardsCertificate` BOOLEAN NOT NULL DEFAULT true,
-    `certificateId` VARCHAR(191) NULL,
-    `isActive` BOOLEAN NOT NULL DEFAULT true,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    UNIQUE INDEX `final_exams_learningPathId_key`(`learningPathId`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `quiz_attempts` (
-    `id` VARCHAR(191) NOT NULL,
-    `userId` VARCHAR(191) NOT NULL,
-    `quizType` VARCHAR(20) NOT NULL,
-    `stepQuizId` VARCHAR(191) NULL,
-    `levelExamId` VARCHAR(191) NULL,
-    `finalExamId` VARCHAR(191) NULL,
-    `attemptNumber` INTEGER NOT NULL,
-    `score` DECIMAL(5, 2) NOT NULL,
-    `answers` JSON NOT NULL,
-    `timeSpentSeconds` INTEGER NOT NULL,
-    `status` VARCHAR(20) NOT NULL,
-    `passed` BOOLEAN NOT NULL,
-    `feedback` TEXT NULL,
-    `xpEarned` INTEGER NOT NULL DEFAULT 0,
-    `coinsEarned` INTEGER NOT NULL DEFAULT 0,
-    `startedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `completedAt` DATETIME(3) NULL,
-    `gradedAt` DATETIME(3) NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-
-    UNIQUE INDEX `quiz_attempts_userId_quizType_stepQuizId_attemptNumber_key`(`userId`, `quizType`, `stepQuizId`, `attemptNumber`),
-    UNIQUE INDEX `quiz_attempts_userId_quizType_levelExamId_attemptNumber_key`(`userId`, `quizType`, `levelExamId`, `attemptNumber`),
-    UNIQUE INDEX `quiz_attempts_userId_quizType_finalExamId_attemptNumber_key`(`userId`, `quizType`, `finalExamId`, `attemptNumber`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `exercise_attempts` (
-    `id` VARCHAR(191) NOT NULL,
-    `userId` VARCHAR(191) NOT NULL,
-    `exerciseId` VARCHAR(191) NOT NULL,
-    `attemptNumber` INTEGER NOT NULL,
-    `answers` JSON NOT NULL,
-    `score` DECIMAL(5, 2) NULL,
-    `pointsEarned` INTEGER NOT NULL DEFAULT 0,
-    `xpEarned` INTEGER NOT NULL DEFAULT 0,
-    `coinsEarned` INTEGER NOT NULL DEFAULT 0,
-    `timeSpentSeconds` INTEGER NULL,
-    `isCorrect` BOOLEAN NULL,
-    `feedback` TEXT NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-
-    UNIQUE INDEX `exercise_attempts_userId_exerciseId_attemptNumber_key`(`userId`, `exerciseId`, `attemptNumber`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `user_learning_path_progress` (
-    `id` VARCHAR(191) NOT NULL,
-    `userId` VARCHAR(191) NOT NULL,
-    `learningPathId` VARCHAR(191) NOT NULL,
-    `status` VARCHAR(20) NOT NULL DEFAULT 'not_started',
-    `currentLevelId` VARCHAR(191) NULL,
-    `overallProgress` DECIMAL(5, 2) NOT NULL DEFAULT 0.0,
-    `totalXp` INTEGER NOT NULL DEFAULT 0,
-    `totalTimeMinutes` INTEGER NOT NULL DEFAULT 0,
-    `finalExamScore` DECIMAL(5, 2) NULL,
-    `startedAt` DATETIME(3) NULL,
-    `completedAt` DATETIME(3) NULL,
-    `lastAccessedAt` DATETIME(3) NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    UNIQUE INDEX `user_learning_path_progress_userId_learningPathId_key`(`userId`, `learningPathId`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `user_level_progress` (
-    `id` VARCHAR(191) NOT NULL,
-    `userId` VARCHAR(191) NOT NULL,
-    `levelId` VARCHAR(191) NOT NULL,
-    `status` VARCHAR(20) NOT NULL DEFAULT 'locked',
-    `currentStepNumber` INTEGER NOT NULL DEFAULT 1,
-    `progressPercentage` DECIMAL(5, 2) NOT NULL DEFAULT 0.0,
-    `totalXp` INTEGER NOT NULL DEFAULT 0,
-    `timeSpentMinutes` INTEGER NOT NULL DEFAULT 0,
-    `levelExamScore` DECIMAL(5, 2) NULL,
-    `unlockedAt` DATETIME(3) NULL,
-    `startedAt` DATETIME(3) NULL,
-    `completedAt` DATETIME(3) NULL,
-    `lastAccessedAt` DATETIME(3) NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    UNIQUE INDEX `user_level_progress_userId_levelId_key`(`userId`, `levelId`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `user_step_progress` (
-    `id` VARCHAR(191) NOT NULL,
-    `userId` VARCHAR(191) NOT NULL,
-    `stepId` VARCHAR(191) NOT NULL,
-    `status` VARCHAR(20) NOT NULL DEFAULT 'locked',
-    `currentLessonNumber` INTEGER NOT NULL DEFAULT 1,
-    `progressPercentage` DECIMAL(5, 2) NOT NULL DEFAULT 0.0,
-    `totalXp` INTEGER NOT NULL DEFAULT 0,
-    `timeSpentMinutes` INTEGER NOT NULL DEFAULT 0,
-    `quizScore` DECIMAL(5, 2) NULL,
-    `unlockedAt` DATETIME(3) NULL,
-    `startedAt` DATETIME(3) NULL,
-    `completedAt` DATETIME(3) NULL,
-    `lastAccessedAt` DATETIME(3) NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    UNIQUE INDEX `user_step_progress_userId_stepId_key`(`userId`, `stepId`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `user_lesson_progress` (
-    `id` VARCHAR(191) NOT NULL,
-    `userId` VARCHAR(191) NOT NULL,
-    `lessonId` VARCHAR(191) NOT NULL,
-    `status` VARCHAR(20) NOT NULL DEFAULT 'not_started',
-    `progress` DECIMAL(5, 2) NOT NULL DEFAULT 0.0,
-    `completedAt` DATETIME(3) NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    UNIQUE INDEX `user_lesson_progress_userId_lessonId_key`(`userId`, `lessonId`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
 CREATE TABLE `certificates` (
     `id` VARCHAR(191) NOT NULL,
-    `learningPathId` VARCHAR(191) NULL,
+    `languageId` VARCHAR(191) NULL,
     `certCode` VARCHAR(50) NOT NULL,
     `certName` VARCHAR(200) NOT NULL,
     `description` TEXT NULL,
@@ -644,6 +667,75 @@ ALTER TABLE `users` ADD CONSTRAINT `users_createdBy_fkey` FOREIGN KEY (`createdB
 ALTER TABLE `profiles` ADD CONSTRAINT `profiles_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `levels` ADD CONSTRAINT `levels_languageId_fkey` FOREIGN KEY (`languageId`) REFERENCES `languages`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `modules` ADD CONSTRAINT `modules_levelId_fkey` FOREIGN KEY (`levelId`) REFERENCES `levels`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `paths` ADD CONSTRAINT `paths_moduleId_fkey` FOREIGN KEY (`moduleId`) REFERENCES `modules`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `steps` ADD CONSTRAINT `steps_pathId_fkey` FOREIGN KEY (`pathId`) REFERENCES `paths`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `lessons` ADD CONSTRAINT `lessons_stepId_fkey` FOREIGN KEY (`stepId`) REFERENCES `steps`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `exercises` ADD CONSTRAINT `exercises_stepId_fkey` FOREIGN KEY (`stepId`) REFERENCES `steps`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `quizzes` ADD CONSTRAINT `quizzes_stepId_fkey` FOREIGN KEY (`stepId`) REFERENCES `steps`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `path_quizzes` ADD CONSTRAINT `path_quizzes_pathId_fkey` FOREIGN KEY (`pathId`) REFERENCES `paths`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `user_language_progress` ADD CONSTRAINT `user_language_progress_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `user_language_progress` ADD CONSTRAINT `user_language_progress_languageId_fkey` FOREIGN KEY (`languageId`) REFERENCES `languages`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `user_level_progress` ADD CONSTRAINT `user_level_progress_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `user_level_progress` ADD CONSTRAINT `user_level_progress_levelId_fkey` FOREIGN KEY (`levelId`) REFERENCES `levels`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `user_module_progress` ADD CONSTRAINT `user_module_progress_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `user_module_progress` ADD CONSTRAINT `user_module_progress_moduleId_fkey` FOREIGN KEY (`moduleId`) REFERENCES `modules`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `user_path_progress` ADD CONSTRAINT `user_path_progress_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `user_path_progress` ADD CONSTRAINT `user_path_progress_pathId_fkey` FOREIGN KEY (`pathId`) REFERENCES `paths`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `user_step_progress` ADD CONSTRAINT `user_step_progress_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `user_step_progress` ADD CONSTRAINT `user_step_progress_stepId_fkey` FOREIGN KEY (`stepId`) REFERENCES `steps`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `quiz_attempts` ADD CONSTRAINT `quiz_attempts_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `quiz_attempts` ADD CONSTRAINT `quiz_attempts_quizId_fkey` FOREIGN KEY (`quizId`) REFERENCES `quizzes`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `quiz_attempts` ADD CONSTRAINT `quiz_attempts_pathQuizId_fkey` FOREIGN KEY (`pathQuizId`) REFERENCES `path_quizzes`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `exercise_attempts` ADD CONSTRAINT `exercise_attempts_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `exercise_attempts` ADD CONSTRAINT `exercise_attempts_exerciseId_fkey` FOREIGN KEY (`exerciseId`) REFERENCES `exercises`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `refresh_tokens` ADD CONSTRAINT `refresh_tokens_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -671,76 +763,7 @@ ALTER TABLE `subscriptions` ADD CONSTRAINT `subscriptions_userId_fkey` FOREIGN K
 ALTER TABLE `subscriptions` ADD CONSTRAINT `subscriptions_planId_fkey` FOREIGN KEY (`planId`) REFERENCES `subscription_plans`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `levels` ADD CONSTRAINT `levels_learningPathId_fkey` FOREIGN KEY (`learningPathId`) REFERENCES `learning_paths`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `steps` ADD CONSTRAINT `steps_levelId_fkey` FOREIGN KEY (`levelId`) REFERENCES `levels`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `lessons` ADD CONSTRAINT `lessons_stepId_fkey` FOREIGN KEY (`stepId`) REFERENCES `steps`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `exercises` ADD CONSTRAINT `exercises_lessonId_fkey` FOREIGN KEY (`lessonId`) REFERENCES `lessons`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `step_quizzes` ADD CONSTRAINT `step_quizzes_stepId_fkey` FOREIGN KEY (`stepId`) REFERENCES `steps`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `level_exams` ADD CONSTRAINT `level_exams_levelId_fkey` FOREIGN KEY (`levelId`) REFERENCES `levels`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `final_exams` ADD CONSTRAINT `final_exams_learningPathId_fkey` FOREIGN KEY (`learningPathId`) REFERENCES `learning_paths`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `final_exams` ADD CONSTRAINT `final_exams_certificateId_fkey` FOREIGN KEY (`certificateId`) REFERENCES `certificates`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `quiz_attempts` ADD CONSTRAINT `quiz_attempts_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `quiz_attempts` ADD CONSTRAINT `quiz_attempts_stepQuizId_fkey` FOREIGN KEY (`stepQuizId`) REFERENCES `step_quizzes`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `quiz_attempts` ADD CONSTRAINT `quiz_attempts_levelExamId_fkey` FOREIGN KEY (`levelExamId`) REFERENCES `level_exams`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `quiz_attempts` ADD CONSTRAINT `quiz_attempts_finalExamId_fkey` FOREIGN KEY (`finalExamId`) REFERENCES `final_exams`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `exercise_attempts` ADD CONSTRAINT `exercise_attempts_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `exercise_attempts` ADD CONSTRAINT `exercise_attempts_exerciseId_fkey` FOREIGN KEY (`exerciseId`) REFERENCES `exercises`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `user_learning_path_progress` ADD CONSTRAINT `user_learning_path_progress_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `user_learning_path_progress` ADD CONSTRAINT `user_learning_path_progress_learningPathId_fkey` FOREIGN KEY (`learningPathId`) REFERENCES `learning_paths`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `user_learning_path_progress` ADD CONSTRAINT `user_learning_path_progress_currentLevelId_fkey` FOREIGN KEY (`currentLevelId`) REFERENCES `levels`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `user_level_progress` ADD CONSTRAINT `user_level_progress_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `user_level_progress` ADD CONSTRAINT `user_level_progress_levelId_fkey` FOREIGN KEY (`levelId`) REFERENCES `levels`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `user_step_progress` ADD CONSTRAINT `user_step_progress_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `user_step_progress` ADD CONSTRAINT `user_step_progress_stepId_fkey` FOREIGN KEY (`stepId`) REFERENCES `steps`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `user_lesson_progress` ADD CONSTRAINT `user_lesson_progress_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `user_lesson_progress` ADD CONSTRAINT `user_lesson_progress_lessonId_fkey` FOREIGN KEY (`lessonId`) REFERENCES `lessons`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `certificates` ADD CONSTRAINT `certificates_learningPathId_fkey` FOREIGN KEY (`learningPathId`) REFERENCES `learning_paths`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `certificates` ADD CONSTRAINT `certificates_languageId_fkey` FOREIGN KEY (`languageId`) REFERENCES `languages`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `user_certificates` ADD CONSTRAINT `user_certificates_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

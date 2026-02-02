@@ -1,3 +1,11 @@
+// === DISCOVERY SESSION (for anonymous discovery flow) ===
+model DiscoverySession {
+  id        String   @id @db.VarChar(50)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("discovery_sessions")
+}
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
@@ -7,6 +15,7 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// === USER MODELS (unchanged) ===
 model User {
   id                 String    @id @default(cuid())
   parentId           String?
@@ -37,16 +46,19 @@ model User {
   loginAttempts       LoginAttempt[]
   sessions            Session[]
 
-  learningPathProgress UserLearningPathProgress[]
-  levelProgress        UserLevelProgress[]
-  stepProgress         UserStepProgress[]
-  lessonProgress       UserLessonProgress[]
-  quizAttempts         QuizAttempt[]
-  exerciseAttempts     ExerciseAttempt[]
-  certificates         UserCertificate[]
-  badges               UserBadge[]
-  stats                UserStats?
-  dailyActivity        UserDailyActivity[]
+  // Updated relations with English terms
+  languageProgress UserLanguageProgress[]
+  levelProgress    UserLevelProgress[]
+  moduleProgress   UserModuleProgress[]
+  pathProgress     UserPathProgress[]
+  stepProgress     UserStepProgress[]
+
+  quizAttempts     QuizAttempt[]
+  exerciseAttempts ExerciseAttempt[]
+  certificates     UserCertificate[]
+  badges           UserBadge[]
+  stats            UserStats?
+  dailyActivity    UserDailyActivity[]
 
   subAccountControls SubAccountControl[] @relation("ParentControls")
   controlledByParent SubAccountControl[] @relation("SubAccountControlled")
@@ -79,6 +91,366 @@ model Profile {
 
   @@map("profiles")
 }
+
+// === PLATFORM STRUCTURE MODELS (English terms) ===
+
+// 1. LANGUAGE
+model Language {
+  id          String   @id @default(cuid())
+  code        String   @unique @db.VarChar(10)
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  iconUrl     String?  @db.VarChar(500)
+  isActive    Boolean  @default(true)
+  index       Int      @default(0) // For ordering
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  levels       Level[]
+  userProgress UserLanguageProgress[]
+  Certificate  Certificate[]
+
+  @@index([index])
+  @@map("languages")
+}
+
+// 2. LEVEL (beginner, intermediate, advanced)
+model Level {
+  id          String   @id @default(cuid())
+  languageId  String
+  code        String   @db.VarChar(20) // "beginner", "intermediate", "advanced"
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  index       Int      @default(0) // For ordering within language
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  language     Language            @relation(fields: [languageId], references: [id], onDelete: Cascade)
+  modules      Module[]
+  userProgress UserLevelProgress[]
+
+  @@unique([languageId, code])
+  @@unique([languageId, index])
+  @@map("levels")
+}
+
+// 3. MODULE (comes before path)
+model Module {
+  id          String   @id @default(cuid())
+  levelId     String
+  title       String   @db.VarChar(200)
+  description String?  @db.Text
+  iconUrl     String?  @db.VarChar(500)
+  index       Int      @default(0) // For ordering within level
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  level        Level                @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  paths        Path[]
+  userProgress UserModuleProgress[]
+
+  @@unique([levelId, index])
+  @@map("modules")
+}
+
+// 4. PATH (in each module)
+model Path {
+  id              String   @id @default(cuid())
+  moduleId        String
+  title           String   @db.VarChar(200)
+  description     String?  @db.Text
+  index           Int      @default(0) // For ordering within module
+  tempResaListime Int? // Booking/reservation time
+  thumbnailUrl    String?  @db.VarChar(500)
+  difficulty      String   @default("medium") @db.VarChar(20)
+  estimatedHours  Int?     @default(10)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  module       Module             @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  steps        Step[]
+  userProgress UserPathProgress[]
+  pathQuiz     PathQuiz?
+
+  @@unique([moduleId, index])
+  @@map("paths")
+}
+
+// 5. STEP (in each path) - This is where content happens
+model Step {
+  id               String   @id @default(cuid())
+  pathId           String
+  title            String   @db.VarChar(200)
+  description      String?  @db.Text
+  stepType         String   @db.VarChar(20) // "lesson", "exercise", "quiz"
+  index            Int      @default(0) // Ordering within path
+  estimatedMinutes Int      @default(15)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  path         Path               @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  lesson       Lesson? // For stepType = "lesson"
+  exercise     Exercise? // For stepType = "exercise"
+  quiz         Quiz? // For stepType = "quiz"
+  userProgress UserStepProgress[]
+
+  @@unique([pathId, index])
+  @@map("steps")
+}
+
+// === CONTENT MODELS (lesson, exercise, quiz) ===
+
+// For stepType = "lesson"
+model Lesson {
+  id          String   @id @default(cuid())
+  stepId      String   @unique
+  title       String   @db.VarChar(200)
+  content     String   @db.Text
+  videoUrl    String?  @db.VarChar(500)
+  attachments Json? // Attached files
+  index       Int      @default(0) // Ordering if multiple lessons per step
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  step Step @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  @@map("lessons")
+}
+
+// For stepType = "exercise"
+model Exercise {
+  id             String   @id @default(cuid())
+  stepId         String   @unique
+  title          String   @db.VarChar(200)
+  instructions   String   @db.Text
+  content        Json // Exercise data and questions
+  correctAnswers Json?
+  hints          Json?
+  explanation    String?  @db.Text
+  maxAttempts    Int      @default(3)
+  points         Int      @default(10)
+  xpReward       Int      @default(20)
+  coinReward     Int      @default(10)
+  index          Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  step     Step              @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  attempts ExerciseAttempt[]
+
+  @@map("exercises")
+}
+
+// For stepType = "quiz"
+model Quiz {
+  id               String   @id @default(cuid())
+  stepId           String   @unique
+  title            String   @db.VarChar(200)
+  questions        Json // Quiz questions
+  passingScore     Int      @default(70)
+  maxAttempts      Int      @default(2)
+  timeLimitMinutes Int?     @default(10)
+  xpReward         Int      @default(30)
+  coinReward       Int      @default(15)
+  index            Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  step     Step          @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  attempts QuizAttempt[]
+
+  @@map("quizzes")
+}
+
+// End of path quiz
+model PathQuiz {
+  id               String   @id @default(cuid())
+  pathId           String   @unique
+  title            String   @db.VarChar(200)
+  description      String?  @db.Text
+  questions        Json
+  passingScore     Int      @default(70)
+  maxAttempts      Int      @default(3)
+  timeLimitMinutes Int      @default(30)
+  xpReward         Int      @default(100)
+  coinReward       Int      @default(50)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  path     Path          @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  attempts QuizAttempt[]
+
+  @@map("path_quizzes")
+}
+
+// === PROGRESS MODELS (adapted to new structure) ===
+
+model UserLanguageProgress {
+  id               String    @id @default(cuid())
+  userId           String
+  languageId       String
+  status           String    @default("not_started") @db.VarChar(20)
+  overallProgress  Decimal   @default(0.0) @db.Decimal(5, 2)
+  totalXp          Int       @default(0)
+  totalTimeMinutes Int       @default(0)
+  startedAt        DateTime?
+  completedAt      DateTime?
+  lastAccessedAt   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  language Language @relation(fields: [languageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, languageId])
+  @@map("user_language_progress")
+}
+
+model UserLevelProgress {
+  id                 String    @id @default(cuid())
+  userId             String
+  levelId            String
+  status             String    @default("locked") @db.VarChar(20)
+  progressPercentage Decimal   @default(0.0) @db.Decimal(5, 2)
+  totalXp            Int       @default(0)
+  timeSpentMinutes   Int       @default(0)
+  unlockedAt         DateTime?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  lastAccessedAt     DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level Level @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, levelId])
+  @@map("user_level_progress")
+}
+
+model UserModuleProgress {
+  id                 String    @id @default(cuid())
+  userId             String
+  moduleId           String
+  status             String    @default("locked") @db.VarChar(20)
+  progressPercentage Decimal   @default(0.0) @db.Decimal(5, 2)
+  totalXp            Int       @default(0)
+  timeSpentMinutes   Int       @default(0)
+  unlockedAt         DateTime?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  lastAccessedAt     DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleId])
+  @@map("user_module_progress")
+}
+
+model UserPathProgress {
+  id                 String    @id @default(cuid())
+  userId             String
+  pathId             String
+  status             String    @default("locked") @db.VarChar(20)
+  currentStepIndex   Int       @default(0)
+  progressPercentage Decimal   @default(0.0) @db.Decimal(5, 2)
+  totalXp            Int       @default(0)
+  timeSpentMinutes   Int       @default(0)
+  quizScore          Decimal?  @db.Decimal(5, 2)
+  unlockedAt         DateTime?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  lastAccessedAt     DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  path Path @relation(fields: [pathId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pathId])
+  @@map("user_path_progress")
+}
+
+model UserStepProgress {
+  id          String    @id @default(cuid())
+  userId      String
+  stepId      String
+  status      String    @default("not_started") @db.VarChar(20)
+  progress    Decimal   @default(0.0) @db.Decimal(5, 2)
+  score       Decimal?  @db.Decimal(5, 2)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  step Step @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, stepId])
+  @@map("user_step_progress")
+}
+
+// === QUIZ AND EXERCISE ATTEMPTS ===
+
+model QuizAttempt {
+  id               String    @id @default(cuid())
+  userId           String
+  quizType         String    @db.VarChar(20) // "step_quiz", "path_quiz"
+  quizId           String? // For step quizzes
+  pathQuizId       String? // For path quizzes
+  attemptNumber    Int
+  score            Decimal   @db.Decimal(5, 2)
+  answers          Json
+  timeSpentSeconds Int
+  status           String    @db.VarChar(20)
+  passed           Boolean
+  feedback         String?   @db.Text
+  xpEarned         Int       @default(0)
+  coinsEarned      Int       @default(0)
+  startedAt        DateTime  @default(now())
+  completedAt      DateTime?
+  gradedAt         DateTime?
+  createdAt        DateTime  @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz     Quiz?     @relation(fields: [quizId], references: [id], onDelete: SetNull)
+  pathQuiz PathQuiz? @relation(fields: [pathQuizId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, quizType, quizId, attemptNumber])
+  @@unique([userId, quizType, pathQuizId, attemptNumber])
+  @@map("quiz_attempts")
+}
+
+model ExerciseAttempt {
+  id               String   @id @default(cuid())
+  userId           String
+  exerciseId       String
+  attemptNumber    Int
+  answers          Json
+  score            Decimal? @db.Decimal(5, 2)
+  pointsEarned     Int      @default(0)
+  xpEarned         Int      @default(0)
+  coinsEarned      Int      @default(0)
+  timeSpentSeconds Int?
+  isCorrect        Boolean?
+  feedback         String?  @db.Text
+  createdAt        DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, exerciseId, attemptNumber])
+  @@map("exercise_attempts")
+}
+
+// === REMAINING MODELS (unchanged or slightly adapted) ===
 
 model RefreshToken {
   id        String   @id @default(cuid())
@@ -213,345 +585,24 @@ model Subscription {
   @@map("subscriptions")
 }
 
-model LearningPath {
-  id          String   @id @default(cuid())
-  title       String   @db.VarChar(200)
-  description String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  levels       Level[]
-  userProgress UserLearningPathProgress[]
-  FinalExam    FinalExam?
-  Certificate  Certificate[]
-
-  @@map("learning_paths")
-}
-
-model Level {
-  id             String   @id @default(cuid())
-  learningPathId String
-  name           String   @db.VarChar(100)
-  description    String?  @db.Text
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  learningPath             LearningPath               @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
-  steps                    Step[]
-  userProgress             UserLevelProgress[]
-  LevelExam                LevelExam?
-  UserLearningPathProgress UserLearningPathProgress[]
-
-  @@map("levels")
-}
-
-model Step {
-  id                     String    @id @default(cuid())
-  levelId                String
-  title                  String    @db.VarChar(200)
-  description            String?   @db.Text
-  stepNumber             Int
-  stepCode               String?   @db.VarChar(50)
-  thumbnailUrl           String?   @db.VarChar(500)
-  iconUrl                String?   @db.VarChar(500)
-  estimatedDurationHours Int?      @default(1)
-  difficultyLevel        String    @default("beginner") @db.VarChar(20)
-  isPublished            Boolean   @default(false)
-  publishedAt            DateTime?
-  sortOrder              Int
-  isActive               Boolean   @default(true)
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
-
-  level        Level              @relation(fields: [levelId], references: [id], onDelete: Cascade)
-  lessons      Lesson[]
-  userProgress UserStepProgress[]
-  stepQuiz     StepQuiz?
-
-  @@unique([levelId, stepNumber])
-  @@map("steps")
-}
-
-model Lesson {
-  id                       String   @id @default(cuid())
-  stepId                   String
-  title                    String   @db.VarChar(200)
-  lessonNumber             Int
-  contentType              String   @db.VarChar(30)
-  contentUrl               String?  @db.VarChar(500)
-  contentText              String?  @db.Text
-  interactiveData          Json?
-  estimatedDurationMinutes Int      @default(15)
-  isFreePreview            Boolean  @default(false)
-  sortOrder                Int
-  isActive                 Boolean  @default(true)
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
-
-  step         Step                 @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  exercises    Exercise[]
-  userProgress UserLessonProgress[]
-
-  @@unique([stepId, lessonNumber])
-  @@map("lessons")
-}
-
-model Exercise {
-  id               String   @id @default(cuid())
-  lessonId         String
-  title            String   @db.VarChar(200)
-  exerciseType     String   @db.VarChar(30)
-  instructions     String?  @db.Text
-  content          Json
-  correctAnswers   Json?
-  hints            Json?
-  explanation      String?  @db.Text
-  points           Int      @default(10)
-  xpReward         Int      @default(10)
-  coinReward       Int      @default(5)
-  maxAttempts      Int      @default(3)
-  timeLimitSeconds Int?
-  sortOrder        Int
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  lesson   Lesson            @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  attempts ExerciseAttempt[]
-
-  @@index([lessonId, sortOrder])
-  @@map("exercises")
-}
-
-model StepQuiz {
-  id               String   @id @default(cuid())
-  stepId           String   @unique
-  title            String   @db.VarChar(200)
-  description      String?  @db.Text
-  questions        Json
-  passingScore     Int      @default(70)
-  maxAttempts      Int      @default(3)
-  timeLimitMinutes Int      @default(20)
-  xpReward         Int      @default(80)
-  coinReward       Int      @default(40)
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  step     Step          @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  attempts QuizAttempt[]
-
-  @@map("step_quizzes")
-}
-
-model LevelExam {
-  id                 String   @id @default(cuid())
-  levelId            String   @unique
-  title              String   @db.VarChar(200)
-  description        String?  @db.Text
-  sections           Json
-  passingScore       Int      @default(75)
-  maxAttempts        Int      @default(2)
-  timeLimitMinutes   Int      @default(60)
-  xpReward           Int      @default(500)
-  coinReward         Int      @default(200)
-  unlocksCertificate Boolean  @default(true)
-  isActive           Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  level    Level         @relation(fields: [levelId], references: [id], onDelete: Cascade)
-  attempts QuizAttempt[]
-
-  @@map("level_exams")
-}
-
-model FinalExam {
-  id                String   @id @default(cuid())
-  learningPathId    String   @unique
-  title             String   @db.VarChar(200)
-  description       String?  @db.Text
-  sections          Json
-  passingScore      Int      @default(80)
-  maxAttempts       Int      @default(1)
-  timeLimitMinutes  Int      @default(120)
-  xpReward          Int      @default(1000)
-  coinReward        Int      @default(500)
-  awardsCertificate Boolean  @default(true)
-  certificateId     String?
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  learningPath LearningPath  @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
-  certificate  Certificate?  @relation(fields: [certificateId], references: [id], onDelete: SetNull)
-  attempts     QuizAttempt[]
-
-  @@map("final_exams")
-}
-
-model QuizAttempt {
-  id               String    @id @default(cuid())
-  userId           String
-  quizType         String    @db.VarChar(20)
-  stepQuizId       String?
-  levelExamId      String?
-  finalExamId      String?
-  attemptNumber    Int
-  score            Decimal   @db.Decimal(5, 2)
-  answers          Json
-  timeSpentSeconds Int
-  status           String    @db.VarChar(20)
-  passed           Boolean
-  feedback         String?   @db.Text
-  xpEarned         Int       @default(0)
-  coinsEarned      Int       @default(0)
-  startedAt        DateTime  @default(now())
-  completedAt      DateTime?
-  gradedAt         DateTime?
-  createdAt        DateTime  @default(now())
-
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  stepQuiz  StepQuiz?  @relation(fields: [stepQuizId], references: [id], onDelete: SetNull)
-  levelExam LevelExam? @relation(fields: [levelExamId], references: [id], onDelete: SetNull)
-  finalExam FinalExam? @relation(fields: [finalExamId], references: [id], onDelete: SetNull)
-
-  @@unique([userId, quizType, stepQuizId, attemptNumber])
-  @@unique([userId, quizType, levelExamId, attemptNumber])
-  @@unique([userId, quizType, finalExamId, attemptNumber])
-  @@map("quiz_attempts")
-}
-
-model ExerciseAttempt {
-  id               String   @id @default(cuid())
-  userId           String
-  exerciseId       String
-  attemptNumber    Int
-  answers          Json
-  score            Decimal? @db.Decimal(5, 2)
-  pointsEarned     Int      @default(0)
-  xpEarned         Int      @default(0)
-  coinsEarned      Int      @default(0)
-  timeSpentSeconds Int?
-  isCorrect        Boolean?
-  feedback         String?  @db.Text
-  createdAt        DateTime @default(now())
-
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, exerciseId, attemptNumber])
-  @@map("exercise_attempts")
-}
-
-model UserLearningPathProgress {
-  id               String    @id @default(cuid())
-  userId           String
-  learningPathId   String
-  status           String    @default("not_started") @db.VarChar(20)
-  currentLevelId   String?
-  overallProgress  Decimal   @default(0.0) @db.Decimal(5, 2)
-  totalXp          Int       @default(0)
-  totalTimeMinutes Int       @default(0)
-  finalExamScore   Decimal?  @db.Decimal(5, 2)
-  startedAt        DateTime?
-  completedAt      DateTime?
-  lastAccessedAt   DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  learningPath LearningPath @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
-  currentLevel Level?       @relation(fields: [currentLevelId], references: [id], onDelete: SetNull)
-
-  @@unique([userId, learningPathId])
-  @@map("user_learning_path_progress")
-}
-
-model UserLevelProgress {
-  id                 String    @id @default(cuid())
-  userId             String
-  levelId            String
-  status             String    @default("locked") @db.VarChar(20)
-  currentStepNumber  Int       @default(1)
-  progressPercentage Decimal   @default(0.0) @db.Decimal(5, 2)
-  totalXp            Int       @default(0)
-  timeSpentMinutes   Int       @default(0)
-  levelExamScore     Decimal?  @db.Decimal(5, 2)
-  unlockedAt         DateTime?
-  startedAt          DateTime?
-  completedAt        DateTime?
-  lastAccessedAt     DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  level Level @relation(fields: [levelId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, levelId])
-  @@map("user_level_progress")
-}
-
-model UserStepProgress {
-  id                  String    @id @default(cuid())
-  userId              String
-  stepId              String
-  status              String    @default("locked") @db.VarChar(20)
-  currentLessonNumber Int       @default(1)
-  progressPercentage  Decimal   @default(0.0) @db.Decimal(5, 2)
-  totalXp             Int       @default(0)
-  timeSpentMinutes    Int       @default(0)
-  quizScore           Decimal?  @db.Decimal(5, 2)
-  unlockedAt          DateTime?
-  startedAt           DateTime?
-  completedAt         DateTime?
-  lastAccessedAt      DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  step Step @relation(fields: [stepId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, stepId])
-  @@map("user_step_progress")
-}
-
-model UserLessonProgress {
-  id          String    @id @default(cuid())
-  userId      String
-  lessonId    String
-  status      String    @default("not_started") @db.VarChar(20)
-  progress    Decimal   @default(0.0) @db.Decimal(5, 2)
-  completedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, lessonId])
-  @@map("user_lesson_progress")
-}
-
 model Certificate {
-  id             String   @id @default(cuid())
-  learningPathId String?
-  certCode       String   @unique @db.VarChar(50)
-  certName       String   @db.VarChar(200)
-  description    String?  @db.Text
-  iconUrl        String?  @db.VarChar(500)
-  bannerUrl      String?  @db.VarChar(500)
-  requirements   Json
-  validityDays   Int?
-  xpReward       Int      @default(500)
-  coinReward     Int      @default(200)
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id           String   @id @default(cuid())
+  languageId   String? // Certificate can be linked to a language
+  certCode     String   @unique @db.VarChar(50)
+  certName     String   @db.VarChar(200)
+  description  String?  @db.Text
+  iconUrl      String?  @db.VarChar(500)
+  bannerUrl    String?  @db.VarChar(500)
+  requirements Json
+  validityDays Int?
+  xpReward     Int      @default(500)
+  coinReward   Int      @default(200)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  learningPath     LearningPath?     @relation(fields: [learningPathId], references: [id], onDelete: SetNull)
+  language         Language?         @relation(fields: [languageId], references: [id], onDelete: SetNull)
   userCertificates UserCertificate[]
-  finalExams       FinalExam[]
 
   @@map("certificates")
 }

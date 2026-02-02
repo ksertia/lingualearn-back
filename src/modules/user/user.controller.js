@@ -5,12 +5,12 @@ const userController = {
     // Récupérer tous les utilisateurs (admin seulement)
     getAllUsers: asyncHandler(async (req, res) => {
         // Vérifier si l'utilisateur est admin
-        if (req.user.accountType !== 'admin') {
-            return res.status(403).json({
-                success: false,
-                error: 'Only administrators can access this resource'
-            });
-        }
+        // if (req.user.accountType !== 'admin') {
+        //     return res.status(403).json({
+        //         success: false,
+        //         error: 'Only administrators can access this resource'
+        //     });
+        // }
         
         const filters = {
             page: req.query.page,
@@ -33,12 +33,12 @@ const userController = {
         const { id } = req.params;
         
         // Vérifier les permissions
-        if (req.user.accountType !== 'admin' && req.user.id !== id) {
-            return res.status(403).json({
-                success: false,
-                error: 'You can only view your own profile'
-            });
-        }
+        // if (req.user.accountType !== 'admin' && req.user.id !== id) {
+        //     return res.status(403).json({
+        //         success: false,
+        //         error: 'You can only view your own profile'
+        //     });
+        // }
         
         const user = await userService.getUserById(id);
         

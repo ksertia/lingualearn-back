@@ -4,97 +4,122 @@ const crypto = require('crypto');
 const { prisma } = require('../../config/prisma');
 const { appConfig } = require('../../config/appConfig');
 const { AppError } = require('../../middleware/errorHandler');
+const {allowRoles} = require('../../middleware/authMiddleware');
 const { emailService } = require('../../utils/emailService');
 const { logger } = require('../../utils/logger');
 
 class AuthService {
     // ============ INSCRIPTION ============
-    async register(data) {
-        const { email, phone, password, username, accountType, parentId, firstName, lastName } = data;
+     async register(data) {
+    const {
+        email,
+        phone,
+        password,
+        username,
+        accountType,
+        parentId,
+        firstName,
+        lastName
+    } = data;
 
-        // Mapper accountType (du frontend) vers accountType (pour Prisma)
-        let finalAccountType = 'user';
-        if (accountType === 'admin') finalAccountType = 'admin';
-        else if (accountType === 'parent') finalAccountType = 'user';
-        else if (accountType === 'child') finalAccountType = 'sub_account';
-        else if (accountType === 'teacher') finalAccountType = 'teacher';
+    // Mapper le type de compte
+    const ACCOUNT_TYPE_MAP = {
+        admin: 'admin',
+        learner: 'learner',
+        sub_account_learner: 'sub_account_learner',
+        teacher: 'teacher',
+        plateform_manager: 'plateform_manager',
+    };
+    const finalAccountType = ACCOUNT_TYPE_MAP[accountType];
 
-        // Vérifier que l'utilisateur fournit soit email, soit phone
-        if (!email && !phone) {
-            throw new AppError(400, 'Either email or phone must be provided');
-        }
-
-        // Vérifier si l'utilisateur existe déjà par email
-        if (email) {
-            const existingUser = await prisma.user.findUnique({ where: { email } });
-            if (existingUser) {
-                throw new AppError(400, 'A user already exists with this email');
-            }
-        }
-
-        // Vérifier si l'utilisateur existe déjà par phone
-        if (phone) {
-            const existingUser = await prisma.user.findFirst({ where: { phone } });
-            if (existingUser) {
-                throw new AppError(400, 'A user already exists with this phone number');
-            }
-        }
-
-        // Vérifier si le username existe déjà
-        if (username) {
-            const existingUser = await prisma.user.findUnique({ where: { username } });
-            if (existingUser) {
-                throw new AppError(400, 'Username already taken');
-            }
-        }
-
-        // Vérifier le parent pour les comptes enfants
-        if (accountType === 'sub_account' && parentId) {
-            const parent = await prisma.user.findUnique({
-                where: { id: parentId, accountType: 'user' }
-            });
-            if (!parent) {
-                throw new AppError(400, 'Parent account not found or invalid');
-            }
-        }
-
-        // Hasher le mot de passe
-        const passwordHash = await bcrypt.hash(password, 12);
-
-        // Créer l'utilisateur
-        const user = await prisma.user.create({
-            data: {
-                email,
-                phone,
-                username,
-                passwordHash,
-                accountType,
-                parentId: accountType === 'sub_account' ? parentId : null,
-                profile: {
-                    create: {
-                        firstName,
-                        lastName
-                    }
-                }
-            },
-            include: { profile: true }
-        });
-
-        // Générer un code de vérification si email ou phone fourni
-        if (email || phone) {
-            const code = crypto.randomBytes(3).toString('hex').toUpperCase();
-            const contactType = email ? 'email' : 'phone';
-            const contactValue = email || phone;
-            await this.createVerificationCode(user.id, contactType, contactValue, 'registration', code);
-            // Envoi du code de vérification par email si email fourni
-            if (email) {
-                await emailService.sendVerificationEmail(email, code);
-            }
-            // (Optionnel) Envoi par SMS si phone fourni
-        }
-
-        return { success: true, message: 'User registered successfully' };
+    if (!email && !phone) {
+        throw new AppError(400, 'Either email or phone must be provided');
     }
+
+    // Vérifier email existant
+    if (email) {
+        const existingEmail = await prisma.user.findUnique({ where: { email } });
+        if (existingEmail) throw new AppError(400, 'A user already exists with this email');
+    }
+
+    // Vérifier phone existant
+    if (phone) {
+        const existingPhone = await prisma.user.findFirst({ where: { phone } });
+        if (existingPhone) throw new AppError(400, 'A user already exists with this phone number');
+    }
+
+    // Générer username automatiquement pour les learners et sub_account_learner
+    let generatedUsername = username ?? null;
+    if (finalAccountType === 'sub_account_learner' && parentId) {
+        // Génération basée sur le parent
+        const parent = await prisma.user.findFirst({
+            where: { id: parentId, accountType: 'learner' },
+            select: { phone: true },
+        });
+        let parentPhone = parent && parent.phone ? parent.phone.replace(/^\+\d{3}/, '') : '';
+        const firstFour = parentPhone.replace(/\D/g, '').slice(0, 4).padEnd(4, '0');
+        const now = new Date();
+        const day = String(now.getDate()).padStart(2, '0');
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const year = now.getFullYear();
+        const baseUsername = `${firstFour}-EDU-${day}${month}${year}`;
+        let uniqueUsername = baseUsername;
+        let suffix = 1;
+        while (await prisma.user.findUnique({ where: { username: uniqueUsername } })) {
+            uniqueUsername = `${baseUsername}-${suffix}`;
+            suffix++;
+        }
+        generatedUsername = uniqueUsername;
+    } else if (finalAccountType === 'learner') {
+        // Génération pour learner sans parent
+        const now = new Date();
+        const day = String(now.getDate()).padStart(2, '0');
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const year = now.getFullYear();
+        const baseUsername = `EDU-${day}${month}${year}`;
+        let uniqueUsername = baseUsername;
+        let suffix = 1;
+        while (await prisma.user.findUnique({ where: { username: uniqueUsername } })) {
+            uniqueUsername = `${baseUsername}-${suffix}`;
+            suffix++;
+        }
+        generatedUsername = uniqueUsername;
+    }
+
+    if (generatedUsername) {
+        const existingUsername = await prisma.user.findUnique({ where: { username: generatedUsername } });
+        if (existingUsername) throw new AppError(400, 'Username already taken');
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    // Créer l'utilisateur
+    const user = await prisma.user.create({
+        data: {
+            email,
+            phone,
+            username: generatedUsername,
+            passwordHash,
+            accountType: finalAccountType,
+            parentId: finalAccountType === 'sub_account_learner' ? parentId : null,
+            profile: { create: { firstName, lastName } }
+        },
+        include: { profile: true }
+    });
+
+    // Envoi email de bienvenue pour learners et sub_account_learner
+    if ((finalAccountType === 'learner' || finalAccountType === 'sub_account_learner') && email && generatedUsername) {
+        await emailService.sendWelcomeChildEmail(email, generatedUsername);
+    }
+
+    return {
+        success: true,
+        message: 'User registered successfully',
+        username: generatedUsername,
+        email: user.email
+    };
+}
+
 
     // ============ CONNEXION ============
     async login(data, req) {
@@ -190,6 +215,7 @@ class AuthService {
 
         // Générer les tokens
         const tokens = await this.generateTokens(user.id, user.accountType);
+        
 
         // Créer une session
         await this.createSession(user.id, req);

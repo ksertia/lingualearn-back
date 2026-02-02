@@ -17,7 +17,7 @@ const registerSchema = z.object({
         .regex(/^[a-zA-Z0-9_.]+$/, 'Username can only contain letters, numbers, dots and underscores')
         .optional()
         .nullable(),
-    accountType: z.enum(['admin', 'parent', 'child', 'teacher']).default('parent'),
+    accountType: z.enum(['admin', 'learner', 'sub_account_learner', 'plateform_manager','teacher']),
     parentId: z.preprocess(
         val => (val === 'null' ? null : val),
         z.string().optional().nullable()
