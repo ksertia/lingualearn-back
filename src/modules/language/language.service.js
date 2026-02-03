@@ -1,3 +1,33 @@
+// Récupérer toutes les langues liées à un utilisateur (via userLanguageProgress)
+exports.getLanguagesByUserId = async (userId) => {
+       return await prisma.userLanguageProgress.findMany({
+	       where: { userId },
+	       include: { language: true }
+       });
+};
+
+// Progression utilisateur pour Language
+exports.selectLanguageForUser = async (userId, languageId) => {
+       let progress = await prisma.userLanguageProgress.findUnique({ where: { userId_languageId: { userId, languageId } } });
+       if (!progress) {
+	       progress = await prisma.userLanguageProgress.create({ data: { userId, languageId, status: 'not_started' } });
+       }
+       return progress;
+};
+
+exports.startLanguageForUser = async (userId, languageId) => {
+       return prisma.userLanguageProgress.update({
+	       where: { userId_languageId: { userId, languageId } },
+	       data: { status: 'started', startedAt: new Date() }
+       });
+};
+
+exports.completeLanguageForUser = async (userId, languageId) => {
+       return prisma.userLanguageProgress.update({
+	       where: { userId_languageId: { userId, languageId } },
+	       data: { status: 'completed', completedAt: new Date() }
+       });
+};
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 

@@ -140,6 +140,17 @@ class AuthService {
                     isVerified: true,
                     isActive: true,
                     lastLogin: true,
+                    profile: {
+                        select: {
+                            firstName: true,
+                            lastName: true,
+                            displayName: true,
+                            birthDate: true,
+                            avatarUrl: true,
+                            timezone: true,
+                            preferredLanguage: true
+                        }
+                    }
                 },
             });
         } else if (/^\+?\d+$/.test(loginInfo)) {
@@ -155,6 +166,17 @@ class AuthService {
                     isVerified: true,
                     isActive: true,
                     lastLogin: true,
+                    profile: {
+                        select: {
+                            firstName: true,
+                            lastName: true,
+                            displayName: true,
+                            birthDate: true,
+                            avatarUrl: true,
+                            timezone: true,
+                            preferredLanguage: true
+                        }
+                    }
                 },
             });
         } else {
@@ -170,6 +192,17 @@ class AuthService {
                     isVerified: true,
                     isActive: true,
                     lastLogin: true,
+                    profile: {
+                        select: {
+                            firstName: true,
+                            lastName: true,
+                            displayName: true,
+                            birthDate: true,
+                            avatarUrl: true,
+                            timezone: true,
+                            preferredLanguage: true
+                        }
+                    }
                 },
             });
         }
@@ -225,8 +258,22 @@ class AuthService {
 
         await this.logLoginAttempt(loginInfo, user.id, true);
 
+        // Retourner uniquement la section profile dans user
+        let userData = { ...userWithoutPassword, firstLogin };
+        if (user.profile) {
+            userData.profile = user.profile;
+        }
+        // Supprimer les champs à plat du profil s'ils existent
+        delete userData.firstName;
+        delete userData.lastName;
+        delete userData.displayName;
+        delete userData.birthDate;
+        delete userData.avatarUrl;
+        delete userData.timezone;
+        delete userData.preferredLanguage;
+
         return {
-            user: { ...userWithoutPassword, firstLogin },
+            user: userData,
             tokens,
         };
     }

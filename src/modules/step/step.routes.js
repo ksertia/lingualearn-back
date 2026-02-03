@@ -5,14 +5,13 @@
  *     Step:
  *       type: object
  *       required:
- *         - levelId
+ *         - pathId
  *         - title
- *         - description
- *         - stepNumber
+ *         - stepType
  *       properties:
- *         levelId:
+ *         pathId:
  *           type: string
- *           description: ID du niveau parent
+ *           description: ID du parcours parent
  *         title:
  *           type: string
  *           maxLength: 200
@@ -20,48 +19,30 @@
  *         description:
  *           type: string
  *           description: Description de l'étape
- *         stepNumber:
+ *         stepType:
+ *           type: string
+ *           enum: [lesson, exercise, quiz]
+ *           description: Type d'étape
+ *         index:
  *           type: integer
- *           description: Numéro de l'étape dans le niveau
- *         stepCode:
- *           type: string
- *           maxLength: 50
- *           nullable: true
- *         thumbnailUrl:
- *           type: string
- *           format: uri
- *           nullable: true
- *         iconUrl:
- *           type: string
- *           format: uri
- *           nullable: true
- *         estimatedDurationHours:
+ *           description: Ordre dans le parcours
+ *         estimatedMinutes:
  *           type: integer
- *           default: 1
- *         difficultyLevel:
- *           type: string
- *           enum: [beginner, intermediate, advanced]
- *           default: beginner
- *         isPublished:
- *           type: boolean
- *           default: false
- *         publishedAt:
- *           type: string
- *           format: date-time
- *           nullable: true
- *         sortOrder:
- *           type: integer
- *           description: Ordre d'affichage
+ *           default: 15
+ *           description: Durée estimée (minutes)
  *         isActive:
  *           type: boolean
  *           default: true
+ *           description: Statut d'activité
  *       example:
- *         levelId: "clq1k2v7d0000v8y6g7z6k2v6"
+ *         pathId: "clq1k2v7d0000v8y6g7z6k2v6"
  *         title: "Introduction à la grammaire"
- *         description: "Première étape du niveau débutant."
- *         stepNumber: 1
+ *         description: "Première étape du parcours."
+ *         stepType: "lesson"
+ *         index: 0
+ *         estimatedMinutes: 15
+ *         isActive: true
  */
-// ...existing code...
 const express = require('express');
 const controller = require('./step.controller');
 const router = express.Router();
@@ -168,5 +149,95 @@ router.put('/:id', controller.update);
  *         description: Étape non trouvée
  */
 router.delete('/:id', controller.remove);
+
+/**
+ * @swagger
+ * /api/v1/users/{userId}/steps:
+ *   get:
+ *     summary: Récupérer les étapes liées à un utilisateur
+ *     tags: [Steps]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Liste des étapes liées à l'utilisateur
+ *       404:
+ *         description: Aucune étape trouvée pour cet utilisateur
+ */
+router.get('/api/v1/users/:userId/steps', controller.getByUserId);
+
+
+/**
+ * @swagger
+ * /api/v1/users/{userId}/steps/{stepId}/select:
+ *   post:
+ *     summary: Sélectionner une étape pour un utilisateur
+ *     tags: [Steps]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: stepId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       201:
+ *         description: Progression créée ou existante
+ */
+router.post('/api/v1/users/:userId/steps/:stepId/select', controller.selectStep);
+
+/**
+ * @swagger
+ * /api/v1/users/{userId}/steps/{stepId}/start:
+ *   post:
+ *     summary: Démarrer une étape pour un utilisateur
+ *     tags: [Steps]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: stepId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Progression mise à jour
+ */
+router.post('/api/v1/users/:userId/steps/:stepId/start', controller.startStep);
+
+/**
+ * @swagger
+ * /api/v1/users/{userId}/steps/{stepId}/complete:
+ *   post:
+ *     summary: Valider une étape pour un utilisateur
+ *     tags: [Steps]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: stepId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Progression mise à jour
+ */
+router.post('/api/v1/users/:userId/steps/:stepId/complete', controller.completeStep);
 
 module.exports = router;

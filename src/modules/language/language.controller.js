@@ -1,3 +1,44 @@
+// Progression endpoints
+exports.selectLanguage = async (req, res, next) => {
+       try {
+	       const { userId, languageId } = req.params;
+	       const progress = await service.selectLanguageForUser(userId, languageId);
+	       res.status(201).json({ success: true, data: progress });
+       } catch (err) {
+	       next(err);
+       }
+};
+
+exports.startLanguage = async (req, res, next) => {
+       try {
+	       const { userId, languageId } = req.params;
+	       const progress = await service.startLanguageForUser(userId, languageId);
+	       res.json({ success: true, data: progress });
+       } catch (err) {
+	       next(err);
+       }
+};
+
+exports.completeLanguage = async (req, res, next) => {
+       try {
+	       const { userId, languageId } = req.params;
+	       const progress = await service.completeLanguageForUser(userId, languageId);
+	       res.json({ success: true, data: progress });
+       } catch (err) {
+	       next(err);
+       }
+};
+exports.getByUserId = async (req, res, next) => {
+	try {
+		const languages = await service.getLanguagesByUserId(req.params.userId);
+		if (!languages || languages.length === 0) {
+			return res.status(404).json({ success: false, error: 'Aucune langue trouvée pour cet utilisateur' });
+		}
+		res.json({ success: true, data: languages });
+	} catch (err) {
+		next(err);
+	}
+};
 const service = require('./language.service');
 
 exports.create = async (req, res, next) => {

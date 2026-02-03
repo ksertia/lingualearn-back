@@ -1,29 +1,64 @@
+// Récupérer tous les parcours liés à un utilisateur (via userPathProgress)
+async function getPathsByUserId(userId) {
+       return prisma.userPathProgress.findMany({
+	       where: { userId },
+	       include: { path: true }
+       });
+}
+
+// Progression utilisateur pour Path
+async function selectPathForUser(userId, pathId) {
+       let progress = await prisma.userPathProgress.findUnique({ where: { userId_pathId: { userId, pathId } } });
+       if (!progress) {
+	       progress = await prisma.userPathProgress.create({ data: { userId, pathId, status: 'locked' } });
+       }
+       return progress;
+}
+
+async function startPathForUser(userId, pathId) {
+       return prisma.userPathProgress.update({
+	       where: { userId_pathId: { userId, pathId } },
+	       data: { status: 'started', startedAt: new Date() }
+       });
+}
+
+async function completePathForUser(userId, pathId) {
+       return prisma.userPathProgress.update({
+	       where: { userId_pathId: { userId, pathId } },
+	       data: { status: 'completed', completedAt: new Date() }
+       });
+}
+
 const { prisma } = require('../../config/prisma');
 
-async function createLearningPath(data) {
-	return prisma.learningPath.create({ data });
+async function createPath(data) {
+	return prisma.path.create({ data });
 }
 
-async function getAllLearningPaths() {
-	return prisma.learningPath.findMany();
+async function getAllPaths() {
+	return prisma.path.findMany();
 }
 
-async function getLearningPathById(id) {
-	return prisma.learningPath.findUnique({ where: { id } });
+async function getPathById(id) {
+	return prisma.path.findUnique({ where: { id } });
 }
 
-async function updateLearningPath(id, data) {
-	return prisma.learningPath.update({ where: { id }, data });
+async function updatePath(id, data) {
+	return prisma.path.update({ where: { id }, data });
 }
 
-async function deleteLearningPath(id) {
-	return prisma.learningPath.delete({ where: { id } });
+async function deletePath(id) {
+	return prisma.path.delete({ where: { id } });
 }
 
 module.exports = {
-	createLearningPath,
-	getAllLearningPaths,
-	getLearningPathById,
-	updateLearningPath,
-	deleteLearningPath
+	createPath,
+	getAllPaths,
+	getPathById,
+	updatePath,
+	deletePath,
+	getPathsByUserId,
+	selectPathForUser,
+	startPathForUser,
+	completePathForUser
 };

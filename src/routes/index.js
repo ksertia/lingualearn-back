@@ -1,4 +1,3 @@
-
 const express = require('express');
 const router = express.Router();
 
@@ -21,6 +20,7 @@ const languageRoutes = require('../modules/language/language.routes');
 const discoverRoutes = require('../modules/discover/discover.routes');
 const evaluationRoutes = require('../modules/evaluation/evaluation.routes');
 
+
 // Mounting module routes
 router.use('/notifications', notificationRoutes);
 router.use('/admin', adminDashboardRoutes);
@@ -37,7 +37,6 @@ router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/learning-paths', learningPathsRoutes);
 router.use('/modules', moduleRoutes);
-
 
 router.use('/languages', languageRoutes);
 router.use('/discover', discoverRoutes);

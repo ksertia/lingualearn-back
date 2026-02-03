@@ -140,5 +140,95 @@ router.put('/:id', authMiddleware, allowRoles('admin', 'plateform_manager'), con
  */
 router.delete('/:id', authMiddleware, allowRoles('admin', 'plateform_manager'), controller.remove);
 
+/**
+ * @swagger
+ * /api/v1/users/{userId}/languages:
+ *   get:
+ *     summary: Récupérer les langues liées à un utilisateur
+ *     tags: [Languages]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Liste des langues liées à l'utilisateur
+ *       404:
+ *         description: Aucune langue trouvée pour cet utilisateur
+ */
+router.get('/api/v1/users/:userId/languages', controller.getByUserId);
+
+
+/**
+ * @swagger
+ * /api/v1/users/{userId}/languages/{languageId}/select:
+ *   post:
+ *     summary: Sélectionner une langue pour un utilisateur
+ *     tags: [Languages]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: languageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       201:
+ *         description: Progression créée ou existante
+ */
+router.post('/api/v1/users/:userId/languages/:languageId/select', controller.selectLanguage);
+
+/**
+ * @swagger
+ * /api/v1/users/{userId}/languages/{languageId}/start:
+ *   post:
+ *     summary: Démarrer une langue pour un utilisateur
+ *     tags: [Languages]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: languageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Progression mise à jour
+ */
+router.post('/api/v1/users/:userId/languages/:languageId/start', controller.startLanguage);
+
+/**
+ * @swagger
+ * /api/v1/users/{userId}/languages/{languageId}/complete:
+ *   post:
+ *     summary: Valider une langue pour un utilisateur
+ *     tags: [Languages]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: languageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Progression mise à jour
+ */
+router.post('/api/v1/users/:userId/languages/:languageId/complete', controller.completeLanguage);
+
 module.exports = router;
 
