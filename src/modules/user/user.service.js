@@ -35,12 +35,90 @@ class UserService {
                     phone: true,
                     username: true,
                     accountType: true,
+                    parentId: true,
                     isVerified: true,
                     isActive: true,
                     firstLogin: true,
                     lastLogin: true,
                     lastActive: true,
-                    createdAt: true
+                    subscriptionId: true,
+                    subscriptionEndsAt: true,
+                    createdBy: true,
+                    createdAt: true,
+                    profile: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                            displayName: true,
+                            birthDate: true,
+                            avatarUrl: true,
+                            timezone: true,
+                            preferredLanguage: true,
+                            createdAt: true,
+                            updatedAt: true
+                        }
+                    },
+                    subscription: {
+                        select: {
+                            id: true,
+                            status: true,
+                            billingCycle: true,
+                            currentPeriodStart: true,
+                            currentPeriodEnd: true,
+                            cancelAtPeriodEnd: true,
+                            plan: {
+                                select: {
+                                    planCode: true,
+                                    planName: true,
+                                    priceMonthly: true,
+                                    priceYearly: true,
+                                    currency: true
+                                }
+                            }
+                        }
+                    },
+                    stats: {
+                        select: {
+                            totalXp: true,
+                            totalCoins: true,
+                            currentStreak: true,
+                            longestStreak: true,
+                            totalStudyMinutes: true,
+                            totalExercisesCompleted: true,
+                            totalLessonsCompleted: true,
+                            totalStepsCompleted: true,
+                            totalLevelsCompleted: true,
+                            totalCertificatesEarned: true,
+                            totalBadgesEarned: true,
+                            accuracyRate: true
+                        }
+                    },
+                    parentUser: {
+                        select: {
+                            id: true,
+                            email: true,
+                            username: true,
+                            accountType: true
+                        }
+                    },
+                    subAccounts: {
+                        select: {
+                            id: true,
+                            email: true,
+                            username: true,
+                            accountType: true,
+                            isActive: true
+                        }
+                    },
+                    _count: {
+                        select: {
+                            subAccounts: true,
+                            badges: true,
+                            certificates: true,
+                            notifications: true
+                        }
+                    }
                 },
                 skip,
                 take: parseInt(limit),
