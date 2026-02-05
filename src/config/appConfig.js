@@ -1,4 +1,10 @@
 require('dotenv').config();
+const fs = require('fs');
+
+// Debug: show where the process is running and whether .env was found
+console.log('appConfig: process.cwd() ->', process.cwd());
+console.log('appConfig: .env exists ->', fs.existsSync(process.cwd() + '/.env'));
+console.log('appConfig: raw DATABASE_URL ->', process.env.DATABASE_URL);
 
 const appConfig = {
     port: process.env.PORT ,

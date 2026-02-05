@@ -19,6 +19,7 @@ const moduleRoutes = require('../modules/module/module.routes');
 const languageRoutes = require('../modules/language/language.routes');  
 const discoverRoutes = require('../modules/discover/discover.routes');
 const evaluationRoutes = require('../modules/evaluation/evaluation.routes');
+const languageController = require('../modules/language/language.controller');
 
 
 // Mounting module routes
@@ -41,6 +42,12 @@ router.use('/modules', moduleRoutes);
 router.use('/languages', languageRoutes);
 router.use('/discover', discoverRoutes);
 router.use('/evaluation', evaluationRoutes);
+
+// User language progression routes (mounted under /api/v1)
+router.get('/users/:userId/languages', languageController.getByUserId);
+router.post('/users/:userId/languages/:languageId/select', languageController.selectLanguage);
+router.post('/users/:userId/languages/:languageId/start', languageController.startLanguage);
+router.post('/users/:userId/languages/:languageId/complete', languageController.completeLanguage);
 
 router.get('/', (req, res) => {
   res.json({
