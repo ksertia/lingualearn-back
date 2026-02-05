@@ -5,6 +5,49 @@ const {
 	patchCourseSchema
 } = require('./course.schema');
 
+// Progression endpoints
+const getCoursesByUserId = async (req, res, next) => {
+	try {
+		const courses = await courseService.getCoursesByUserId(req.params.userId);
+		if (!courses || courses.length === 0) {
+			return res.status(404).json({ success: false, error: 'Aucun cours trouvé pour cet utilisateur' });
+		}
+		res.json({ success: true, data: courses });
+	} catch (error) {
+		next(error);
+	}
+};
+
+const selectCourse = async (req, res, next) => {
+	try {
+		const { userId, courseId } = req.params;
+		const progress = await courseService.selectCourseForUser(userId, courseId);
+		res.status(201).json({ success: true, data: progress });
+	} catch (error) {
+		next(error);
+	}
+};
+
+const startCourse = async (req, res, next) => {
+	try {
+		const { userId, courseId } = req.params;
+		const progress = await courseService.startCourseForUser(userId, courseId);
+		res.json({ success: true, data: progress });
+	} catch (error) {
+		next(error);
+	}
+};
+
+const completeCourse = async (req, res, next) => {
+	try {
+		const { userId, courseId } = req.params;
+		const progress = await courseService.completeCourseForUser(userId, courseId);
+		res.json({ success: true, data: progress });
+	} catch (error) {
+		next(error);
+	}
+};
+
 // Get all courses with filters
 const getCourses = async (req, res) => {
 	try {
@@ -199,6 +242,10 @@ const getCoursesByLevel = async (req, res) => {
 };
 
 module.exports = {
+	getCoursesByUserId,
+	selectCourse,
+	startCourse,
+	completeCourse,
 	getCourses,
 	getCourse,
 	createCourse,

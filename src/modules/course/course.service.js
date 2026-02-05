@@ -1,5 +1,56 @@
 const { prisma } = require('../../config/prisma');
 
+// Récupérer tous les cours liés à un utilisateur (via userStepProgress -> step -> lesson)
+exports.getCoursesByUserId = async (userId) => {
+  return prisma.userStepProgress.findMany({
+    where: {
+      userId,
+      step: { stepType: 'lesson' }
+    },
+    include: {
+      step: { include: { lesson: true } }
+    }
+  });
+};
+
+const getLessonStepId = async (courseId) => {
+  const lesson = await prisma.lesson.findUnique({ where: { id: courseId } });
+  if (!lesson) {
+    throw new Error('Cours non trouvé');
+  }
+  return lesson.stepId;
+};
+
+// Progression utilisateur pour Course (via Step)
+exports.selectCourseForUser = async (userId, courseId) => {
+  const stepId = await getLessonStepId(courseId);
+  let progress = await prisma.userStepProgress.findUnique({
+    where: { userId_stepId: { userId, stepId } }
+  });
+  if (!progress) {
+    progress = await prisma.userStepProgress.create({
+      data: { userId, stepId, status: 'locked' }
+    });
+  }
+  return progress;
+};
+
+exports.startCourseForUser = async (userId, courseId) => {
+  const stepId = await getLessonStepId(courseId);
+  return prisma.userStepProgress.update({
+    where: { userId_stepId: { userId, stepId } },
+    data: { status: 'started', startedAt: new Date() }
+  });
+};
+
+exports.completeCourseForUser = async (userId, courseId) => {
+  const stepId = await getLessonStepId(courseId);
+  return prisma.userStepProgress.update({
+    where: { userId_stepId: { userId, stepId } },
+    data: { status: 'completed', completedAt: new Date() }
+  });
+};
+
 exports.createCourse = async (data) => {
   // Générer lessonNumber automatiquement (dernier + 1 pour la step)
   const lastLesson = await prisma.lesson.findFirst({
