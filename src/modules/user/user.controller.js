@@ -40,7 +40,7 @@ const userController = {
         //     });
         // }
         
-        const user = await userService.getUserById(id);
+        const user = await userService.getUserDetailsById(id);
         
         res.json({
             success: true,
