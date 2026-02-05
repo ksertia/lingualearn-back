@@ -87,7 +87,7 @@ const userController = {
     
     // Récupérer le profil actuel
     getCurrentUser: asyncHandler(async (req, res) => {
-        const user = await userService.getUserById(req.user.id);
+        const user = await userService.getCurrentUserDetails(req.user.id);
         
         res.json({
             success: true,
