@@ -23,6 +23,10 @@ const options = {
         url: 'https://213.32.120.11:4000',
         description: 'Production (VPS)',
       },
+      {
+        url: 'https://lingualearn-back-second-1.onrender.com',
+        description: 'Production (Render.com)',
+      },
     ],
     components: {
       securitySchemes: {
