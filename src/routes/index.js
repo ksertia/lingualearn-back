@@ -19,6 +19,12 @@ const moduleRoutes = require('../modules/module/module.routes');
 const languageRoutes = require('../modules/language/language.routes');  
 const discoverRoutes = require('../modules/discover/discover.routes');
 const evaluationRoutes = require('../modules/evaluation/evaluation.routes');
+const languageController = require('../modules/language/language.controller');
+const levelController = require('../modules/Level/Level.controller');
+const moduleController = require('../modules/module/module.controller');
+const stepController = require('../modules/step/step.controller');
+const learningPathController = require('../modules/learning_path/learning.path.controller');
+const courseController = require('../modules/course/course.controller');
 
 
 // Mounting module routes
@@ -41,6 +47,42 @@ router.use('/modules', moduleRoutes);
 router.use('/languages', languageRoutes);
 router.use('/discover', discoverRoutes);
 router.use('/evaluation', evaluationRoutes);
+
+// User language progression routes (mounted under /api/v1)
+router.get('/users/:userId/languages', languageController.getByUserId);
+router.post('/users/:userId/languages/:languageId/select', languageController.selectLanguage);
+router.post('/users/:userId/languages/:languageId/start', languageController.startLanguage);
+router.post('/users/:userId/languages/:languageId/complete', languageController.completeLanguage);
+
+// User level progression routes (mounted under /api/v1)
+router.get('/users/:userId/levels', levelController.getByUserId);
+router.post('/users/:userId/levels/:levelId/select', levelController.selectLevel);
+router.post('/users/:userId/levels/:levelId/start', levelController.startLevel);
+router.post('/users/:userId/levels/:levelId/complete', levelController.completeLevel);
+
+// User module progression routes (mounted under /api/v1)
+router.get('/users/:userId/modules', moduleController.getByUserId);
+router.post('/users/:userId/modules/:moduleId/select', moduleController.selectModule);
+router.post('/users/:userId/modules/:moduleId/start', moduleController.startModule);
+router.post('/users/:userId/modules/:moduleId/complete', moduleController.completeModule);
+
+// User learning path progression routes (mounted under /api/v1)
+router.get('/users/:userId/learning-paths', learningPathController.getByUserId);
+router.post('/users/:userId/learning-paths/:pathId/select', learningPathController.selectPath);
+router.post('/users/:userId/learning-paths/:pathId/start', learningPathController.startPath);
+router.post('/users/:userId/learning-paths/:pathId/complete', learningPathController.completePath);
+
+// User step progression routes (mounted under /api/v1)
+router.get('/users/:userId/steps', stepController.getByUserId);
+router.post('/users/:userId/steps/:stepId/select', stepController.selectStep);
+router.post('/users/:userId/steps/:stepId/start', stepController.startStep);
+router.post('/users/:userId/steps/:stepId/complete', stepController.completeStep);
+
+// User course progression routes (mounted under /api/v1)
+router.get('/users/:userId/courses', courseController.getCoursesByUserId);
+router.post('/users/:userId/courses/:courseId/select', courseController.selectCourse);
+router.post('/users/:userId/courses/:courseId/start', courseController.startCourse);
+router.post('/users/:userId/courses/:courseId/complete', courseController.completeCourse);
 
 router.get('/', (req, res) => {
   res.json({
