@@ -8,6 +8,7 @@ async function getLevelsByUserId(userId) {
 
 module.exports.getLevelsByUserId = getLevelsByUserId;
 const { prisma } = require('../../config/prisma');
+const progressionService = require('../progression/progression.service');
 
 async function createLevel(data) {
 	// Indexation automatique par langue
@@ -75,6 +76,11 @@ async function completeLevelForUser(userId, levelId) {
 	});
 }
 
+// Compléter un niveau avec déblocage automatique du suivant
+async function completeLevelWithAutoUnlock(userId, levelId) {
+	return await progressionService.completeLevelAndUnlockNext(userId, levelId);
+}
+
 module.exports = {
 	createLevel,
 	getAllLevels,
@@ -84,5 +90,6 @@ module.exports = {
 	getLevelsByUserId,
 	selectLevelForUser,
 	startLevelForUser,
-	completeLevelForUser
+	completeLevelForUser,
+	completeLevelWithAutoUnlock
 };

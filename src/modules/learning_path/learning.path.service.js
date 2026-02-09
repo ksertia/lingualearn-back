@@ -1,3 +1,6 @@
+const { prisma } = require('../../config/prisma');
+const progressionService = require('../progression/progression.service');
+
 // Récupérer tous les parcours liés à un utilisateur (via userPathProgress)
 async function getPathsByUserId(userId) {
        return prisma.userPathProgress.findMany({
@@ -29,7 +32,10 @@ async function completePathForUser(userId, pathId) {
        });
 }
 
-const { prisma } = require('../../config/prisma');
+// Compléter un parcours avec déblocage automatique du suivant
+async function completePathWithAutoUnlock(userId, pathId) {
+       return await progressionService.completePathAndUnlockNext(userId, pathId);
+}
 
 async function createPath(data) {
 	return prisma.path.create({ data });
@@ -60,5 +66,6 @@ module.exports = {
 	getPathsByUserId,
 	selectPathForUser,
 	startPathForUser,
-	completePathForUser
+	completePathForUser,
+	completePathWithAutoUnlock
 };
