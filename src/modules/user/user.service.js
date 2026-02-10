@@ -35,12 +35,90 @@ class UserService {
                     phone: true,
                     username: true,
                     accountType: true,
+                    parentId: true,
                     isVerified: true,
                     isActive: true,
                     firstLogin: true,
                     lastLogin: true,
                     lastActive: true,
-                    createdAt: true
+                    subscriptionId: true,
+                    subscriptionEndsAt: true,
+                    createdBy: true,
+                    createdAt: true,
+                    profile: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                            displayName: true,
+                            birthDate: true,
+                            avatarUrl: true,
+                            timezone: true,
+                            preferredLanguage: true,
+                            createdAt: true,
+                            updatedAt: true
+                        }
+                    },
+                    subscription: {
+                        select: {
+                            id: true,
+                            status: true,
+                            billingCycle: true,
+                            currentPeriodStart: true,
+                            currentPeriodEnd: true,
+                            cancelAtPeriodEnd: true,
+                            plan: {
+                                select: {
+                                    planCode: true,
+                                    planName: true,
+                                    priceMonthly: true,
+                                    priceYearly: true,
+                                    currency: true
+                                }
+                            }
+                        }
+                    },
+                    stats: {
+                        select: {
+                            totalXp: true,
+                            totalCoins: true,
+                            currentStreak: true,
+                            longestStreak: true,
+                            totalStudyMinutes: true,
+                            totalExercisesCompleted: true,
+                            totalLessonsCompleted: true,
+                            totalStepsCompleted: true,
+                            totalLevelsCompleted: true,
+                            totalCertificatesEarned: true,
+                            totalBadgesEarned: true,
+                            accuracyRate: true
+                        }
+                    },
+                    parentUser: {
+                        select: {
+                            id: true,
+                            email: true,
+                            username: true,
+                            accountType: true
+                        }
+                    },
+                    subAccounts: {
+                        select: {
+                            id: true,
+                            email: true,
+                            username: true,
+                            accountType: true,
+                            isActive: true
+                        }
+                    },
+                    _count: {
+                        select: {
+                            subAccounts: true,
+                            badges: true,
+                            certificates: true,
+                            notifications: true
+                        }
+                    }
                 },
                 skip,
                 take: parseInt(limit),
@@ -68,18 +146,15 @@ class UserService {
                 email: true,
                 phone: true,
                 username: true,
-                    accountType: true,
+                accountType: true,
                 parentId: true,
-                familyId: true,
                 isVerified: true,
-                subscriptionPlan: true,
                 subscriptionEndsAt: true,
                 isActive: true,
                 firstLogin: true,
                 lastLogin: true,
                 lastActive: true,
                 createdAt: true,
-                updatedAt: true,
                 parent: {
                     select: {
                         id: true,
@@ -103,6 +178,327 @@ class UserService {
         }
         
         return user;
+    }
+
+    // Récupérer un utilisateur par ID avec langue actuelle et progression
+    async getUserDetailsById(userId) {
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                email: true,
+                phone: true,
+                username: true,
+                accountType: true,
+                parentId: true,
+                isVerified: true,
+                subscriptionEndsAt: true,
+                isActive: true,
+                firstLogin: true,
+                lastLogin: true,
+                lastActive: true,
+                createdAt: true,
+                profile: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        displayName: true,
+                        birthDate: true,
+                        avatarUrl: true,
+                        timezone: true,
+                        preferredLanguage: true
+                    }
+                },
+                subscription: {
+                    select: {
+                        id: true,
+                        status: true,
+                        billingCycle: true,
+                        currentPeriodStart: true,
+                        currentPeriodEnd: true,
+                        cancelAtPeriodEnd: true,
+                        plan: {
+                            select: {
+                                planCode: true,
+                                planName: true,
+                                priceMonthly: true,
+                                priceYearly: true,
+                                currency: true
+                            }
+                        }
+                    }
+                },
+                stats: {
+                    select: {
+                        totalXp: true,
+                        totalCoins: true,
+                        currentStreak: true,
+                        longestStreak: true,
+                        totalStudyMinutes: true,
+                        totalExercisesCompleted: true,
+                        totalLessonsCompleted: true,
+                        totalStepsCompleted: true,
+                        totalLevelsCompleted: true,
+                        totalCertificatesEarned: true,
+                        totalBadgesEarned: true,
+                        accuracyRate: true
+                    }
+                }
+            }
+        });
+
+        if (!user) {
+            throw new AppError(404, 'User not found');
+        }
+
+        const progressList = await prisma.userLanguageProgress.findMany({
+            where: { userId },
+            orderBy: [
+                { lastAccessedAt: 'desc' },
+                { startedAt: 'desc' },
+                { createdAt: 'desc' }
+            ],
+            take: 1,
+            include: { language: true }
+        });
+
+        let currentLanguageProgress = progressList[0] || null;
+
+        if (!currentLanguageProgress && user.profile?.preferredLanguage) {
+            const language = await prisma.language.findUnique({
+                where: { code: user.profile.preferredLanguage }
+            });
+            if (language) {
+                currentLanguageProgress = {
+                    id: null,
+                    userId,
+                    languageId: language.id,
+                    status: 'not_started',
+                    overallProgress: null,
+                    totalXp: 0,
+                    totalTimeMinutes: 0,
+                    startedAt: null,
+                    completedAt: null,
+                    lastAccessedAt: null,
+                    createdAt: null,
+                    updatedAt: null,
+                    language
+                };
+            }
+        }
+
+        let currentLanguage = null;
+
+        if (currentLanguageProgress?.languageId) {
+            currentLanguage = await prisma.language.findUnique({
+                where: { id: currentLanguageProgress.languageId },
+                include: {
+                    levels: {
+                        orderBy: { index: 'asc' },
+                        include: {
+                            userProgress: {
+                                where: { userId }
+                            },
+                            modules: {
+                                orderBy: { index: 'asc' },
+                                include: {
+                                    userProgress: {
+                                        where: { userId }
+                                    },
+                                    paths: {
+                                        orderBy: { index: 'asc' },
+                                        include: {
+                                            userProgress: {
+                                                where: { userId }
+                                            },
+                                            steps: {
+                                                orderBy: { index: 'asc' },
+                                                include: {
+                                                    userProgress: {
+                                                        where: { userId }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        return {
+            user,
+            currentLanguage,
+            currentLanguageProgress
+        };
+    }
+
+    // Récupérer le profil complet de l'utilisateur connecté avec la langue actuelle et la progression
+    async getCurrentUserDetails(userId) {
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                email: true,
+                phone: true,
+                username: true,
+                accountType: true,
+                parentId: true,
+                isVerified: true,
+                subscriptionEndsAt: true,
+                isActive: true,
+                firstLogin: true,
+                lastLogin: true,
+                lastActive: true,
+                createdAt: true,
+                profile: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        displayName: true,
+                        birthDate: true,
+                        avatarUrl: true,
+                        timezone: true,
+                        preferredLanguage: true
+                    }
+                },
+                subscription: {
+                    select: {
+                        id: true,
+                        status: true,
+                        billingCycle: true,
+                        currentPeriodStart: true,
+                        currentPeriodEnd: true,
+                        cancelAtPeriodEnd: true,
+                        plan: {
+                            select: {
+                                planCode: true,
+                                planName: true,
+                                priceMonthly: true,
+                                priceYearly: true,
+                                currency: true
+                            }
+                        }
+                    }
+                },
+                stats: {
+                    select: {
+                        totalXp: true,
+                        totalCoins: true,
+                        currentStreak: true,
+                        longestStreak: true,
+                        totalStudyMinutes: true,
+                        totalExercisesCompleted: true,
+                        totalLessonsCompleted: true,
+                        totalStepsCompleted: true,
+                        totalLevelsCompleted: true,
+                        totalCertificatesEarned: true,
+                        totalBadgesEarned: true,
+                        accuracyRate: true
+                    }
+                }
+            }
+        });
+
+        if (!user) {
+            throw new AppError(404, 'User not found');
+        }
+
+        const progressList = await prisma.userLanguageProgress.findMany({
+            where: { userId },
+            orderBy: [
+                { lastAccessedAt: 'desc' },
+                { startedAt: 'desc' },
+                { createdAt: 'desc' }
+            ],
+            take: 1,
+            include: { language: true }
+        });
+
+        let currentLanguageProgress = progressList[0] || null;
+
+        if (!currentLanguageProgress && user.profile?.preferredLanguage) {
+            const language = await prisma.language.findUnique({
+                where: { code: user.profile.preferredLanguage }
+            });
+            if (language) {
+                currentLanguageProgress = {
+                    id: null,
+                    userId,
+                    languageId: language.id,
+                    status: 'not_started',
+                    overallProgress: null,
+                    totalXp: 0,
+                    totalTimeMinutes: 0,
+                    startedAt: null,
+                    completedAt: null,
+                    lastAccessedAt: null,
+                    createdAt: null,
+                    updatedAt: null,
+                    language
+                };
+            }
+        }
+
+        let currentLanguage = null;
+
+        if (currentLanguageProgress?.languageId) {
+            currentLanguage = await prisma.language.findUnique({
+                where: { id: currentLanguageProgress.languageId },
+                include: {
+                    levels: {
+                        orderBy: { index: 'asc' },
+                        include: {
+                            userProgress: {
+                                where: { userId }
+                            },
+                            modules: {
+                                orderBy: { index: 'asc' },
+                                include: {
+                                    userProgress: {
+                                        where: { userId }
+                                    },
+                                    paths: {
+                                        orderBy: { index: 'asc' },
+                                        include: {
+                                            userProgress: {
+                                                where: { userId }
+                                            },
+                                            steps: {
+                                                orderBy: { index: 'asc' },
+                                                include: {
+                                                    userProgress: {
+                                                        where: { userId }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (currentLanguageProgress.id) {
+                await prisma.userLanguageProgress.update({
+                    where: { id: currentLanguageProgress.id },
+                    data: { lastAccessedAt: new Date() }
+                });
+            }
+        }
+
+        return {
+            user,
+            currentLanguage,
+            currentLanguageProgress
+        };
     }
     
     // Mettre à jour un utilisateur

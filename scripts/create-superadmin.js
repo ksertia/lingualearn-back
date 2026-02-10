@@ -1,65 +1,82 @@
-// Script interactif de création du premier admin (superadmin)
+// Script automatique de création du premier admin (superadmin)
+require('dotenv').config(); // Charger les variables d'environnement
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
-const readline = require('readline');
+const { createUserWithDefaults } = require('../src/helpers/userCreationHelper');
 
 const prisma = new PrismaClient();
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
-
-function ask(question) {
-  return new Promise(resolve => rl.question(question, answer => resolve(answer)));
-}
-
 async function main() {
-  const email = await ask('Email: ');
-  const password = await ask('Password: ');
-  const firstName = await ask('First name: ');
-  const lastName = await ask('Last name: ');
-  const phone = await ask('Phone (optionnel): ');
-  const username = await ask('Username (optionnel): ');
+  // Données préremplies pour l'admin
+  const adminData = {
+    email: 'wise@admin.com',
+    password: 'password',
+    firstName: 'Wise',
+    lastName: 'Institut',
+    phone: '11111111',
+    username: 'wise001'
+  };
 
-  const passwordHash = await bcrypt.hash(password, 12);
+  console.log('🚀 Création automatique du superadmin avec les données suivantes :');
+  console.log('📧 Email:', adminData.email);
+  console.log('👤 Prénom:', adminData.firstName);
+  console.log('👤 Nom:', adminData.lastName);
+  console.log('📱 Téléphone:', adminData.phone);
+  console.log('🔑 Username:', adminData.username);
+  console.log('');
+
+  const passwordHash = await bcrypt.hash(adminData.password, 12);
 
   // Vérifie si un admin existe déjà
   const existingAdmin = await prisma.user.findFirst({
     where: { accountType: 'admin' }
   });
   if (existingAdmin) {
-    console.log('Un admin existe déjà. Opération annulée.');
-    rl.close();
+    console.log('❌ Un admin existe déjà. Opération annulée.');
+    console.log('Admin existant:', existingAdmin.email);
     process.exit(0);
   }
-  
 
   // Crée le user admin
-  const user = await prisma.user.create({
-    data: {
-      email,
-      phone: phone || null,
-      username: username || null,
+  try {
+    const user = await createUserWithDefaults(prisma, {
+      email: adminData.email,
+      phone: adminData.phone || null,
+      username: adminData.username || null,
       passwordHash,
       accountType: 'admin',
-      isVerified: true,
-      isActive: true,
       profile: {
         create: {
-          firstName,
-          lastName
+          firstName: adminData.firstName,
+          lastName: adminData.lastName
         }
       }
-    },
-    include: { profile: true }
-  });
-  console.log('Superadmin créé :', user);
-  rl.close();
+    });
+    
+    console.log('✅ Superadmin créé avec succès !');
+    console.log('📋 Détails:');
+    console.log('   ID:', user.id);
+    console.log('   Email:', user.email);
+    console.log('   Nom complet:', user.profile.firstName, user.profile.lastName);
+    console.log('   Username:', user.username);
+    console.log('   Account Type:', user.accountType);
+    console.log('   Verified:', user.isVerified);
+    console.log('   Active:', user.isActive);
+    console.log('');
+    console.log('🔐 Vous pouvez maintenant vous connecter avec:');
+    console.log('   Email:', adminData.email);
+    console.log('   Password:', adminData.password);
+    
+  } catch (error) {
+    console.error('❌ Erreur lors de la création du superadmin:', error.message);
+    throw error;
+  }
 }
 
 main().catch(e => {
-  console.error(e);
-  rl.close();
+  console.error('❌ Erreur fatale:', e);
   process.exit(1);
-}).finally(() => prisma.$disconnect());
+}).finally(() => {
+  prisma.$disconnect();
+  console.log('🔌 Connexion à la base de données fermée.');
+});

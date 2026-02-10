@@ -5,8 +5,8 @@ const router = express.Router();
 /**
  * @swagger
  * tags:
- *   name: LearningPaths
- *   description: Gestion des parcours (LearningPath)
+ *   name: Paths
+ *   description: Gestion des parcours (Path)
  */
 
 /**
@@ -14,7 +14,7 @@ const router = express.Router();
  * /api/v1/learning-paths:
  *   post:
  *     summary: Créer un nouveau parcours
- *     tags: [LearningPaths]
+ *     tags: [Paths]
  *     requestBody:
  *       required: true
  *       content:
@@ -22,13 +22,28 @@ const router = express.Router();
  *           schema:
  *             type: object
  *             required:
+ *               - moduleId
  *               - title
- *               - description
  *             properties:
+ *               moduleId:
+ *                 type: string
  *               title:
  *                 type: string
  *               description:
  *                 type: string
+ *               index:
+ *                 type: integer
+ *               tempResaListime:
+ *                 type: integer
+ *               thumbnailUrl:
+ *                 type: string
+ *               difficulty:
+ *                 type: string
+ *                 enum: [easy, medium, hard]
+ *               estimatedHours:
+ *                 type: integer
+ *               isActive:
+ *                 type: boolean
  *     responses:
  *       201:
  *         description: Parcours créé
@@ -42,7 +57,7 @@ router.post('/', controller.create);
  * /api/v1/learning-paths:
  *   get:
  *     summary: Récupérer tous les parcours
- *     tags: [LearningPaths]
+ *     tags: [Paths]
  *     responses:
  *       200:
  *         description: Liste des parcours
@@ -54,7 +69,7 @@ router.get('/', controller.getAll);
  * /api/v1/learning-paths/{id}:
  *   get:
  *     summary: Récupérer un parcours par ID
- *     tags: [LearningPaths]
+ *     tags: [Paths]
  *     parameters:
  *       - in: path
  *         name: id
@@ -74,7 +89,7 @@ router.get('/:id', controller.getById);
  * /api/v1/learning-paths/{id}:
  *   put:
  *     summary: Mettre à jour un parcours
- *     tags: [LearningPaths]
+ *     tags: [Paths]
  *     parameters:
  *       - in: path
  *         name: id
@@ -88,25 +103,22 @@ router.get('/:id', controller.getById);
  *           schema:
  *             type: object
  *             properties:
+ *               moduleId:
+ *                 type: string
  *               title:
  *                 type: string
  *               description:
  *                 type: string
- *               code:
- *                 type: string
+ *               index:
+ *                 type: integer
+ *               tempResaListime:
+ *                 type: integer
  *               thumbnailUrl:
  *                 type: string
- *               bannerUrl:
+ *               difficulty:
  *                 type: string
- *               colorCode:
- *                 type: string
- *               iconUrl:
- *                 type: string
- *               estimatedDurationWeeks:
- *                 type: integer
- *               isPublished:
- *                 type: boolean
- *               sortOrder:
+ *                 enum: [easy, medium, hard]
+ *               estimatedHours:
  *                 type: integer
  *               isActive:
  *                 type: boolean
@@ -125,7 +137,7 @@ router.put('/:id', controller.update);
  * /api/v1/learning-paths/{id}:
  *   delete:
  *     summary: Supprimer un parcours
- *     tags: [LearningPaths]
+ *     tags: [Paths]
  *     parameters:
  *       - in: path
  *         name: id
@@ -139,5 +151,95 @@ router.put('/:id', controller.update);
  *         description: Parcours non trouvé
  */
 router.delete('/:id', controller.remove);
+
+/**
+ * @swagger
+ * /api/v1/users/{userId}/paths:
+ *   get:
+ *     summary: Récupérer les parcours liés à un utilisateur
+ *     tags: [Paths]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Liste des parcours liés à l'utilisateur
+ *       404:
+ *         description: Aucun parcours trouvé pour cet utilisateur
+ */
+router.get('/api/v1/users/:userId/paths', controller.getByUserId);
+
+
+/**
+ * @swagger
+ * /api/v1/users/{userId}/paths/{pathId}/select:
+ *   post:
+ *     summary: Sélectionner un parcours pour un utilisateur
+ *     tags: [Paths]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: pathId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       201:
+ *         description: Progression créée ou existante
+ */
+router.post('/api/v1/users/:userId/paths/:pathId/select', controller.selectPath);
+
+/**
+ * @swagger
+ * /api/v1/users/{userId}/paths/{pathId}/start:
+ *   post:
+ *     summary: Démarrer un parcours pour un utilisateur
+ *     tags: [Paths]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: pathId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Progression mise à jour
+ */
+router.post('/api/v1/users/:userId/paths/:pathId/start', controller.startPath);
+
+/**
+ * @swagger
+ * /api/v1/users/{userId}/paths/{pathId}/complete:
+ *   post:
+ *     summary: Valider un parcours pour un utilisateur
+ *     tags: [Paths]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: pathId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Progression mise à jour
+ */
+router.post('/api/v1/users/:userId/paths/:pathId/complete', controller.completePath);
 
 module.exports = router;

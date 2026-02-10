@@ -11,8 +11,8 @@ const {
 } = require('./auth.schema');
 
 const authController = {
-   
-    // Inscription
+
+    // Inscription 
     register: asyncHandler(async (req, res) => {
         const validatedData = registerSchema.parse(req.body);
         const result = await authService.register(validatedData);

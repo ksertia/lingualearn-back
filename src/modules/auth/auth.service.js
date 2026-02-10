@@ -7,6 +7,60 @@ const { AppError } = require('../../middleware/errorHandler');
 const {allowRoles} = require('../../middleware/authMiddleware');
 const { emailService } = require('../../utils/emailService');
 const { logger } = require('../../utils/logger');
+const { createUserWithDefaults } = require('../../helpers/userCreationHelper');
+
+async function retryPrismaUpdate(fn, retries = 5, baseDelay = 200) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await fn();
+        } catch (err) {
+            const isLockTimeout =
+                (err.code === 'P2034') ||
+                (err.code === 'P2002') ||
+                (err.message && err.message.includes('Lock wait timeout exceeded')) ||
+                (err.message && err.message.includes('ER_LOCK_WAIT_TIMEOUT')) ||
+                (err.message && err.message.includes('code: 1205')) ||
+                (err.message && err.message.includes('Deadlock'));
+            
+            if (isLockTimeout && i < retries - 1) {
+                const jitter = Math.random() * 200;
+                const delay = baseDelay * Math.pow(2, i) + jitter;
+                logger.warn(`[Auth] Lock timeout on attempt ${i + 1}/${retries}, retrying in ${Math.round(delay)}ms`);
+                await new Promise(res => setTimeout(res, delay));
+                continue;
+            }
+            
+            if (isLockTimeout) {
+                logger.error(`[Auth] Lock timeout exhausted after ${retries} attempts:`, err.message);
+            }
+            throw err;
+        }
+    }
+}
+
+async function updateUserLoginTimestampsAsync(userId, firstLogin) {
+    setImmediate(async () => {
+        try {
+            const updateData = {
+                lastLogin: new Date(),
+                lastActive: new Date()
+            };
+            
+            if (firstLogin) {
+                updateData.firstLogin = false;
+            }
+            
+            await retryPrismaUpdate(() =>
+                prisma.user.update({
+                    where: { id: userId },
+                    data: updateData,
+                })
+            );
+        } catch (err) {
+            logger.error(`[Auth] Failed to update login timestamps for user ${userId}:`, err);
+        }
+    });
+}
 
 class AuthService {
     // ============ INSCRIPTION ============
@@ -38,6 +92,7 @@ class AuthService {
 
     // Vérifier email existant
     if (email) {
+        
         const existingEmail = await prisma.user.findUnique({ where: { email } });
         if (existingEmail) throw new AppError(400, 'A user already exists with this email');
     }
@@ -102,6 +157,8 @@ class AuthService {
             passwordHash,
             accountType: finalAccountType,
             parentId: finalAccountType === 'sub_account_learner' ? parentId : null,
+            isActive: true, // Tous les comptes sont actifs par défaut
+            isVerified: true, // Tous les comptes sont vérifiés par défaut
             profile: { create: { firstName, lastName } }
         },
         include: { profile: true }
@@ -140,6 +197,17 @@ class AuthService {
                     isVerified: true,
                     isActive: true,
                     lastLogin: true,
+                    profile: {
+                        select: {
+                            firstName: true,
+                            lastName: true,
+                            displayName: true,
+                            birthDate: true,
+                            avatarUrl: true,
+                            timezone: true,
+                            preferredLanguage: true
+                        }
+                    }
                 },
             });
         } else if (/^\+?\d+$/.test(loginInfo)) {
@@ -155,6 +223,17 @@ class AuthService {
                     isVerified: true,
                     isActive: true,
                     lastLogin: true,
+                    profile: {
+                        select: {
+                            firstName: true,
+                            lastName: true,
+                            displayName: true,
+                            birthDate: true,
+                            avatarUrl: true,
+                            timezone: true,
+                            preferredLanguage: true
+                        }
+                    }
                 },
             });
         } else {
@@ -170,6 +249,17 @@ class AuthService {
                     isVerified: true,
                     isActive: true,
                     lastLogin: true,
+                    profile: {
+                        select: {
+                            firstName: true,
+                            lastName: true,
+                            displayName: true,
+                            birthDate: true,
+                            avatarUrl: true,
+                            timezone: true,
+                            preferredLanguage: true
+                        }
+                    }
                 },
             });
         }
@@ -199,19 +289,7 @@ class AuthService {
         }
 
         // Vérifier la première connexion
-        let firstLogin = user.firstLogin;
-        if (firstLogin) {
-            // Mettre à jour le flag firstLogin à false
-            await prisma.user.update({
-                where: { id: user.id },
-                data: { firstLogin: false, lastLogin: new Date(), lastActive: new Date() },
-            });
-        } else {
-            await prisma.user.update({
-                where: { id: user.id },
-                data: { lastLogin: new Date(), lastActive: new Date() },
-            });
-        }
+        const firstLogin = user.firstLogin;
 
         // Générer les tokens
         const tokens = await this.generateTokens(user.id, user.accountType);
@@ -225,8 +303,24 @@ class AuthService {
 
         await this.logLoginAttempt(loginInfo, user.id, true);
 
+        updateUserLoginTimestampsAsync(user.id, firstLogin);
+
+        // Retourner uniquement la section profile dans user
+        let userData = { ...userWithoutPassword, firstLogin };
+        if (user.profile) {
+            userData.profile = user.profile;
+        }
+        // Supprimer les champs à plat du profil s'ils existent
+        delete userData.firstName;
+        delete userData.lastName;
+        delete userData.displayName;
+        delete userData.birthDate;
+        delete userData.avatarUrl;
+        delete userData.timezone;
+        delete userData.preferredLanguage;
+
         return {
-            user: { ...userWithoutPassword, firstLogin },
+            user: userData,
             tokens,
         };
     }
@@ -394,10 +488,12 @@ class AuthService {
         const passwordHash = await bcrypt.hash(password, 12);
 
         // Mettre à jour le mot de passe de l'utilisateur
-        await prisma.user.update({
-            where: { id: resetToken.userId },
-            data: { passwordHash },
-        });
+        await retryPrismaUpdate(() =>
+            prisma.user.update({
+                where: { id: resetToken.userId },
+                data: { passwordHash },
+            })
+        );
 
         // Marquer le token comme utilisé
         await prisma.passwordResetToken.update({
@@ -440,10 +536,12 @@ class AuthService {
         }
 
         // Marquer l'utilisateur comme vérifié
-        await prisma.user.update({
-            where: { id: verification.userId },
-            data: { isVerified: true },
-        });
+        await retryPrismaUpdate(() =>
+            prisma.user.update({
+                where: { id: verification.userId },
+                data: { isVerified: true },
+            })
+        );
 
         // Marquer le code comme utilisé
         await prisma.verificationCode.update({
@@ -478,10 +576,12 @@ class AuthService {
         const newPasswordHash = await bcrypt.hash(newPassword, 12);
 
         // Mettre à jour le mot de passe
-        await prisma.user.update({
-            where: { id: userId },
-            data: { passwordHash: newPasswordHash },
-        });
+        await retryPrismaUpdate(() =>
+            prisma.user.update({
+                where: { id: userId },
+                data: { passwordHash: newPasswordHash },
+            })
+        );
 
         // Invalider toutes les sessions existantes (sécurité)
         await prisma.session.deleteMany({ where: { userId } });

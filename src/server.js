@@ -10,6 +10,8 @@ require('dotenv').config();
 
 const { errorHandler } = require('./middleware/errorHandler');
 const { requestLogger } = require('./middleware/requestLogger');
+const swaggerPersistenceMiddleware = require('./middleware/swaggerPersistence');
+const ensureUserActiveDefaults = require('./middleware/ensureUserActiveDefaults');
 const { appConfig } = require('./config/appConfig');
 const swaggerSpec = require('./config/swagger');
 const router = require('./routes');
@@ -50,14 +52,28 @@ app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 
 // =====================
+// Middleware pour garantir les valeurs par défaut des utilisateurs
+// =====================
+app.use(ensureUserActiveDefaults);
+
+// =====================
 // Swagger documentation (HTTPS seulement)
 // =====================
+app.use('/api-docs', swaggerPersistenceMiddleware);
 app.use('/api-docs', swaggerUi.serve);
 app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
     swaggerOptions: {
         url: '/api-docs/swagger.json',
         docExpansion: 'none',
+        persistAuthorization: true, // Conserver le token après rafraîchissement
+        displayRequestDuration: true,
+        filter: true,
+        showExtensions: true,
+        showCommonExtensions: true,
+        tryItOutEnabled: true
     },
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'LinguaLearn API Documentation'
 }));
 app.get('/api-docs/swagger.json', (req, res) => {
     res.setHeader('Content-Type', 'application/json');
