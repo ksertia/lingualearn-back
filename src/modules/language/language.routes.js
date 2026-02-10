@@ -93,7 +93,7 @@ router.get('/:id', controller.getById);
  *         required: true
  *         schema:
  *           type: string
- *         description: "Code de la langue (ex: fr, en, es)"
+ *         description: "ID de la langue (UUID Prisma)"
  *     responses:
  *       200:
  *         description: Niveaux récupérés avec succès
@@ -143,7 +143,7 @@ router.get('/:languageId/levels', controller.getLanguageLevels);
  *         required: true
  *         schema:
  *           type: string
- *         description: "Code de la langue (ex: fr, en, es)"
+ *         description: "ID de la langue (UUID Prisma)"
  *       - in: path
  *         name: levelId
  *         required: true
@@ -203,7 +203,7 @@ router.get('/:languageId/levels/:levelId/modules', controller.getLevelModules);
  *         required: true
  *         schema:
  *           type: string
- *         description: "Code de la langue (ex: fr, en, es)"
+ *         description: "ID de la langue (UUID Prisma)"
  *       - in: path
  *         name: levelId
  *         required: true
@@ -271,7 +271,7 @@ router.get('/:languageId/levels/:levelId/modules/:moduleId/paths', controller.ge
  *         required: true
  *         schema:
  *           type: string
- *         description: "Code de la langue (ex: fr, en, es)"
+ *         description: "ID de la langue (UUID Prisma)"
  *       - in: path
  *         name: levelId
  *         required: true

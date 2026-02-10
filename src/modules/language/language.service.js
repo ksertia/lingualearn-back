@@ -70,8 +70,8 @@ exports.getById = async (id) => {
 };
 
 exports.getLanguageLevels = async (languageId) => {
-	// Vérifier si la langue existe
-	const language = await prisma.language.findUnique({ where: { code: languageId } });
+	// Vérifier si la langue existe (par ID Prisma)
+	const language = await prisma.language.findUnique({ where: { id: languageId } });
 	if (!language) {
 		return null;
 	}
@@ -101,8 +101,8 @@ exports.getLanguageLevels = async (languageId) => {
 };
 
 exports.getLevelModules = async (languageId, levelId) => {
-	// Vérifier si la langue existe
-	const language = await prisma.language.findUnique({ where: { code: languageId } });
+	// Vérifier si la langue existe (par ID Prisma)
+	const language = await prisma.language.findUnique({ where: { id: languageId } });
 	if (!language) {
 		return null;
 	}
@@ -142,8 +142,8 @@ exports.getLevelModules = async (languageId, levelId) => {
 };
 
 exports.getModulePaths = async (languageId, levelId, moduleId) => {
-	// Vérifier si la langue existe
-	const language = await prisma.language.findUnique({ where: { code: languageId } });
+	// Vérifier si la langue existe (par ID Prisma)
+	const language = await prisma.language.findUnique({ where: { id: languageId } });
 	if (!language) {
 		return null;
 	}
@@ -190,8 +190,8 @@ exports.getModulePaths = async (languageId, levelId, moduleId) => {
 };
 
 exports.getPathSteps = async (languageId, levelId, moduleId, pathId) => {
-	// Vérifier si la langue existe
-	const language = await prisma.language.findUnique({ where: { code: languageId } });
+	// Vérifier si la langue existe (par ID Prisma)
+	const language = await prisma.language.findUnique({ where: { id: languageId } });
 	if (!language) {
 		return null;
 	}
