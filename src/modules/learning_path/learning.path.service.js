@@ -38,7 +38,35 @@ async function completePathWithAutoUnlock(userId, pathId) {
 }
 
 async function createPath(data) {
-	return prisma.path.create({ data });
+	// Calcul automatique de l'index si non fourni, null ou undefined
+	let index = data.index;
+	if (index === undefined || index === null || typeof index !== 'number' || isNaN(index)) {
+		const max = await prisma.path.aggregate({ 
+			_max: { index: true },
+			where: data.moduleId ? { moduleId: data.moduleId } : {}
+		});
+		index = (max._max.index ?? -1) + 1; // Commence à 0 si aucun parcours n'existe
+	}
+
+	// Vérifier unicité de l'index dans le module si moduleId est fourni
+	if (data.moduleId) {
+		const existingIndex = await prisma.path.findFirst({ 
+			where: { 
+				moduleId: data.moduleId,
+				index 
+			} 
+		});
+		if (existingIndex) {
+			throw new Error('Un parcours avec ce même index existe déjà dans ce module.');
+		}
+	}
+
+	return prisma.path.create({ 
+		data: { 
+			...data, 
+			index 
+		} 
+	});
 }
 
 async function getAllPaths() {
@@ -50,6 +78,28 @@ async function getPathById(id) {
 }
 
 async function updatePath(id, data) {
+	// Si l'index est fourni, vérifier l'unicité
+	if (data.index !== undefined && data.index !== null) {
+		const path = await prisma.path.findUnique({ where: { id } });
+		if (!path) {
+			throw new Error('Parcours non trouvé.');
+		}
+
+		// Si le parcours a un moduleId, vérifier l'unicité dans ce module
+		if (path.moduleId) {
+			const existingIndex = await prisma.path.findFirst({ 
+				where: { 
+					moduleId: path.moduleId,
+					index: data.index,
+					id: { not: id }
+				} 
+			});
+			if (existingIndex) {
+				throw new Error('Un parcours avec ce même index existe déjà dans ce module.');
+			}
+		}
+	}
+
 	return prisma.path.update({ where: { id }, data });
 }
 

@@ -244,6 +244,93 @@ exports.getPathSteps = async (languageId, levelId, moduleId, pathId) => {
 	};
 };
 
+exports.getStepContent = async (languageId, levelId, moduleId, pathId, stepId) => {
+	// Vérifier si la langue existe (par ID Prisma)
+	const language = await prisma.language.findUnique({ where: { id: languageId } });
+	if (!language) {
+		return null;
+	}
+
+	// Vérifier si le niveau existe pour cette langue
+	const level = await prisma.level.findFirst({
+		where: { 
+			id: levelId,
+			languageId: language.id 
+		}
+	});
+
+	if (!level) {
+		return null;
+	}
+
+	// Vérifier si le module existe pour ce niveau
+	const module = await prisma.module.findFirst({
+		where: { 
+			id: moduleId,
+			levelId: level.id 
+		}
+	});
+
+	if (!module) {
+		return null;
+	}
+
+	// Vérifier si le parcours existe pour ce module
+	const path = await prisma.path.findFirst({
+		where: { 
+			id: pathId,
+			moduleId: module.id 
+		}
+	});
+
+	if (!path) {
+		return null;
+	}
+
+	// Vérifier si l'étape existe pour ce parcours
+	const step = await prisma.step.findFirst({
+		where: { 
+			id: stepId,
+			pathId: path.id 
+		}
+	});
+
+	if (!step) {
+		return null;
+	}
+
+	// Récupérer tous les cours liés à cette étape
+	const courses = await prisma.course.findMany({
+		where: { stepId: step.id },
+		orderBy: { order: 'asc' }
+	});
+
+	// Récupérer tous les exercices liés à cette étape
+	const exercises = await prisma.exercise.findMany({
+		where: { stepId: step.id },
+		orderBy: { order: 'asc' }
+	});
+
+	// Récupérer tous les quiz liés à cette étape
+	const quizzes = await prisma.stepQuiz.findMany({
+		where: { stepId: step.id },
+		orderBy: { order: 'asc' },
+		include: {
+			questions: {
+				orderBy: { order: 'asc' }
+			}
+		}
+	});
+
+	return {
+		stepName: step.name,
+		step: step,
+		courses: courses,
+		exercises: exercises,
+		quizzes: quizzes
+	};
+};
+
 exports.update = async (id, data) => {
 	return await prisma.language.update({ where: { id }, data });
 };
