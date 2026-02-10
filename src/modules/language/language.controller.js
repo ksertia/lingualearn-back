@@ -69,6 +69,58 @@ exports.getById = async (req, res, next) => {
 	}
 };
 
+exports.getLanguageLevels = async (req, res, next) => {
+	try {
+		const { languageId } = req.params;
+		const levels = await service.getLanguageLevels(languageId);
+		if (!levels) {
+			return res.status(404).json({ success: false, error: 'Langue non trouvée' });
+		}
+		res.json({ success: true, data: { languageId, levels } });
+	} catch (err) {
+		next(err);
+	}
+};
+
+exports.getLevelModules = async (req, res, next) => {
+	try {
+		const { languageId, levelId } = req.params;
+		const modules = await service.getLevelModules(languageId, levelId);
+		if (!modules) {
+			return res.status(404).json({ success: false, error: 'Langue ou niveau non trouvé' });
+		}
+		res.json({ success: true, data: { languageId, levelId, levelName: modules.levelName, modules: modules.modules } });
+	} catch (err) {
+		next(err);
+	}
+};
+
+exports.getModulePaths = async (req, res, next) => {
+	try {
+		const { languageId, levelId, moduleId } = req.params;
+		const paths = await service.getModulePaths(languageId, levelId, moduleId);
+		if (!paths) {
+			return res.status(404).json({ success: false, error: 'Langue, niveau ou module non trouvé' });
+		}
+		res.json({ success: true, data: { languageId, levelId, moduleId, moduleName: paths.moduleName, paths: paths.paths } });
+	} catch (err) {
+		next(err);
+	}
+};
+
+exports.getPathSteps = async (req, res, next) => {
+	try {
+		const { languageId, levelId, moduleId, pathId } = req.params;
+		const steps = await service.getPathSteps(languageId, levelId, moduleId, pathId);
+		if (!steps) {
+			return res.status(404).json({ success: false, error: 'Langue, niveau, module ou parcours non trouvé' });
+		}
+		res.json({ success: true, data: { languageId, levelId, moduleId, pathId, pathName: steps.pathName, steps: steps.steps } });
+	} catch (err) {
+		next(err);
+	}
+};
+
 exports.update = async (req, res, next) => {
 	try {
 		const language = await service.update(req.params.id, req.body);

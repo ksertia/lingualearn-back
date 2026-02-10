@@ -7,6 +7,7 @@ const { AppError } = require('../../middleware/errorHandler');
 const {allowRoles} = require('../../middleware/authMiddleware');
 const { emailService } = require('../../utils/emailService');
 const { logger } = require('../../utils/logger');
+const { createUserWithDefaults } = require('../../helpers/userCreationHelper');
 
 async function retryPrismaUpdate(fn, retries = 5, baseDelay = 200) {
     for (let i = 0; i < retries; i++) {
@@ -156,6 +157,8 @@ class AuthService {
             passwordHash,
             accountType: finalAccountType,
             parentId: finalAccountType === 'sub_account_learner' ? parentId : null,
+            isActive: true, // Tous les comptes sont actifs par défaut
+            isVerified: true, // Tous les comptes sont vérifiés par défaut
             profile: { create: { firstName, lastName } }
         },
         include: { profile: true }

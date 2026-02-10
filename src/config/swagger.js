@@ -35,6 +35,9 @@ const options = {
           scheme: 'bearer',
           bearerFormat: 'JWT',
           description: 'JWT Authorization header using the Bearer scheme. Format: Bearer {token}',
+          // Configuration pour la persistance du token
+          'x-tokenName': 'Authorization',
+          'x-persistAuthorization': true
         },
       },
       schemas: {
@@ -295,6 +298,10 @@ const options = {
       },
     ],
     tags: [
+      {
+        name: 'Languages',
+        description: 'Gestion des langues et de leurs niveaux/modules'
+      },
       {
         name: 'Discover',
         description: 'Découverte de l\'application, choix de langue, exercices de découverte, etc.'
