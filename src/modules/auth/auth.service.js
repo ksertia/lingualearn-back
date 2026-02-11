@@ -7,60 +7,6 @@ const { AppError } = require('../../middleware/errorHandler');
 const {allowRoles} = require('../../middleware/authMiddleware');
 const { emailService } = require('../../utils/emailService');
 const { logger } = require('../../utils/logger');
-const { createUserWithDefaults } = require('../../helpers/userCreationHelper');
-
-async function retryPrismaUpdate(fn, retries = 5, baseDelay = 200) {
-    for (let i = 0; i < retries; i++) {
-        try {
-            return await fn();
-        } catch (err) {
-            const isLockTimeout =
-                (err.code === 'P2034') ||
-                (err.code === 'P2002') ||
-                (err.message && err.message.includes('Lock wait timeout exceeded')) ||
-                (err.message && err.message.includes('ER_LOCK_WAIT_TIMEOUT')) ||
-                (err.message && err.message.includes('code: 1205')) ||
-                (err.message && err.message.includes('Deadlock'));
-            
-            if (isLockTimeout && i < retries - 1) {
-                const jitter = Math.random() * 200;
-                const delay = baseDelay * Math.pow(2, i) + jitter;
-                logger.warn(`[Auth] Lock timeout on attempt ${i + 1}/${retries}, retrying in ${Math.round(delay)}ms`);
-                await new Promise(res => setTimeout(res, delay));
-                continue;
-            }
-            
-            if (isLockTimeout) {
-                logger.error(`[Auth] Lock timeout exhausted after ${retries} attempts:`, err.message);
-            }
-            throw err;
-        }
-    }
-}
-
-async function updateUserLoginTimestampsAsync(userId, firstLogin) {
-    setImmediate(async () => {
-        try {
-            const updateData = {
-                lastLogin: new Date(),
-                lastActive: new Date()
-            };
-            
-            if (firstLogin) {
-                updateData.firstLogin = false;
-            }
-            
-            await retryPrismaUpdate(() =>
-                prisma.user.update({
-                    where: { id: userId },
-                    data: updateData,
-                })
-            );
-        } catch (err) {
-            logger.error(`[Auth] Failed to update login timestamps for user ${userId}:`, err);
-        }
-    });
-}
 
 class AuthService {
     // ============ INSCRIPTION ============
@@ -92,7 +38,6 @@ class AuthService {
 
     // Vérifier email existant
     if (email) {
-        
         const existingEmail = await prisma.user.findUnique({ where: { email } });
         if (existingEmail) throw new AppError(400, 'A user already exists with this email');
     }
@@ -157,8 +102,6 @@ class AuthService {
             passwordHash,
             accountType: finalAccountType,
             parentId: finalAccountType === 'sub_account_learner' ? parentId : null,
-            isActive: true, // Tous les comptes sont actifs par défaut
-            isVerified: true, // Tous les comptes sont vérifiés par défaut
             profile: { create: { firstName, lastName } }
         },
         include: { profile: true }
@@ -197,17 +140,6 @@ class AuthService {
                     isVerified: true,
                     isActive: true,
                     lastLogin: true,
-                    profile: {
-                        select: {
-                            firstName: true,
-                            lastName: true,
-                            displayName: true,
-                            birthDate: true,
-                            avatarUrl: true,
-                            timezone: true,
-                            preferredLanguage: true
-                        }
-                    }
                 },
             });
         } else if (/^\+?\d+$/.test(loginInfo)) {
@@ -223,17 +155,6 @@ class AuthService {
                     isVerified: true,
                     isActive: true,
                     lastLogin: true,
-                    profile: {
-                        select: {
-                            firstName: true,
-                            lastName: true,
-                            displayName: true,
-                            birthDate: true,
-                            avatarUrl: true,
-                            timezone: true,
-                            preferredLanguage: true
-                        }
-                    }
                 },
             });
         } else {
@@ -249,17 +170,6 @@ class AuthService {
                     isVerified: true,
                     isActive: true,
                     lastLogin: true,
-                    profile: {
-                        select: {
-                            firstName: true,
-                            lastName: true,
-                            displayName: true,
-                            birthDate: true,
-                            avatarUrl: true,
-                            timezone: true,
-                            preferredLanguage: true
-                        }
-                    }
                 },
             });
         }
@@ -289,7 +199,19 @@ class AuthService {
         }
 
         // Vérifier la première connexion
-        const firstLogin = user.firstLogin;
+        let firstLogin = user.firstLogin;
+        if (firstLogin) {
+            // Mettre à jour le flag firstLogin à false
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { firstLogin: false, lastLogin: new Date(), lastActive: new Date() },
+            });
+        } else {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { lastLogin: new Date(), lastActive: new Date() },
+            });
+        }
 
         // Générer les tokens
         const tokens = await this.generateTokens(user.id, user.accountType);
@@ -303,24 +225,8 @@ class AuthService {
 
         await this.logLoginAttempt(loginInfo, user.id, true);
 
-        updateUserLoginTimestampsAsync(user.id, firstLogin);
-
-        // Retourner uniquement la section profile dans user
-        let userData = { ...userWithoutPassword, firstLogin };
-        if (user.profile) {
-            userData.profile = user.profile;
-        }
-        // Supprimer les champs à plat du profil s'ils existent
-        delete userData.firstName;
-        delete userData.lastName;
-        delete userData.displayName;
-        delete userData.birthDate;
-        delete userData.avatarUrl;
-        delete userData.timezone;
-        delete userData.preferredLanguage;
-
         return {
-            user: userData,
+            user: { ...userWithoutPassword, firstLogin },
             tokens,
         };
     }
@@ -419,9 +325,9 @@ class AuthService {
     //     return { success: true, message: 'Password reset successfully' };
     // }
 
-// const jwt = require('jsonwebtoken');
+    // const jwt = require('jsonwebtoken');
 
-// const jwt = require('jsonwebtoken');
+    // const jwt = require('jsonwebtoken');
 
     async resetPassword(data) {
         const { token, password } = data;
@@ -430,70 +336,56 @@ class AuthService {
             throw new AppError(400, 'Token is required');
         }
 
-        const secret = 'ton_secret';  // Remplacez par ton secret utilisé pour signer les JWT
-        let decoded;
-        try {
-            // Décoder et vérifier le token
-            decoded = jwt.verify(token, secret);
-            console.log("Token décodé:", decoded);  // Log pour vérifier le contenu du token
-        } catch (err) {
-            // Si le token est invalide ou expiré, lever une erreur
-            throw new AppError(400, 'Invalid or expired reset token');
-        }
+        //const secret = process.env.JWT_SECRET;  // Utilisez un secret d'environnement pour plus de sécurité
+        // let decoded;
+        // try {
+        //     // Décoder et vérifier le token
+        //     decoded = jwt.verify(token, secret);
+        //     console.log("Token décodé:", decoded);  // Log pour vérifier le contenu du token
+        // } catch (err) {
+        //     // Si le token est invalide ou expiré, lever une erreur
+        //     throw new AppError(400, 'Invalid or expired reset token');
+        // }
 
-        // Vérifie les informations dans le token décodé
-        const { userId, exp } = decoded;  // 'exp' est la date d'expiration dans le JWT
+        // const { userId } = decoded;
 
         // Recherche du token dans la base de données
+        console.log("Token recherché dans la base de données:", token);
         const resetToken = await prisma.passwordResetToken.findFirst({
             where: { token },
             include: { user: true },
         });
 
-        // Log du token trouvé dans la base de données
-        console.log("Token trouvé dans la base de données:", resetToken.token);
-
-        // Vérification si le token existe dans la base de données
         if (!resetToken) {
+            console.log("Token introuvable dans la base de données");
             throw new AppError(400, 'Invalid or expired reset token');
         }
 
-        // Log des dates d'expiration dans la base de données et dans le JWT
-        console.log("Expiration du token dans la base de données:", resetToken.expiresAt);
-        console.log("Expiration dans le JWT (exp) :", new Date(exp * 1000));  // 'exp' est en secondes, donc on multiplie par 1000 pour obtenir un format Date en millisecondes
-
-        // Comparer les dates d'expiration du JWT et de la base de données
-        const currentDate = new Date();
-        
-        // Comparaison de l'expiration dans le JWT (exp) avec la date actuelle
-        const tokenExpirationDate = new Date(exp * 1000); // 'exp' est en secondes, on le convertit en millisecondes
-        console.log("Token expiration date:", tokenExpirationDate);  // Log pour vérifier la date d'expiration du JWT
-
-        if (tokenExpirationDate < currentDate) {
-            throw new AppError(400, 'Reset token has expired (JWT expiration)');
-        }
-
-        // Vérification si le token a expiré dans la base de données
-        if (resetToken.expiresAt < currentDate) {
-            console.log("Token expiration date in database:", resetToken.expiresAt);  // Log pour vérifier la date d'expiration en base de données
-            throw new AppError(400, 'Reset token has expired (Database expiration)');
-        }
+        // Log de la vérification du token
+        console.log("Token trouvé dans la base de données:", resetToken.token);
 
         // Vérifier si le token a déjà été utilisé
         if (resetToken.used) {
+            console.log("Token déjà utilisé:", resetToken.token);
             throw new AppError(400, 'Reset token has already been used');
         }
 
-        // Hasher le nouveau mot de passe
+        const currentDate = new Date();
+        console.log("Date actuelle:", currentDate);  // Affiche la date actuelle
+        console.log("Expiration du token dans la base de données:", resetToken.expiresAt);  // Affiche l'expiration
+        if (resetToken.expiresAt < currentDate) {
+            console.log("Token expiré dans la base de données");
+            throw new AppError(400, 'Reset token has expired');
+        }
+
+        // Hasher le mot de passe
         const passwordHash = await bcrypt.hash(password, 12);
 
         // Mettre à jour le mot de passe de l'utilisateur
-        await retryPrismaUpdate(() =>
-            prisma.user.update({
-                where: { id: resetToken.userId },
-                data: { passwordHash },
-            })
-        );
+        await prisma.user.update({
+            where: { id: resetToken.userId },
+            data: { passwordHash },
+        });
 
         // Marquer le token comme utilisé
         await prisma.passwordResetToken.update({
@@ -512,12 +404,8 @@ class AuthService {
             await emailService.sendPasswordChangedEmail(resetToken.user.email);
         }
 
-        console.log("Mot de passe réinitialisé avec succès pour l'utilisateur", resetToken.userId);
-
         return { success: true, message: 'Password reset successfully' };
     }
-
-
 
     // ============ VERIFY EMAIL/PHONE ============
     async verifyAccount(token) {
@@ -536,12 +424,10 @@ class AuthService {
         }
 
         // Marquer l'utilisateur comme vérifié
-        await retryPrismaUpdate(() =>
-            prisma.user.update({
-                where: { id: verification.userId },
-                data: { isVerified: true },
-            })
-        );
+        await prisma.user.update({
+            where: { id: verification.userId },
+            data: { isVerified: true },
+        });
 
         // Marquer le code comme utilisé
         await prisma.verificationCode.update({
@@ -576,12 +462,10 @@ class AuthService {
         const newPasswordHash = await bcrypt.hash(newPassword, 12);
 
         // Mettre à jour le mot de passe
-        await retryPrismaUpdate(() =>
-            prisma.user.update({
-                where: { id: userId },
-                data: { passwordHash: newPasswordHash },
-            })
-        );
+        await prisma.user.update({
+            where: { id: userId },
+            data: { passwordHash: newPasswordHash },
+        });
 
         // Invalider toutes les sessions existantes (sécurité)
         await prisma.session.deleteMany({ where: { userId } });

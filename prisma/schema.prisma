@@ -1,76 +1,61 @@
-// === DISCOVERY SESSION (for anonymous discovery flow) ===
-model DiscoverySession {
-  id        String   @id @db.VarChar(50)
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-
-  @@map("discovery_sessions")
+generator client {
+  provider = "prisma-client-js"
 }
+
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
-// === USER MODELS (unchanged) ===
 model User {
-  id                 String    @id @default(cuid())
-  parentId           String?
-  accountType        String    @db.VarChar(20)
-  email              String?   @unique @db.VarChar(255)
-  phone              String?   @unique @db.VarChar(20)
-  passwordHash       String    @db.VarChar(255)
-  username           String?   @unique @db.VarChar(100)
-  firstLogin         Boolean   @default(true)
-  isVerified         Boolean   @default(true)
-  isActive           Boolean   @default(true)
-  subscriptionId     String?
-  subscriptionEndsAt DateTime?
-  createdBy          String?
-  createdAt          DateTime  @default(now())
-  lastLogin          DateTime?
-  lastActive         DateTime?
-
-  parentUser          User?                @relation("ParentToSubAccounts", fields: [parentId], references: [id], onDelete: SetNull)
-  subAccounts         User[]               @relation("ParentToSubAccounts")
-  createdByUser       User?                @relation("CreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
-  createdUsers        User[]               @relation("CreatedBy")
-  profile             Profile?
-  subscription        Subscription?
-  refreshTokens       RefreshToken[]
-  passwordResetTokens PasswordResetToken[]
-  verificationCodes   VerificationCode[]
+  id                  String                 @id @default(cuid())
+  parentId            String?
+  accountType         String                 @db.VarChar(20)
+  email               String?                @unique @db.VarChar(255)
+  phone               String?                @unique @db.VarChar(20)
+  passwordHash        String                 @db.VarChar(255)
+  username            String?                @unique @db.VarChar(100)
+  firstLogin          Boolean                @default(true)
+  isVerified          Boolean                @default(true)
+  isActive            Boolean                @default(true)
+  subscriptionId      String?
+  subscriptionEndsAt  DateTime?
+  createdBy           String?
+  createdAt           DateTime               @default(now())
+  lastLogin           DateTime?
+  lastActive          DateTime?
+  reportsSent         AccountReport[]        @relation("ReportsSent")
+  reportsGenerated    AccountReport[]        @relation("ReportsGenerated")
+  exerciseAttempts    ExerciseAttempt[]
   loginAttempts       LoginAttempt[]
+  notifications       Notification[]
+  passwordResetTokens PasswordResetToken[]
+  profile             Profile?
+  quizAttempts        QuizAttempt[]
+  refreshTokens       RefreshToken[]
   sessions            Session[]
-
-  // Updated relations with English terms
-  languageProgress UserLanguageProgress[]
-  levelProgress    UserLevelProgress[]
-  moduleProgress   UserModuleProgress[]
-  pathProgress     UserPathProgress[]
-  stepProgress     UserStepProgress[]
-
-  quizAttempts     QuizAttempt[]
-  exerciseAttempts ExerciseAttempt[]
-  certificates     UserCertificate[]
-  badges           UserBadge[]
-  stats            UserStats?
-  dailyActivity    UserDailyActivity[]
-
-  subAccountControls SubAccountControl[] @relation("ParentControls")
-  controlledByParent SubAccountControl[] @relation("SubAccountControlled")
-
-  reportsSent      AccountReport[] @relation("ReportsSent")
-  reportsGenerated AccountReport[] @relation("ReportsGenerated")
-
-  notifications Notification[]
-  transactions  Transaction[]
+  subAccountControls  SubAccountControl[]    @relation("ParentControls")
+  controlledByParent  SubAccountControl[]    @relation("SubAccountControlled")
+  subscription        Subscription?
+  transactions        Transaction[]
+  badges              UserBadge[]
+  certificates        UserCertificate[]
+  dailyActivity       UserDailyActivity[]
+  languageProgress    UserLanguageProgress[]
+  levelProgress       UserLevelProgress[]
+  moduleProgress      UserModuleProgress[]
+  pathProgress        UserPathProgress[]
+  stats               UserStats?
+  stepProgress        UserStepProgress[]
+  createdByUser       User?                  @relation("CreatedBy", fields: [createdBy], references: [id])
+  createdUsers        User[]                 @relation("CreatedBy")
+  parentUser          User?                  @relation("ParentToSubAccounts", fields: [parentId], references: [id])
+  subAccounts         User[]                 @relation("ParentToSubAccounts")
+  verificationCodes   VerificationCode[]
 
   @@index([parentId])
   @@index([accountType])
+  @@index([createdBy], map: "users_createdBy_fkey")
   @@map("users")
 }
 
@@ -86,46 +71,39 @@ model Profile {
   preferredLanguage String    @default("fr") @db.VarChar(10)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("profiles")
 }
 
-// === PLATFORM STRUCTURE MODELS (English terms) ===
-
-// 1. LANGUAGE
 model Language {
-  id          String   @id @default(cuid())
-  code        String   @unique @db.VarChar(10)
-  name        String   @db.VarChar(100)
-  description String?  @db.Text
-  iconUrl     String?  @db.VarChar(500)
-  isActive    Boolean  @default(true)
-  index       Int      @default(0) // For ordering
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
+  id           String                 @id @default(cuid())
+  code         String                 @unique @db.VarChar(10)
+  name         String                 @db.VarChar(100)
+  description  String?                @db.Text
+  iconUrl      String?                @db.VarChar(500)
+  isActive     Boolean                @default(true)
+  index        Int                    @default(0)
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  Certificate  Certificate[]
   levels       Level[]
   userProgress UserLanguageProgress[]
-  Certificate  Certificate[]
 
   @@index([index])
   @@map("languages")
 }
 
-// 2. LEVEL (beginner, intermediate, advanced)
 model Level {
-  id          String   @id @default(cuid())
-  languageId  String
-  code        String   @db.VarChar(20) // "beginner", "intermediate", "advanced"
-  name        String   @db.VarChar(100)
-  description String?  @db.Text
-  index       Int      @default(0) // For ordering within language
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
+  id           String              @id @default(cuid())
+  languageId   String
+  code         String              @db.VarChar(20)
+  name         String              @db.VarChar(100)
+  description  String?             @db.Text
+  index        Int                 @default(0)
+  isActive     Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
   language     Language            @relation(fields: [languageId], references: [id], onDelete: Cascade)
   modules      Module[]
   userProgress UserLevelProgress[]
@@ -135,18 +113,16 @@ model Level {
   @@map("levels")
 }
 
-// 3. MODULE (comes before path)
 model Module {
-  id          String   @id @default(cuid())
-  levelId     String
-  title       String   @db.VarChar(200)
-  description String?  @db.Text
-  iconUrl     String?  @db.VarChar(500)
-  index       Int      @default(0) // For ordering within level
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
+  id           String               @id @default(cuid())
+  levelId      String
+  title        String               @db.VarChar(200)
+  description  String?              @db.Text
+  iconUrl      String?              @db.VarChar(500)
+  index        Int                  @default(0)
+  isActive     Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
   level        Level                @relation(fields: [levelId], references: [id], onDelete: Cascade)
   paths        Path[]
   userProgress UserModuleProgress[]
@@ -155,147 +131,131 @@ model Module {
   @@map("modules")
 }
 
-// 4. PATH (in each module)
 model Path {
-  id              String   @id @default(cuid())
+  id              String             @id @default(cuid())
   moduleId        String
-  title           String   @db.VarChar(200)
-  description     String?  @db.Text
-  index           Int      @default(0) // For ordering within module
-  tempResaListime Int? // Booking/reservation time
-  thumbnailUrl    String?  @db.VarChar(500)
-  difficulty      String   @default("medium") @db.VarChar(20)
-  estimatedHours  Int?     @default(10)
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  module       Module             @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  steps        Step[]
-  userProgress UserPathProgress[]
-  pathQuiz     PathQuiz?
+  title           String             @db.VarChar(200)
+  description     String?            @db.Text
+  index           Int                @default(0)
+  tempResaListime Int?
+  thumbnailUrl    String?            @db.VarChar(500)
+  difficulty      String             @default("medium") @db.VarChar(20)
+  estimatedHours  Int?               @default(10)
+  isActive        Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  pathQuiz        PathQuiz?
+  module          Module             @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  steps           Step[]
+  userProgress    UserPathProgress[]
 
   @@unique([moduleId, index])
   @@map("paths")
 }
 
-// 5. STEP (in each path) - This is where content happens
 model Step {
-  id               String   @id @default(cuid())
+  id               String             @id @default(cuid())
   pathId           String
-  title            String   @db.VarChar(200)
-  description      String?  @db.Text
-  stepType         String   @db.VarChar(20) // "lesson", "exercise", "quiz"
-  index            Int      @default(0) // Ordering within path
-  estimatedMinutes Int      @default(15)
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  path         Path               @relation(fields: [pathId], references: [id], onDelete: Cascade)
-  lesson       Lesson? // For stepType = "lesson"
-  exercise     Exercise? // For stepType = "exercise"
-  quiz         Quiz? // For stepType = "quiz"
-  userProgress UserStepProgress[]
+  title            String             @db.VarChar(200)
+  description      String?            @db.Text
+  stepType         String             @db.VarChar(20)
+  index            Int                @default(0)
+  estimatedMinutes Int                @default(15)
+  isActive         Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  exercise         Exercise?
+  lesson           Lesson?
+  quiz             Quiz?
+  path             Path               @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  userProgress     UserStepProgress[]
 
   @@unique([pathId, index])
   @@map("steps")
 }
 
-// === CONTENT MODELS (lesson, exercise, quiz) ===
-
-// For stepType = "lesson"
 model Lesson {
   id          String   @id @default(cuid())
   stepId      String   @unique
   title       String   @db.VarChar(200)
   content     String   @db.Text
   videoUrl    String?  @db.VarChar(500)
-  attachments Json? // Attached files
-  index       Int      @default(0) // Ordering if multiple lessons per step
+  attachments Json?
+  index       Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  step Step @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  step        Step     @relation(fields: [stepId], references: [id], onDelete: Cascade)
 
   @@map("lessons")
 }
 
-// For stepType = "exercise"
 model Exercise {
-  id             String   @id @default(cuid())
-  stepId         String   @unique
-  title          String   @db.VarChar(200)
-  instructions   String   @db.Text
-  content        Json // Exercise data and questions
+  id             String            @id @default(cuid())
+  stepId         String            @unique
+  title          String            @db.VarChar(200)
+  instructions   String            @db.Text
+  content        Json
   correctAnswers Json?
   hints          Json?
-  explanation    String?  @db.Text
-  maxAttempts    Int      @default(3)
-  points         Int      @default(10)
-  xpReward       Int      @default(20)
-  coinReward     Int      @default(10)
-  index          Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  step     Step              @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  attempts ExerciseAttempt[]
+  explanation    String?           @db.Text
+  maxAttempts    Int               @default(3)
+  points         Int               @default(10)
+  xpReward       Int               @default(20)
+  coinReward     Int               @default(10)
+  index          Int               @default(0)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  attempts       ExerciseAttempt[]
+  step           Step              @relation(fields: [stepId], references: [id], onDelete: Cascade)
 
   @@map("exercises")
 }
 
-// For stepType = "quiz"
 model Quiz {
-  id               String   @id @default(cuid())
-  stepId           String   @unique
-  title            String   @db.VarChar(200)
-  questions        Json // Quiz questions
-  passingScore     Int      @default(70)
-  maxAttempts      Int      @default(2)
-  timeLimitMinutes Int?     @default(10)
-  xpReward         Int      @default(30)
-  coinReward       Int      @default(15)
-  index            Int      @default(0)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  step     Step          @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  attempts QuizAttempt[]
+  id               String        @id @default(cuid())
+  stepId           String        @unique
+  title            String        @db.VarChar(200)
+  questions        Json
+  passingScore     Int           @default(70)
+  maxAttempts      Int           @default(2)
+  timeLimitMinutes Int?          @default(10)
+  xpReward         Int           @default(30)
+  coinReward       Int           @default(15)
+  index            Int           @default(0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  attempts         QuizAttempt[]
+  step             Step          @relation(fields: [stepId], references: [id], onDelete: Cascade)
 
   @@map("quizzes")
 }
 
-// End of path quiz
 model PathQuiz {
-  id               String   @id @default(cuid())
-  pathId           String   @unique
-  title            String   @db.VarChar(200)
-  description      String?  @db.Text
+  id               String        @id @default(cuid())
+  pathId           String        @unique
+  title            String        @db.VarChar(200)
+  description      String?       @db.Text
   questions        Json
-  passingScore     Int      @default(70)
-  maxAttempts      Int      @default(3)
-  timeLimitMinutes Int      @default(30)
-  xpReward         Int      @default(100)
-  coinReward       Int      @default(50)
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  path     Path          @relation(fields: [pathId], references: [id], onDelete: Cascade)
-  attempts QuizAttempt[]
+  passingScore     Int           @default(70)
+  maxAttempts      Int           @default(3)
+  timeLimitMinutes Int           @default(30)
+  xpReward         Int           @default(100)
+  coinReward       Int           @default(50)
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  path             Path          @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  attempts         QuizAttempt[]
 
   @@map("path_quizzes")
 }
-
-// === PROGRESS MODELS (adapted to new structure) ===
 
 model UserLanguageProgress {
   id               String    @id @default(cuid())
   userId           String
   languageId       String
   status           String    @default("not_started") @db.VarChar(20)
-  overallProgress  Decimal   @default(0.0) @db.Decimal(5, 2)
+  overallProgress  Decimal   @default(0.00) @db.Decimal(5, 2)
   totalXp          Int       @default(0)
   totalTimeMinutes Int       @default(0)
   startedAt        DateTime?
@@ -303,11 +263,11 @@ model UserLanguageProgress {
   lastAccessedAt   DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
-
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  language Language @relation(fields: [languageId], references: [id], onDelete: Cascade)
+  language         Language  @relation(fields: [languageId], references: [id], onDelete: Cascade)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, languageId])
+  @@index([languageId], map: "user_language_progress_languageId_fkey")
   @@map("user_language_progress")
 }
 
@@ -316,7 +276,7 @@ model UserLevelProgress {
   userId             String
   levelId            String
   status             String    @default("locked") @db.VarChar(20)
-  progressPercentage Decimal   @default(0.0) @db.Decimal(5, 2)
+  progressPercentage Decimal   @default(0.00) @db.Decimal(5, 2)
   totalXp            Int       @default(0)
   timeSpentMinutes   Int       @default(0)
   unlockedAt         DateTime?
@@ -325,11 +285,11 @@ model UserLevelProgress {
   lastAccessedAt     DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
-
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  level Level @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  level              Level     @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, levelId])
+  @@index([levelId], map: "user_level_progress_levelId_fkey")
   @@map("user_level_progress")
 }
 
@@ -338,7 +298,7 @@ model UserModuleProgress {
   userId             String
   moduleId           String
   status             String    @default("locked") @db.VarChar(20)
-  progressPercentage Decimal   @default(0.0) @db.Decimal(5, 2)
+  progressPercentage Decimal   @default(0.00) @db.Decimal(5, 2)
   totalXp            Int       @default(0)
   timeSpentMinutes   Int       @default(0)
   unlockedAt         DateTime?
@@ -347,11 +307,11 @@ model UserModuleProgress {
   lastAccessedAt     DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
-
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  module             Module    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, moduleId])
+  @@index([moduleId], map: "user_module_progress_moduleId_fkey")
   @@map("user_module_progress")
 }
 
@@ -361,7 +321,7 @@ model UserPathProgress {
   pathId             String
   status             String    @default("locked") @db.VarChar(20)
   currentStepIndex   Int       @default(0)
-  progressPercentage Decimal   @default(0.0) @db.Decimal(5, 2)
+  progressPercentage Decimal   @default(0.00) @db.Decimal(5, 2)
   totalXp            Int       @default(0)
   timeSpentMinutes   Int       @default(0)
   quizScore          Decimal?  @db.Decimal(5, 2)
@@ -371,11 +331,11 @@ model UserPathProgress {
   lastAccessedAt     DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  path Path @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  path               Path      @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, pathId])
+  @@index([pathId], map: "user_path_progress_pathId_fkey")
   @@map("user_path_progress")
 }
 
@@ -384,27 +344,25 @@ model UserStepProgress {
   userId      String
   stepId      String
   status      String    @default("not_started") @db.VarChar(20)
-  progress    Decimal   @default(0.0) @db.Decimal(5, 2)
+  progress    Decimal   @default(0.00) @db.Decimal(5, 2)
   score       Decimal?  @db.Decimal(5, 2)
   completedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  step Step @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  step        Step      @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, stepId])
+  @@index([stepId], map: "user_step_progress_stepId_fkey")
   @@map("user_step_progress")
 }
-
-// === QUIZ AND EXERCISE ATTEMPTS ===
 
 model QuizAttempt {
   id               String    @id @default(cuid())
   userId           String
-  quizType         String    @db.VarChar(20) // "step_quiz", "path_quiz"
-  quizId           String? // For step quizzes
-  pathQuizId       String? // For path quizzes
+  quizType         String    @db.VarChar(20)
+  quizId           String?
+  pathQuizId       String?
   attemptNumber    Int
   score            Decimal   @db.Decimal(5, 2)
   answers          Json
@@ -418,13 +376,14 @@ model QuizAttempt {
   completedAt      DateTime?
   gradedAt         DateTime?
   createdAt        DateTime  @default(now())
-
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  quiz     Quiz?     @relation(fields: [quizId], references: [id], onDelete: SetNull)
-  pathQuiz PathQuiz? @relation(fields: [pathQuizId], references: [id], onDelete: SetNull)
+  pathQuiz         PathQuiz? @relation(fields: [pathQuizId], references: [id])
+  quiz             Quiz?     @relation(fields: [quizId], references: [id])
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, quizType, quizId, attemptNumber])
   @@unique([userId, quizType, pathQuizId, attemptNumber])
+  @@index([pathQuizId], map: "quiz_attempts_pathQuizId_fkey")
+  @@index([quizId], map: "quiz_attempts_quizId_fkey")
   @@map("quiz_attempts")
 }
 
@@ -442,15 +401,13 @@ model ExerciseAttempt {
   isCorrect        Boolean?
   feedback         String?  @db.Text
   createdAt        DateTime @default(now())
-
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  exercise         Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, exerciseId, attemptNumber])
+  @@index([exerciseId], map: "exercise_attempts_exerciseId_fkey")
   @@map("exercise_attempts")
 }
-
-// === REMAINING MODELS (unchanged or slightly adapted) ===
 
 model RefreshToken {
   id        String   @id @default(cuid())
@@ -458,9 +415,9 @@ model RefreshToken {
   userId    String
   expiresAt DateTime
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  @@index([userId], map: "refresh_tokens_userId_fkey")
   @@map("refresh_tokens")
 }
 
@@ -471,9 +428,9 @@ model PasswordResetToken {
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  @@index([userId], map: "password_reset_tokens_userId_fkey")
   @@map("password_reset_tokens")
 }
 
@@ -488,9 +445,9 @@ model VerificationCode {
   expiresAt    DateTime
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  @@index([userId], map: "verification_codes_userId_fkey")
   @@map("verification_codes")
 }
 
@@ -503,9 +460,9 @@ model LoginAttempt {
   ipAddress String?
   userAgent String?  @db.Text
   createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  @@index([userId], map: "login_attempts_userId_fkey")
   @@map("login_attempts")
 }
 
@@ -518,9 +475,9 @@ model Session {
   lastActivity DateTime @default(now())
   expiresAt    DateTime
   createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  @@index([userId], map: "sessions_userId_fkey")
   @@map("sessions")
 }
 
@@ -539,111 +496,109 @@ model SubAccountControl {
   reportFrequency        String   @default("weekly") @db.VarChar(20)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
-
-  parentUser User @relation("ParentControls", fields: [parentUserId], references: [id], onDelete: Cascade)
-  subAccount User @relation("SubAccountControlled", fields: [subAccountId], references: [id], onDelete: Cascade)
+  parentUser             User     @relation("ParentControls", fields: [parentUserId], references: [id], onDelete: Cascade)
+  subAccount             User     @relation("SubAccountControlled", fields: [subAccountId], references: [id], onDelete: Cascade)
 
   @@unique([parentUserId, subAccountId])
+  @@index([subAccountId], map: "sub_account_controls_subAccountId_fkey")
   @@map("sub_account_controls")
 }
 
 model SubscriptionPlan {
-  id             String   @id @default(cuid())
-  planCode       String   @unique @db.VarChar(50)
-  planName       String   @db.VarChar(100)
-  description    String?  @db.Text
-  priceMonthly   Decimal? @db.Decimal(10, 2)
-  priceYearly    Decimal? @db.Decimal(10, 2)
-  currency       String   @default("EUR") @db.VarChar(3)
+  id             String         @id @default(cuid())
+  planCode       String         @unique @db.VarChar(50)
+  planName       String         @db.VarChar(100)
+  description    String?        @db.Text
+  priceMonthly   Decimal?       @db.Decimal(10, 2)
+  priceYearly    Decimal?       @db.Decimal(10, 2)
+  currency       String         @default("EUR") @db.VarChar(3)
   features       Json
-  maxSubAccounts Int      @default(0)
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  subscriptions Subscription[]
+  maxSubAccounts Int            @default(0)
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  subscriptions  Subscription[]
 
   @@map("subscription_plans")
 }
 
 model Subscription {
-  id                 String    @id @default(cuid())
-  userId             String    @unique
+  id                 String           @id @default(cuid())
+  userId             String           @unique
   planId             String
-  status             String    @default("active") @db.VarChar(20)
-  billingCycle       String    @default("monthly") @db.VarChar(20)
+  status             String           @default("active") @db.VarChar(20)
+  billingCycle       String           @default("monthly") @db.VarChar(20)
   currentPeriodStart DateTime
   currentPeriodEnd   DateTime
-  cancelAtPeriodEnd  Boolean   @default(false)
+  cancelAtPeriodEnd  Boolean          @default(false)
   canceledAt         DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  plan               SubscriptionPlan @relation(fields: [planId], references: [id])
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plan SubscriptionPlan @relation(fields: [planId], references: [id])
-
+  @@index([planId], map: "subscriptions_planId_fkey")
   @@map("subscriptions")
 }
 
 model Certificate {
-  id           String   @id @default(cuid())
-  languageId   String? // Certificate can be linked to a language
-  certCode     String   @unique @db.VarChar(50)
-  certName     String   @db.VarChar(200)
-  description  String?  @db.Text
-  iconUrl      String?  @db.VarChar(500)
-  bannerUrl    String?  @db.VarChar(500)
-  requirements Json
-  validityDays Int?
-  xpReward     Int      @default(500)
-  coinReward   Int      @default(200)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  language         Language?         @relation(fields: [languageId], references: [id], onDelete: SetNull)
+  id               String            @id @default(cuid())
+  languageId       String?
+  certCode         String            @unique @db.VarChar(50)
+  certName         String            @db.VarChar(200)
+  description      String?           @db.Text
+  iconUrl          String?           @db.VarChar(500)
+  bannerUrl        String?           @db.VarChar(500)
+  requirements     Json
+  validityDays     Int?
+  xpReward         Int               @default(500)
+  coinReward       Int               @default(200)
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  language         Language?         @relation(fields: [languageId], references: [id])
   userCertificates UserCertificate[]
 
+  @@index([languageId], map: "certificates_languageId_fkey")
   @@map("certificates")
 }
 
 model UserCertificate {
-  id                String    @id @default(cuid())
+  id                String      @id @default(cuid())
   userId            String
   certificateId     String
-  certificateNumber String    @unique @db.VarChar(100)
+  certificateNumber String      @unique @db.VarChar(100)
   issueDate         DateTime
   expiryDate        DateTime?
-  score             Decimal?  @db.Decimal(5, 2)
-  status            String    @default("active") @db.VarChar(20)
-  downloadUrl       String?   @db.VarChar(500)
-  qrCodeUrl         String?   @db.VarChar(500)
+  score             Decimal?    @db.Decimal(5, 2)
+  status            String      @default("active") @db.VarChar(20)
+  downloadUrl       String?     @db.VarChar(500)
+  qrCodeUrl         String?     @db.VarChar(500)
   data              Json?
-  createdAt         DateTime  @default(now())
-
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  certificate Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  createdAt         DateTime    @default(now())
+  certificate       Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, certificateId])
+  @@index([certificateId], map: "user_certificates_certificateId_fkey")
   @@map("user_certificates")
 }
 
 model Badge {
-  id          String   @id @default(cuid())
-  badgeCode   String   @unique @db.VarChar(50)
-  badgeName   String   @db.VarChar(100)
-  description String?  @db.Text
-  category    String?  @db.VarChar(30)
-  iconUrl     String?  @db.VarChar(500)
-  colorCode   String?  @db.VarChar(7)
-  rarity      String   @default("common") @db.VarChar(20)
+  id          String      @id @default(cuid())
+  badgeCode   String      @unique @db.VarChar(50)
+  badgeName   String      @db.VarChar(100)
+  description String?     @db.Text
+  category    String?     @db.VarChar(30)
+  iconUrl     String?     @db.VarChar(500)
+  colorCode   String?     @db.VarChar(7)
+  rarity      String      @default("common") @db.VarChar(20)
   criteria    Json
-  xpReward    Int      @default(50)
-  coinReward  Int      @default(100)
-  isSecret    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-
-  userBadges UserBadge[]
+  xpReward    Int         @default(50)
+  coinReward  Int         @default(100)
+  isSecret    Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  userBadges  UserBadge[]
 
   @@map("badges")
 }
@@ -655,11 +610,11 @@ model UserBadge {
   unlockedAt DateTime @default(now())
   isFavorite Boolean  @default(false)
   createdAt  DateTime @default(now())
-
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  badge      Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, badgeId])
+  @@index([badgeId], map: "user_badges_badgeId_fkey")
   @@map("user_badges")
 }
 
@@ -680,8 +635,7 @@ model UserStats {
   accuracyRate            Decimal? @db.Decimal(5, 2)
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_stats")
 }
@@ -701,8 +655,7 @@ model UserDailyActivity {
   firstActivityAt    DateTime?
   lastActivityAt     DateTime?
   createdAt          DateTime  @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, activityDate])
   @@map("user_daily_activity")
@@ -732,11 +685,11 @@ model AccountReport {
   viewedAt            DateTime?
   generatedAt         DateTime  @default(now())
   createdAt           DateTime  @default(now())
-
-  parentUser User @relation("ReportsSent", fields: [parentUserId], references: [id], onDelete: Cascade)
-  subAccount User @relation("ReportsGenerated", fields: [subAccountId], references: [id], onDelete: Cascade)
+  parentUser          User      @relation("ReportsSent", fields: [parentUserId], references: [id], onDelete: Cascade)
+  subAccount          User      @relation("ReportsGenerated", fields: [subAccountId], references: [id], onDelete: Cascade)
 
   @@index([parentUserId, periodStart, periodEnd])
+  @@index([subAccountId], map: "account_reports_subAccountId_fkey")
   @@map("account_reports")
 }
 
@@ -752,9 +705,9 @@ model Notification {
   readAt           DateTime?
   expiresAt        DateTime?
   createdAt        DateTime  @default(now())
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  @@index([userId], map: "notifications_userId_fkey")
   @@map("notifications")
 }
 
@@ -769,8 +722,7 @@ model Transaction {
   balanceCoinsAfter Int?
   metadata          Json?
   createdAt         DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@map("transactions")
