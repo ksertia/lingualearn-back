@@ -46,6 +46,19 @@ exports.create = async (data) => {
   if (!level) {
     throw new Error('Le levelId fourni n\'existe pas');
   }
+  
+  // Auto-incrémenter l'index si null ou undefined
+  if (data.index === null || data.index === undefined) {
+    // Récupérer le dernier module du niveau pour obtenir le dernier index
+    const lastModule = await prisma.module.findFirst({
+      where: { levelId: data.levelId },
+      orderBy: { index: 'desc' }
+    });
+    
+    // Si aucun module n'existe, commencer à 0, sinon incrémenter
+    data.index = lastModule ? lastModule.index + 1 : 0;
+  }
+  
   return await prisma.module.create({ data });
 };
 
