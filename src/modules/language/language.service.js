@@ -55,11 +55,16 @@ exports.create = async (data) => {
 	return await prisma.language.create({ data: { ...data, index } });
 };
 
-exports.getAll = async () => {
+exports.getAll = async (includeInactive = false) => {
+	const where = includeInactive ? {} : { isActive: true };
 	return await prisma.language.findMany({
+		where,
 		orderBy: { index: 'asc' },
 		include: {
-			levels: true
+			levels: {
+				where: { isActive: true },
+				orderBy: { index: 'asc' }
+			}
 		}
 	});
 };
@@ -339,4 +344,248 @@ exports.remove = async (id) => {
 	if (!language) return null;
 	await prisma.language.delete({ where: { id } });
 	return true;
+};
+
+// Activer une langue
+exports.activateLanguage = async (id) => {
+	const language = await prisma.language.findUnique({ where: { id } });
+	if (!language) {
+		throw new Error('Langue introuvable');
+	}
+	return await prisma.language.update({
+		where: { id },
+		data: { isActive: true }
+	});
+};
+
+// Désactiver une langue
+exports.deactivateLanguage = async (id) => {
+	const language = await prisma.language.findUnique({ where: { id } });
+	if (!language) {
+		throw new Error('Langue introuvable');
+	}
+	return await prisma.language.update({
+		where: { id },
+		data: { isActive: false }
+	});
+};
+
+// Récupérer toutes les langues actives
+exports.getActiveLanguages = async () => {
+	return await prisma.language.findMany({
+		where: { isActive: true },
+		orderBy: { index: 'asc' },
+		include: {
+			levels: {
+				where: { isActive: true },
+				orderBy: { index: 'asc' }
+			}
+		}
+	});
+};
+
+// Récupérer les niveaux disponibles pour une langue
+exports.getAvailableLevels = async (languageId) => {
+	const language = await prisma.language.findUnique({ 
+		where: { id: languageId },
+		include: {
+			levels: {
+				where: { isActive: true },
+				orderBy: { index: 'asc' },
+				select: {
+					id: true,
+					code: true,
+					name: true,
+					description: true,
+					index: true,
+					isActive: true,
+					_count: {
+						select: {
+							modules: true
+						}
+					}
+				}
+			}
+		}
+	});
+	
+	if (!language) {
+		throw new Error('Langue introuvable');
+	}
+	
+	return {
+		language: {
+			id: language.id,
+			code: language.code,
+			name: language.name,
+			isActive: language.isActive
+		},
+		levels: language.levels
+	};
+};
+
+// Sélectionner une langue avec un niveau de départ et initialiser la progression
+exports.startLanguageWithLevel = async (userId, languageId, levelId) => {
+	// Vérifier que la langue existe et est active
+	const language = await prisma.language.findUnique({
+		where: { id: languageId, isActive: true }
+	});
+	
+	if (!language) {
+		throw new Error('Langue introuvable ou inactive');
+	}
+	
+	// Vérifier que le niveau existe et appartient à cette langue
+	const level = await prisma.level.findFirst({
+		where: { 
+			id: levelId,
+			languageId: languageId,
+			isActive: true
+		},
+		include: {
+			modules: {
+				where: { isActive: true },
+				orderBy: { index: 'asc' },
+				take: 1,
+				include: {
+					paths: {
+						where: { isActive: true },
+						orderBy: { index: 'asc' },
+						take: 1,
+						include: {
+							steps: {
+								where: { isActive: true },
+								orderBy: { index: 'asc' },
+								take: 1
+							}
+						}
+					}
+				}
+			}
+		}
+	});
+	
+	if (!level) {
+		throw new Error('Niveau introuvable ou inactif pour cette langue');
+	}
+	
+	// Créer ou mettre à jour la progression de langue
+	let languageProgress = await prisma.userLanguageProgress.findUnique({
+		where: { userId_languageId: { userId, languageId } }
+	});
+	
+	const now = new Date();
+	
+	if (!languageProgress) {
+		languageProgress = await prisma.userLanguageProgress.create({
+			data: {
+				userId,
+				languageId,
+				status: 'started',
+				startedAt: now,
+				lastAccessedAt: now
+			}
+		});
+	} else {
+		languageProgress = await prisma.userLanguageProgress.update({
+			where: { id: languageProgress.id },
+			data: {
+				status: 'started',
+				startedAt: languageProgress.startedAt || now,
+				lastAccessedAt: now
+			}
+		});
+	}
+	
+	// Créer la progression du niveau choisi
+	let levelProgress = await prisma.userLevelProgress.findUnique({
+		where: { userId_levelId: { userId, levelId } }
+	});
+	
+	if (!levelProgress) {
+		levelProgress = await prisma.userLevelProgress.create({
+			data: {
+				userId,
+				levelId,
+				status: 'unlocked',
+				unlockedAt: now,
+				lastAccessedAt: now
+			}
+		});
+	}
+	
+	// Débloquer le premier module du niveau
+	const firstModule = level.modules[0];
+	if (firstModule) {
+		let moduleProgress = await prisma.userModuleProgress.findUnique({
+			where: { userId_moduleId: { userId, moduleId: firstModule.id } }
+		});
+		
+		if (!moduleProgress) {
+			moduleProgress = await prisma.userModuleProgress.create({
+				data: {
+					userId,
+					moduleId: firstModule.id,
+					status: 'unlocked',
+					unlockedAt: now,
+					lastAccessedAt: now
+				}
+			});
+		}
+		
+		// Débloquer le premier parcours du module
+		const firstPath = firstModule.paths[0];
+		if (firstPath) {
+			let pathProgress = await prisma.userPathProgress.findUnique({
+				where: { userId_pathId: { userId, pathId: firstPath.id } }
+			});
+			
+			if (!pathProgress) {
+				pathProgress = await prisma.userPathProgress.create({
+					data: {
+						userId,
+						pathId: firstPath.id,
+						status: 'unlocked',
+						unlockedAt: now,
+						lastAccessedAt: now
+					}
+				});
+			}
+			
+			// Débloquer la première étape du parcours
+			const firstStep = firstPath.steps[0];
+			if (firstStep) {
+				let stepProgress = await prisma.userStepProgress.findUnique({
+					where: { userId_stepId: { userId, stepId: firstStep.id } }
+				});
+				
+				if (!stepProgress) {
+					await prisma.userStepProgress.create({
+						data: {
+							userId,
+							stepId: firstStep.id,
+							status: 'unlocked',
+							unlockedAt: now
+						}
+					});
+				}
+			}
+		}
+	}
+	
+	return {
+		languageProgress,
+		levelProgress,
+		level: {
+			id: level.id,
+			code: level.code,
+			name: level.name,
+			index: level.index
+		},
+		language: {
+			id: language.id,
+			code: language.code,
+			name: language.name
+		}
+	};
 };

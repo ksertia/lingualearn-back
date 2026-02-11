@@ -517,6 +517,228 @@ router.delete('/:id', authMiddleware, allowRoles('admin', 'plateform_manager'), 
 
 /**
  * @swagger
+ * /api/v1/languages/active:
+ *   get:
+ *     summary: Récupérer toutes les langues actives
+ *     tags: [Languages]
+ *     responses:
+ *       200:
+ *         description: Liste des langues actives
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       code:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *                       isActive:
+ *                         type: boolean
+ *                       levels:
+ *                         type: array
+ */
+router.get('/active', controller.getActiveLanguages);
+
+/**
+ * @swagger
+ * /api/v1/languages/{id}/activate:
+ *   patch:
+ *     summary: Activer une langue
+ *     tags: [Languages]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la langue
+ *     responses:
+ *       200:
+ *         description: Langue activée avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *       404:
+ *         description: Langue non trouvée
+ */
+router.patch('/:id/activate', authMiddleware, allowRoles('admin', 'plateform_manager'), controller.activateLanguage);
+
+/**
+ * @swagger
+ * /api/v1/languages/{id}/deactivate:
+ *   patch:
+ *     summary: Désactiver une langue
+ *     tags: [Languages]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la langue
+ *     responses:
+ *       200:
+ *         description: Langue désactivée avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *       404:
+ *         description: Langue non trouvée
+ */
+router.patch('/:id/deactivate', authMiddleware, allowRoles('admin', 'plateform_manager'), controller.deactivateLanguage);
+
+/**
+ * @swagger
+ * /api/v1/languages/{id}/available-levels:
+ *   get:
+ *     summary: Récupérer les niveaux disponibles pour une langue
+ *     tags: [Languages]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la langue
+ *     responses:
+ *       200:
+ *         description: Niveaux disponibles récupérés avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     language:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         code:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         isActive:
+ *                           type: boolean
+ *                     levels:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           code:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *                           isActive:
+ *                             type: boolean
+ *                           _count:
+ *                             type: object
+ *                             properties:
+ *                               modules:
+ *                                 type: integer
+ *       404:
+ *         description: Langue non trouvée
+ */
+router.get('/:id/available-levels', controller.getAvailableLevels);
+
+/**
+ * @swagger
+ * /api/v1/users/{userId}/languages/{languageId}/start-with-level:
+ *   post:
+ *     summary: Démarrer une langue avec un niveau choisi par l'utilisateur
+ *     tags: [Languages]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de l'utilisateur
+ *       - in: path
+ *         name: languageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la langue
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - levelId
+ *             properties:
+ *               levelId:
+ *                 type: string
+ *                 description: ID du niveau de départ choisi par l'utilisateur
+ *                 example: clxxx...
+ *     responses:
+ *       201:
+ *         description: Langue et niveau initialisés avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     languageProgress:
+ *                       type: object
+ *                     levelProgress:
+ *                       type: object
+ *                     level:
+ *                       type: object
+ *                     language:
+ *                       type: object
+ *       400:
+ *         description: levelId manquant
+ *       404:
+ *         description: Langue ou niveau non trouvé
+ */
+router.post('/api/v1/users/:userId/languages/:languageId/start-with-level', controller.startLanguageWithLevel);
+
+/**
+ * @swagger
  * /api/v1/users/{userId}/languages:
  *   get:
  *     summary: Récupérer les langues liées à un utilisateur

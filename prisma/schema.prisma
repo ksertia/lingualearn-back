@@ -101,6 +101,7 @@ model Language {
   name        String   @db.VarChar(100)
   description String?  @db.Text
   iconUrl     String?  @db.VarChar(500)
+  flagUrl     String?  @db.VarChar(500) // Added for user.service.js compatibility
   isActive    Boolean  @default(true)
   index       Int      @default(0) // For ordering
   createdAt   DateTime @default(now())
@@ -137,15 +138,16 @@ model Level {
 
 // 3. MODULE (comes before path)
 model Module {
-  id          String   @id @default(cuid())
-  levelId     String
-  title       String   @db.VarChar(200)
-  description String?  @db.Text
-  iconUrl     String?  @db.VarChar(500)
-  index       Int      @default(0) // For ordering within level
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  levelId      String
+  title        String   @db.VarChar(200)
+  description  String?  @db.Text
+  iconUrl      String?  @db.VarChar(500)
+  thumbnailUrl String?  @db.VarChar(500) // Added for user.service.js compatibility
+  index        Int      @default(0) // For ordering within level
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   level        Level                @relation(fields: [levelId], references: [id], onDelete: Cascade)
   paths        Path[]
@@ -308,6 +310,8 @@ model UserLanguageProgress {
   language Language @relation(fields: [languageId], references: [id], onDelete: Cascade)
 
   @@unique([userId, languageId])
+  @@index([userId, lastAccessedAt])
+  @@index([languageId, status])
   @@map("user_language_progress")
 }
 
@@ -330,6 +334,8 @@ model UserLevelProgress {
   level Level @relation(fields: [levelId], references: [id], onDelete: Cascade)
 
   @@unique([userId, levelId])
+  @@index([userId, status])
+  @@index([levelId, status])
   @@map("user_level_progress")
 }
 
@@ -352,6 +358,8 @@ model UserModuleProgress {
   module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
   @@unique([userId, moduleId])
+  @@index([userId, status])
+  @@index([moduleId, status])
   @@map("user_module_progress")
 }
 
@@ -376,24 +384,33 @@ model UserPathProgress {
   path Path @relation(fields: [pathId], references: [id], onDelete: Cascade)
 
   @@unique([userId, pathId])
+  @@index([userId, status])
+  @@index([pathId, status])
   @@map("user_path_progress")
 }
 
 model UserStepProgress {
-  id          String    @id @default(cuid())
-  userId      String
-  stepId      String
-  status      String    @default("not_started") @db.VarChar(20)
-  progress    Decimal   @default(0.0) @db.Decimal(5, 2)
-  score       Decimal?  @db.Decimal(5, 2)
-  completedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  userId             String
+  stepId             String
+  status             String    @default("not_started") @db.VarChar(20)
+  progress           Decimal   @default(0.0) @db.Decimal(5, 2)
+  progressPercentage Decimal   @default(0.0) @db.Decimal(5, 2) // Added for user.service.js compatibility
+  totalXp            Int       @default(0) // Added for user.service.js compatibility
+  timeSpentMinutes   Int       @default(0) // Added for user.service.js compatibility
+  score              Decimal?  @db.Decimal(5, 2)
+  unlockedAt         DateTime? // Added for user.service.js compatibility
+  startedAt          DateTime? // Added for user.service.js compatibility
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   step Step @relation(fields: [stepId], references: [id], onDelete: Cascade)
 
   @@unique([userId, stepId])
+  @@index([userId, status])
+  @@index([stepId, status])
   @@map("user_step_progress")
 }
 
