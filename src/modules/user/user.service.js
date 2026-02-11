@@ -180,7 +180,7 @@ class UserService {
         return user;
     }
 
-    // Récupérer un utilisateur par ID avec langue actuelle et progression
+    // Récupérer un utilisateur par ID avec toutes ses langues d'apprentissage et progression complète
     async getUserDetailsById(userId) {
         const user = await prisma.user.findUnique({
             where: { id: userId },
@@ -252,71 +252,207 @@ class UserService {
             throw new AppError(404, 'User not found');
         }
 
-        const progressList = await prisma.userLanguageProgress.findMany({
+        // Récupérer TOUTES les progressions de langues de l'utilisateur
+        const userLanguageProgressList = await prisma.userLanguageProgress.findMany({
             where: { userId },
+            include: { 
+                language: {
+                    select: {
+                        id: true,
+                        code: true,
+                        name: true,
+                        description: true,
+                        flagUrl: true,
+                        isActive: true
+                    }
+                }
+            },
             orderBy: [
                 { lastAccessedAt: 'desc' },
                 { startedAt: 'desc' },
                 { createdAt: 'desc' }
-            ],
-            take: 1,
-            include: { language: true }
+            ]
         });
 
-        let currentLanguageProgress = progressList[0] || null;
+        // Récupérer les IDs de toutes les langues en cours d'apprentissage
+        const languageIds = userLanguageProgressList.map(progress => progress.languageId);
 
-        if (!currentLanguageProgress && user.profile?.preferredLanguage) {
-            const language = await prisma.language.findUnique({
-                where: { code: user.profile.preferredLanguage }
-            });
-            if (language) {
-                currentLanguageProgress = {
-                    id: null,
-                    userId,
-                    languageId: language.id,
-                    status: 'not_started',
-                    overallProgress: null,
-                    totalXp: 0,
-                    totalTimeMinutes: 0,
-                    startedAt: null,
-                    completedAt: null,
-                    lastAccessedAt: null,
-                    createdAt: null,
-                    updatedAt: null,
-                    language
-                };
-            }
-        }
-
-        let currentLanguage = null;
-
-        if (currentLanguageProgress?.languageId) {
-            currentLanguage = await prisma.language.findUnique({
-                where: { id: currentLanguageProgress.languageId },
-                include: {
-                    levels: {
-                        orderBy: { index: 'asc' },
-                        include: {
-                            userProgress: {
-                                where: { userId }
-                            },
-                            modules: {
-                                orderBy: { index: 'asc' },
-                                include: {
-                                    userProgress: {
-                                        where: { userId }
-                                    },
-                                    paths: {
-                                        orderBy: { index: 'asc' },
-                                        include: {
-                                            userProgress: {
-                                                where: { userId }
-                                            },
-                                            steps: {
-                                                orderBy: { index: 'asc' },
-                                                include: {
-                                                    userProgress: {
-                                                        where: { userId }
+        // Récupérer la structure complète de toutes les langues avec progression
+        const learningLanguages = await Promise.all(
+            languageIds.map(async (languageId) => {
+                const languageData = await prisma.language.findUnique({
+                    where: { id: languageId },
+                    select: {
+                        id: true,
+                        code: true,
+                        name: true,
+                        description: true,
+                        flagUrl: true,
+                        isActive: true,
+                        levels: {
+                            where: { isActive: true },
+                            orderBy: { index: 'asc' },
+                            select: {
+                                id: true,
+                                name: true,
+                                description: true,
+                                index: true,
+                                isActive: true,
+                                userProgress: {
+                                    where: { userId },
+                                    select: {
+                                        id: true,
+                                        status: true,
+                                        progressPercentage: true,
+                                        totalXp: true,
+                                        timeSpentMinutes: true,
+                                        unlockedAt: true,
+                                        startedAt: true,
+                                        completedAt: true
+                                    }
+                                },
+                                modules: {
+                                    where: { isActive: true },
+                                    orderBy: { index: 'asc' },
+                                    select: {
+                                        id: true,
+                                        name: true,
+                                        description: true,
+                                        index: true,
+                                        thumbnailUrl: true,
+                                        isActive: true,
+                                        userProgress: {
+                                            where: { userId },
+                                            select: {
+                                                id: true,
+                                                status: true,
+                                                progressPercentage: true,
+                                                totalXp: true,
+                                                timeSpentMinutes: true,
+                                                unlockedAt: true,
+                                                startedAt: true,
+                                                completedAt: true
+                                            }
+                                        },
+                                        paths: {
+                                            where: { isActive: true },
+                                            orderBy: { index: 'asc' },
+                                            select: {
+                                                id: true,
+                                                title: true,
+                                                description: true,
+                                                index: true,
+                                                thumbnailUrl: true,
+                                                difficulty: true,
+                                                estimatedHours: true,
+                                                isActive: true,
+                                                userProgress: {
+                                                    where: { userId },
+                                                    select: {
+                                                        id: true,
+                                                        status: true,
+                                                        progressPercentage: true,
+                                                        totalXp: true,
+                                                        timeSpentMinutes: true,
+                                                        quizScore: true,
+                                                        unlockedAt: true,
+                                                        startedAt: true,
+                                                        completedAt: true
+                                                    }
+                                                },
+                                                steps: {
+                                                    where: { isActive: true },
+                                                    orderBy: { index: 'asc' },
+                                                    select: {
+                                                        id: true,
+                                                        name: true,
+                                                        description: true,
+                                                        index: true,
+                                                        type: true,
+                                                        isActive: true,
+                                                        userProgress: {
+                                                            where: { userId },
+                                                            select: {
+                                                                id: true,
+                                                                status: true,
+                                                                progressPercentage: true,
+                                                                totalXp: true,
+                                                                timeSpentMinutes: true,
+                                                                unlockedAt: true,
+                                                                startedAt: true,
+                                                                completedAt: true
+                                                            }
+                                                        },
+                                                        courses: {
+                                                            where: { isActive: true },
+                                                            orderBy: { order: 'asc' },
+                                                            select: {
+                                                                id: true,
+                                                                title: true,
+                                                                content: true,
+                                                                order: true,
+                                                                duration: true,
+                                                                isActive: true,
+                                                                userProgress: {
+                                                                    where: { userId },
+                                                                    select: {
+                                                                        id: true,
+                                                                        status: true,
+                                                                        completedAt: true,
+                                                                        timeSpent: true
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        exercises: {
+                                                            where: { isActive: true },
+                                                            orderBy: { order: 'asc' },
+                                                            select: {
+                                                                id: true,
+                                                                title: true,
+                                                                instructions: true,
+                                                                type: true,
+                                                                order: true,
+                                                                difficulty: true,
+                                                                isActive: true,
+                                                                userProgress: {
+                                                                    where: { userId },
+                                                                    select: {
+                                                                        id: true,
+                                                                        status: true,
+                                                                        score: true,
+                                                                        attempts: true,
+                                                                        completedAt: true,
+                                                                        timeSpent: true
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        quizzes: {
+                                                            where: { isActive: true },
+                                                            orderBy: { order: 'asc' },
+                                                            select: {
+                                                                id: true,
+                                                                title: true,
+                                                                description: true,
+                                                                order: true,
+                                                                passingScore: true,
+                                                                timeLimit: true,
+                                                                isActive: true,
+                                                                userProgress: {
+                                                                    where: { userId },
+                                                                    select: {
+                                                                        id: true,
+                                                                        status: true,
+                                                                        score: true,
+                                                                        attempts: true,
+                                                                        bestScore: true,
+                                                                        completedAt: true,
+                                                                        timeSpent: true
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -326,14 +462,39 @@ class UserService {
                             }
                         }
                     }
-                }
-            });
-        }
+                });
+
+                // Trouver la progression de cette langue
+                const languageProgress = userLanguageProgressList.find(p => p.languageId === languageId);
+
+                // Calculer l'état actuel pour cette langue
+                const currentState = this.calculateCurrentState(languageData, userId);
+
+                return {
+                    ...languageData,
+                    userProgress: {
+                        id: languageProgress?.id,
+                        status: languageProgress?.status || 'not_started',
+                        overallProgress: languageProgress?.overallProgress || 0,
+                        totalXp: languageProgress?.totalXp || 0,
+                        totalTimeMinutes: languageProgress?.totalTimeMinutes || 0,
+                        startedAt: languageProgress?.startedAt,
+                        completedAt: languageProgress?.completedAt,
+                        lastAccessedAt: languageProgress?.lastAccessedAt
+                    },
+                    currentState
+                };
+            })
+        );
+
+        // Identifier la langue actuellement active (dernière accédée)
+        const currentLanguageId = userLanguageProgressList[0]?.languageId || null;
 
         return {
             user,
-            currentLanguage,
-            currentLanguageProgress
+            learningLanguages,
+            currentLanguageId,
+            totalLanguages: learningLanguages.length
         };
     }
 
@@ -446,6 +607,7 @@ class UserService {
         }
 
         let currentLanguage = null;
+        let currentState = null;
 
         if (currentLanguageProgress?.languageId) {
             currentLanguage = await prisma.language.findUnique({
@@ -474,6 +636,30 @@ class UserService {
                                                 include: {
                                                     userProgress: {
                                                         where: { userId }
+                                                    },
+                                                    courses: {
+                                                        orderBy: { order: 'asc' },
+                                                        include: {
+                                                            userProgress: {
+                                                                where: { userId }
+                                                            }
+                                                        }
+                                                    },
+                                                    exercises: {
+                                                        orderBy: { order: 'asc' },
+                                                        include: {
+                                                            userProgress: {
+                                                                where: { userId }
+                                                            }
+                                                        }
+                                                    },
+                                                    quizzes: {
+                                                        orderBy: { order: 'asc' },
+                                                        include: {
+                                                            userProgress: {
+                                                                where: { userId }
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -486,6 +672,9 @@ class UserService {
                 }
             });
 
+            // Calculer l'état actuel de progression
+            currentState = this.calculateCurrentState(currentLanguage, userId);
+
             if (currentLanguageProgress.id) {
                 await prisma.userLanguageProgress.update({
                     where: { id: currentLanguageProgress.id },
@@ -497,7 +686,8 @@ class UserService {
         return {
             user,
             currentLanguage,
-            currentLanguageProgress
+            currentLanguageProgress,
+            currentState
         };
     }
     
@@ -574,10 +764,6 @@ class UserService {
                 COUNT(CASE WHEN "accountType" = 'learner' THEN 1 END) as learner_users,
                 COUNT(CASE WHEN "accountType" = 'child' THEN 1 END) as child_users,
                 COUNT(CASE WHEN "accountType" = 'teacher' THEN 1 END) as teacher_users,
-                    COUNT(CASE WHEN "accountType" = 'admin' THEN 1 END) as admin_users,
-                    COUNT(CASE WHEN "accountType" = 'parent' THEN 1 END) as parent_users,
-                    COUNT(CASE WHEN "accountType" = 'child' THEN 1 END) as child_users,
-                    COUNT(CASE WHEN "accountType" = 'teacher' THEN 1 END) as teacher_users,
                 DATE("createdAt") as date,
                 COUNT(*) as daily_signups
             FROM users
@@ -599,6 +785,169 @@ class UserService {
         return {
             stats,
             loginStats
+        };
+    }
+
+    /**
+     * Calcule l'état actuel de progression de l'utilisateur
+     * Retourne le niveau, module, parcours, étape, course, exercise et quiz actuels
+     */
+    calculateCurrentState(languageData, userId) {
+        if (!languageData || !languageData.levels) {
+            return null;
+        }
+
+        let currentLevel = null;
+        let currentModule = null;
+        let currentPath = null;
+        let currentStep = null;
+        let currentCourse = null;
+        let currentExercise = null;
+        let currentQuiz = null;
+
+        // Trouver le niveau actuel (premier non complété ou dernier débloqué)
+        for (const level of languageData.levels) {
+            const progress = level.userProgress?.[0];
+            if (progress && (progress.status === 'started' || progress.status === 'unlocked')) {
+                currentLevel = { ...level, currentProgress: progress };
+                break;
+            }
+        }
+
+        if (!currentLevel && languageData.levels.length > 0) {
+            currentLevel = languageData.levels[0];
+        }
+
+        // Trouver le module actuel
+        if (currentLevel?.modules) {
+            for (const module of currentLevel.modules) {
+                const progress = module.userProgress?.[0];
+                if (progress && (progress.status === 'started' || progress.status === 'unlocked')) {
+                    currentModule = { ...module, currentProgress: progress };
+                    break;
+                }
+            }
+            if (!currentModule && currentLevel.modules.length > 0) {
+                currentModule = currentLevel.modules[0];
+            }
+        }
+
+        // Trouver le parcours actuel
+        if (currentModule?.paths) {
+            for (const path of currentModule.paths) {
+                const progress = path.userProgress?.[0];
+                if (progress && (progress.status === 'started' || progress.status === 'unlocked')) {
+                    currentPath = { ...path, currentProgress: progress };
+                    break;
+                }
+            }
+            if (!currentPath && currentModule.paths.length > 0) {
+                currentPath = currentModule.paths[0];
+            }
+        }
+
+        // Trouver l'étape actuelle
+        if (currentPath?.steps) {
+            for (const step of currentPath.steps) {
+                const progress = step.userProgress?.[0];
+                if (progress && (progress.status === 'started' || progress.status === 'unlocked')) {
+                    currentStep = { ...step, currentProgress: progress };
+                    break;
+                }
+            }
+            if (!currentStep && currentPath.steps.length > 0) {
+                currentStep = currentPath.steps[0];
+            }
+        }
+
+        // Trouver le course actuel
+        if (currentStep?.courses) {
+            for (const course of currentStep.courses) {
+                const progress = course.userProgress?.[0];
+                if (progress && (progress.status === 'started' || progress.status === 'unlocked')) {
+                    currentCourse = { ...course, currentProgress: progress };
+                    break;
+                }
+            }
+            if (!currentCourse && currentStep.courses.length > 0) {
+                currentCourse = currentStep.courses[0];
+            }
+        }
+
+        // Trouver l'exercise actuel
+        if (currentStep?.exercises) {
+            for (const exercise of currentStep.exercises) {
+                const progress = exercise.userProgress?.[0];
+                if (progress && (progress.status === 'started' || progress.status === 'unlocked')) {
+                    currentExercise = { ...exercise, currentProgress: progress };
+                    break;
+                }
+            }
+            if (!currentExercise && currentStep.exercises.length > 0) {
+                currentExercise = currentStep.exercises[0];
+            }
+        }
+
+        // Trouver le quiz actuel
+        if (currentStep?.quizzes) {
+            for (const quiz of currentStep.quizzes) {
+                const progress = quiz.userProgress?.[0];
+                if (progress && (progress.status === 'started' || progress.status === 'unlocked')) {
+                    currentQuiz = { ...quiz, currentProgress: progress };
+                    break;
+                }
+            }
+            if (!currentQuiz && currentStep.quizzes.length > 0) {
+                currentQuiz = currentStep.quizzes[0];
+            }
+        }
+
+        return {
+            currentLevel: currentLevel ? {
+                id: currentLevel.id,
+                name: currentLevel.name,
+                index: currentLevel.index,
+                status: currentLevel.currentProgress?.status || 'locked'
+            } : null,
+            currentModule: currentModule ? {
+                id: currentModule.id,
+                name: currentModule.name,
+                index: currentModule.index,
+                status: currentModule.currentProgress?.status || 'locked'
+            } : null,
+            currentPath: currentPath ? {
+                id: currentPath.id,
+                title: currentPath.title,
+                index: currentPath.index,
+                status: currentPath.currentProgress?.status || 'locked'
+            } : null,
+            currentStep: currentStep ? {
+                id: currentStep.id,
+                name: currentStep.name,
+                index: currentStep.index,
+                type: currentStep.type,
+                status: currentStep.currentProgress?.status || 'locked'
+            } : null,
+            currentCourse: currentCourse ? {
+                id: currentCourse.id,
+                title: currentCourse.title,
+                order: currentCourse.order,
+                status: currentCourse.currentProgress?.status || 'locked'
+            } : null,
+            currentExercise: currentExercise ? {
+                id: currentExercise.id,
+                title: currentExercise.title,
+                type: currentExercise.type,
+                order: currentExercise.order,
+                status: currentExercise.currentProgress?.status || 'locked'
+            } : null,
+            currentQuiz: currentQuiz ? {
+                id: currentQuiz.id,
+                title: currentQuiz.title,
+                order: currentQuiz.order,
+                status: currentQuiz.currentProgress?.status || 'locked',
+                lastScore: currentQuiz.currentProgress?.score || null
+            } : null
         };
     }
 }

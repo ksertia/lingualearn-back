@@ -337,6 +337,127 @@ router.get('/:languageId/levels/:levelId/modules/:moduleId/paths/:pathId/steps',
 
 /**
  * @swagger
+ * /api/v1/languages/{languageId}/levels/{levelId}/modules/{moduleId}/paths/{pathId}/steps/{stepId}/content:
+ *   get:
+ *     summary: Récupérer le contenu complet d'une étape (cours, exercices, quiz)
+ *     tags: [Languages]
+ *     parameters:
+ *       - in: path
+ *         name: languageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: "ID de la langue (UUID Prisma)"
+ *       - in: path
+ *         name: levelId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du niveau
+ *       - in: path
+ *         name: moduleId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du module
+ *       - in: path
+ *         name: pathId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du parcours
+ *       - in: path
+ *         name: stepId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de l'étape
+ *     responses:
+ *       200:
+ *         description: Contenu de l'étape récupéré avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     languageId:
+ *                       type: string
+ *                     levelId:
+ *                       type: string
+ *                     moduleId:
+ *                       type: string
+ *                     pathId:
+ *                       type: string
+ *                     stepId:
+ *                       type: string
+ *                     stepName:
+ *                       type: string
+ *                     step:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         description:
+ *                           type: string
+ *                         index:
+ *                           type: integer
+ *                         type:
+ *                           type: string
+ *                     courses:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           title:
+ *                             type: string
+ *                           content:
+ *                             type: object
+ *                           order:
+ *                             type: integer
+ *                     exercises:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           title:
+ *                             type: string
+ *                           instructions:
+ *                             type: string
+ *                           type:
+ *                             type: string
+ *                           order:
+ *                             type: integer
+ *                     quizzes:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           title:
+ *                             type: string
+ *                           questions:
+ *                             type: array
+ *                           order:
+ *                             type: integer
+ *       404:
+ *         description: Langue, niveau, module, parcours ou étape non trouvé
+ */
+router.get('/:languageId/levels/:levelId/modules/:moduleId/paths/:pathId/steps/:stepId/content', controller.getStepContent);
+
+/**
+ * @swagger
  * /api/v1/languages/{id}:
  *   put:
  *     summary: Modifier une langue

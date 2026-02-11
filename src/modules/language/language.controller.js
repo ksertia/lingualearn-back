@@ -121,6 +121,19 @@ exports.getPathSteps = async (req, res, next) => {
 	}
 };
 
+exports.getStepContent = async (req, res, next) => {
+	try {
+		const { languageId, levelId, moduleId, pathId, stepId } = req.params;
+		const content = await service.getStepContent(languageId, levelId, moduleId, pathId, stepId);
+		if (!content) {
+			return res.status(404).json({ success: false, error: 'Langue, niveau, module, parcours ou étape non trouvé' });
+		}
+		res.json({ success: true, data: { languageId, levelId, moduleId, pathId, stepId, stepName: content.stepName, step: content.step, courses: content.courses, exercises: content.exercises, quizzes: content.quizzes } });
+	} catch (err) {
+		next(err);
+	}
+};
+
 exports.update = async (req, res, next) => {
 	try {
 		const language = await service.update(req.params.id, req.body);

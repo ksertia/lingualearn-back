@@ -33,6 +33,8 @@ const router = express.Router();
  *                 type: string
  *               index:
  *                 type: integer
+ *                 nullable: true
+ *                 description: "Index du parcours (null, non fourni ou nombre pour auto-incrémentation - premier = 0)"
  *               tempResaListime:
  *                 type: integer
  *               thumbnailUrl:
@@ -111,6 +113,8 @@ router.get('/:id', controller.getById);
  *                 type: string
  *               index:
  *                 type: integer
+ *                 nullable: true
+ *                 description: "Index du parcours (null, non fourni ou nombre pour auto-incrémentation - premier = 0)"
  *               tempResaListime:
  *                 type: integer
  *               thumbnailUrl:
