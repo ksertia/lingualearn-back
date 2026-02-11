@@ -819,7 +819,11 @@ class UserService {
         }
 
         if (!currentLevel && languageData.levels.length > 0) {
-            currentLevel = languageData.levels[0];
+            // Si aucun niveau débloqué, retourner le premier avec status 'blocked'
+            currentLevel = { 
+                ...languageData.levels[0], 
+                currentProgress: { status: 'blocked' } 
+            };
         }
 
         // Trouver le module actuel
@@ -832,7 +836,11 @@ class UserService {
                 }
             }
             if (!currentModule && currentLevel.modules.length > 0) {
-                currentModule = currentLevel.modules[0];
+                // Si aucun module débloqué, retourner le premier avec status 'blocked'
+                currentModule = { 
+                    ...currentLevel.modules[0], 
+                    currentProgress: { status: 'blocked' } 
+                };
             }
         }
 
@@ -846,7 +854,11 @@ class UserService {
                 }
             }
             if (!currentPath && currentModule.paths.length > 0) {
-                currentPath = currentModule.paths[0];
+                // Si aucun parcours débloqué, retourner le premier avec status 'blocked'
+                currentPath = { 
+                    ...currentModule.paths[0], 
+                    currentProgress: { status: 'blocked' } 
+                };
             }
         }
 
@@ -860,7 +872,11 @@ class UserService {
                 }
             }
             if (!currentStep && currentPath.steps.length > 0) {
-                currentStep = currentPath.steps[0];
+                // Si aucune étape débloquée, retourner la première avec status 'blocked'
+                currentStep = { 
+                    ...currentPath.steps[0], 
+                    currentProgress: { status: 'blocked' } 
+                };
             }
         }
 
@@ -882,26 +898,26 @@ class UserService {
                 id: currentLevel.id,
                 title: currentLevel.title,
                 index: currentLevel.index,
-                status: currentLevel.currentProgress?.status || 'locked'
+                status: currentLevel.currentProgress?.status || 'blocked'
             } : null,
             currentModule: currentModule ? {
                 id: currentModule.id,
                 title: currentModule.title,
                 index: currentModule.index,
-                status: currentModule.currentProgress?.status || 'locked'
+                status: currentModule.currentProgress?.status || 'blocked'
             } : null,
             currentPath: currentPath ? {
                 id: currentPath.id,
                 title: currentPath.title,
                 index: currentPath.index,
-                status: currentPath.currentProgress?.status || 'locked'
+                status: currentPath.currentProgress?.status || 'blocked'
             } : null,
             currentStep: currentStep ? {
                 id: currentStep.id,
                 title: currentStep.title,
                 index: currentStep.index,
                 stepType: currentStep.stepType,
-                status: currentStep.currentProgress?.status || 'not_started'
+                status: currentStep.currentProgress?.status || 'blocked'
             } : null,
             currentLesson: currentLesson ? {
                 id: currentLesson.id,

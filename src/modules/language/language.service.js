@@ -514,61 +514,61 @@ exports.startLanguageWithLevel = async (userId, languageId, levelId) => {
 		});
 	}
 	
-	// Débloquer le premier module du niveau
+	// Débloquer UNIQUEMENT la première séquence (module 1, parcours 1, étape 1)
 	const firstModule = level.modules[0];
 	if (firstModule) {
-		let moduleProgress = await prisma.userModuleProgress.findUnique({
-			where: { userId_moduleId: { userId, moduleId: firstModule.id } }
+		// Débloquer le premier module
+		await prisma.userModuleProgress.upsert({
+			where: { userId_moduleId: { userId, moduleId: firstModule.id } },
+			update: {
+				status: 'unlocked',
+				unlockedAt: now,
+				lastAccessedAt: now
+			},
+			create: {
+				userId,
+				moduleId: firstModule.id,
+				status: 'unlocked',
+				unlockedAt: now,
+				lastAccessedAt: now
+			}
 		});
 		
-		if (!moduleProgress) {
-			moduleProgress = await prisma.userModuleProgress.create({
-				data: {
+		// Débloquer le premier parcours du module
+		const firstPath = firstModule.paths[0];
+		if (firstPath) {
+			await prisma.userPathProgress.upsert({
+				where: { userId_pathId: { userId, pathId: firstPath.id } },
+				update: {
+					status: 'unlocked',
+					unlockedAt: now,
+					lastAccessedAt: now
+				},
+				create: {
 					userId,
-					moduleId: firstModule.id,
+					pathId: firstPath.id,
 					status: 'unlocked',
 					unlockedAt: now,
 					lastAccessedAt: now
 				}
 			});
-		}
-		
-		// Débloquer le premier parcours du module
-		const firstPath = firstModule.paths[0];
-		if (firstPath) {
-			let pathProgress = await prisma.userPathProgress.findUnique({
-				where: { userId_pathId: { userId, pathId: firstPath.id } }
-			});
-			
-			if (!pathProgress) {
-				pathProgress = await prisma.userPathProgress.create({
-					data: {
-						userId,
-						pathId: firstPath.id,
-						status: 'unlocked',
-						unlockedAt: now,
-						lastAccessedAt: now
-					}
-				});
-			}
 			
 			// Débloquer la première étape du parcours
 			const firstStep = firstPath.steps[0];
 			if (firstStep) {
-				let stepProgress = await prisma.userStepProgress.findUnique({
-					where: { userId_stepId: { userId, stepId: firstStep.id } }
+				await prisma.userStepProgress.upsert({
+					where: { userId_stepId: { userId, stepId: firstStep.id } },
+					update: {
+						status: 'unlocked',
+						unlockedAt: now
+					},
+					create: {
+						userId,
+						stepId: firstStep.id,
+						status: 'unlocked',
+						unlockedAt: now
+					}
 				});
-				
-				if (!stepProgress) {
-					await prisma.userStepProgress.create({
-						data: {
-							userId,
-							stepId: firstStep.id,
-							status: 'unlocked',
-							unlockedAt: now
-						}
-					});
-				}
 			}
 		}
 	}
@@ -586,6 +586,7 @@ exports.startLanguageWithLevel = async (userId, languageId, levelId) => {
 			id: language.id,
 			code: language.code,
 			name: language.name
-		}
+		},
+		message: 'Langue et niveau initialisés. Première séquence débloquée (Module 1 > Parcours 1 > Étape 1)'
 	};
 };
