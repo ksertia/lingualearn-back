@@ -83,6 +83,381 @@ router.get('/:id', controller.getById);
 
 /**
  * @swagger
+ * /api/v1/languages/{languageId}/levels:
+ *   get:
+ *     summary: Récupérer tous les niveaux d'une langue
+ *     tags: [Languages]
+ *     parameters:
+ *       - in: path
+ *         name: languageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: "ID de la langue (UUID Prisma)"
+ *     responses:
+ *       200:
+ *         description: Niveaux récupérés avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     languageId:
+ *                       type: string
+ *                     levels:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *                           index:
+ *                             type: integer
+ *                           modules:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *       404:
+ *         description: Langue non trouvée
+ */
+router.get('/:languageId/levels', controller.getLanguageLevels);
+
+/**
+ * @swagger
+ * /api/v1/languages/{languageId}/levels/{levelId}/modules:
+ *   get:
+ *     summary: Récupérer tous les modules d'un niveau spécifique d'une langue
+ *     tags: [Languages]
+ *     parameters:
+ *       - in: path
+ *         name: languageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: "ID de la langue (UUID Prisma)"
+ *       - in: path
+ *         name: levelId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du niveau
+ *     responses:
+ *       200:
+ *         description: Modules récupérés avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     languageId:
+ *                       type: string
+ *                     levelId:
+ *                       type: string
+ *                     levelName:
+ *                       type: string
+ *                     modules:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *                           index:
+ *                             type: integer
+ *                           paths:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *       404:
+ *         description: Langue ou niveau non trouvé
+ */
+router.get('/:languageId/levels/:levelId/modules', controller.getLevelModules);
+
+/**
+ * @swagger
+ * /api/v1/languages/{languageId}/levels/{levelId}/modules/{moduleId}/paths:
+ *   get:
+ *     summary: Récupérer tous les parcours d'un module spécifique
+ *     tags: [Languages]
+ *     parameters:
+ *       - in: path
+ *         name: languageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: "ID de la langue (UUID Prisma)"
+ *       - in: path
+ *         name: levelId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du niveau
+ *       - in: path
+ *         name: moduleId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du module
+ *     responses:
+ *       200:
+ *         description: Parcours récupérés avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     languageId:
+ *                       type: string
+ *                     levelId:
+ *                       type: string
+ *                     moduleId:
+ *                       type: string
+ *                     moduleName:
+ *                       type: string
+ *                     paths:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *                           index:
+ *                             type: integer
+ *                           steps:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *       404:
+ *         description: Langue, niveau ou module non trouvé
+ */
+router.get('/:languageId/levels/:levelId/modules/:moduleId/paths', controller.getModulePaths);
+
+/**
+ * @swagger
+ * /api/v1/languages/{languageId}/levels/{levelId}/modules/{moduleId}/paths/{pathId}/steps:
+ *   get:
+ *     summary: Récupérer toutes les étapes d'un parcours spécifique
+ *     tags: [Languages]
+ *     parameters:
+ *       - in: path
+ *         name: languageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: "ID de la langue (UUID Prisma)"
+ *       - in: path
+ *         name: levelId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du niveau
+ *       - in: path
+ *         name: moduleId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du module
+ *       - in: path
+ *         name: pathId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du parcours
+ *     responses:
+ *       200:
+ *         description: Étapes récupérées avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     languageId:
+ *                       type: string
+ *                     levelId:
+ *                       type: string
+ *                     moduleId:
+ *                       type: string
+ *                     pathId:
+ *                       type: string
+ *                     pathName:
+ *                       type: string
+ *                     steps:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *                           index:
+ *                             type: integer
+ *                           type:
+ *                             type: string
+ *                           content:
+ *                             type: object
+ *       404:
+ *         description: Langue, niveau, module ou parcours non trouvé
+ */
+router.get('/:languageId/levels/:levelId/modules/:moduleId/paths/:pathId/steps', controller.getPathSteps);
+
+/**
+ * @swagger
+ * /api/v1/languages/{languageId}/levels/{levelId}/modules/{moduleId}/paths/{pathId}/steps/{stepId}/content:
+ *   get:
+ *     summary: Récupérer le contenu complet d'une étape (cours, exercices, quiz)
+ *     tags: [Languages]
+ *     parameters:
+ *       - in: path
+ *         name: languageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: "ID de la langue (UUID Prisma)"
+ *       - in: path
+ *         name: levelId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du niveau
+ *       - in: path
+ *         name: moduleId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du module
+ *       - in: path
+ *         name: pathId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du parcours
+ *       - in: path
+ *         name: stepId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de l'étape
+ *     responses:
+ *       200:
+ *         description: Contenu de l'étape récupéré avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     languageId:
+ *                       type: string
+ *                     levelId:
+ *                       type: string
+ *                     moduleId:
+ *                       type: string
+ *                     pathId:
+ *                       type: string
+ *                     stepId:
+ *                       type: string
+ *                     stepName:
+ *                       type: string
+ *                     step:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         description:
+ *                           type: string
+ *                         index:
+ *                           type: integer
+ *                         type:
+ *                           type: string
+ *                     courses:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           title:
+ *                             type: string
+ *                           content:
+ *                             type: object
+ *                           order:
+ *                             type: integer
+ *                     exercises:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           title:
+ *                             type: string
+ *                           instructions:
+ *                             type: string
+ *                           type:
+ *                             type: string
+ *                           order:
+ *                             type: integer
+ *                     quizzes:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           title:
+ *                             type: string
+ *                           questions:
+ *                             type: array
+ *                           order:
+ *                             type: integer
+ *       404:
+ *         description: Langue, niveau, module, parcours ou étape non trouvé
+ */
+router.get('/:languageId/levels/:levelId/modules/:moduleId/paths/:pathId/steps/:stepId/content', controller.getStepContent);
+
+/**
+ * @swagger
  * /api/v1/languages/{id}:
  *   put:
  *     summary: Modifier une langue

@@ -7,6 +7,7 @@ const { AppError } = require('../../middleware/errorHandler');
 const {allowRoles} = require('../../middleware/authMiddleware');
 const { emailService } = require('../../utils/emailService');
 const { logger } = require('../../utils/logger');
+const { createUserWithDefaults } = require('../../helpers/userCreationHelper');
 
 async function retryPrismaUpdate(fn, retries = 5, baseDelay = 200) {
     for (let i = 0; i < retries; i++) {
@@ -156,6 +157,8 @@ class AuthService {
             passwordHash,
             accountType: finalAccountType,
             parentId: finalAccountType === 'sub_account_learner' ? parentId : null,
+            isActive: true, // Tous les comptes sont actifs par défaut
+            isVerified: true, // Tous les comptes sont vérifiés par défaut
             profile: { create: { firstName, lastName } }
         },
         include: { profile: true }
@@ -366,25 +369,119 @@ class AuthService {
     }
 
     // ============ RESET PASSWORD ============
+    // async resetPassword(data) {
+    //     const { token, password } = data;
+
+    //     // Trouver le token
+    //     const resetToken = await prisma.passwordResetToken.findFirst({
+    //         where: { token },
+    //         include: { user: true },
+    //     });
+
+    //     if (!resetToken) {
+    //         throw new AppError(400, 'Invalid or expired reset token');
+    //     }
+
+    //     if (resetToken.used) {
+    //         throw new AppError(400, 'Reset token has already been used');
+    //     }
+
+    //     if (resetToken.expiresAt < new Date()) {
+    //         throw new AppError(400, 'Reset token has expired');
+    //     }
+
+    //     // Hasher le nouveau mot de passe
+    //     const passwordHash = await bcrypt.hash(password, 12);
+
+    //     // Mettre à jour le mot de passe de l'utilisateur
+    //     await prisma.user.update({
+    //         where: { id: resetToken.userId },
+    //         data: { passwordHash },
+    //     });
+
+    //     // Marquer le token comme utilisé
+    //     await prisma.passwordResetToken.update({
+    //         where: { id: resetToken.id },
+    //         data: { used: true },
+    //     });
+
+    //     // Invalider toutes les sessions existantes
+    //     await prisma.session.deleteMany({ where: { userId: resetToken.userId } });
+
+    //     // Invalider tous les refresh tokens
+    //     await prisma.refreshToken.deleteMany({ where: { userId: resetToken.userId } });
+
+    //     // Envoyer un email de confirmation
+    //     if (resetToken.user.email) {
+    //         await emailService.sendPasswordChangedEmail(resetToken.user.email);
+    //     }
+
+    //     return { success: true, message: 'Password reset successfully' };
+    // }
+
+// const jwt = require('jsonwebtoken');
+
+// const jwt = require('jsonwebtoken');
+
     async resetPassword(data) {
         const { token, password } = data;
 
-        // Trouver le token
+        if (!token) {
+            throw new AppError(400, 'Token is required');
+        }
+
+        const secret = 'ton_secret';  // Remplacez par ton secret utilisé pour signer les JWT
+        let decoded;
+        try {
+            // Décoder et vérifier le token
+            decoded = jwt.verify(token, secret);
+            console.log("Token décodé:", decoded);  // Log pour vérifier le contenu du token
+        } catch (err) {
+            // Si le token est invalide ou expiré, lever une erreur
+            throw new AppError(400, 'Invalid or expired reset token');
+        }
+
+        // Vérifie les informations dans le token décodé
+        const { userId, exp } = decoded;  // 'exp' est la date d'expiration dans le JWT
+
+        // Recherche du token dans la base de données
         const resetToken = await prisma.passwordResetToken.findFirst({
             where: { token },
             include: { user: true },
         });
 
+        // Log du token trouvé dans la base de données
+        console.log("Token trouvé dans la base de données:", resetToken.token);
+
+        // Vérification si le token existe dans la base de données
         if (!resetToken) {
             throw new AppError(400, 'Invalid or expired reset token');
         }
 
-        if (resetToken.used) {
-            throw new AppError(400, 'Reset token has already been used');
+        // Log des dates d'expiration dans la base de données et dans le JWT
+        console.log("Expiration du token dans la base de données:", resetToken.expiresAt);
+        console.log("Expiration dans le JWT (exp) :", new Date(exp * 1000));  // 'exp' est en secondes, donc on multiplie par 1000 pour obtenir un format Date en millisecondes
+
+        // Comparer les dates d'expiration du JWT et de la base de données
+        const currentDate = new Date();
+        
+        // Comparaison de l'expiration dans le JWT (exp) avec la date actuelle
+        const tokenExpirationDate = new Date(exp * 1000); // 'exp' est en secondes, on le convertit en millisecondes
+        console.log("Token expiration date:", tokenExpirationDate);  // Log pour vérifier la date d'expiration du JWT
+
+        if (tokenExpirationDate < currentDate) {
+            throw new AppError(400, 'Reset token has expired (JWT expiration)');
         }
 
-        if (resetToken.expiresAt < new Date()) {
-            throw new AppError(400, 'Reset token has expired');
+        // Vérification si le token a expiré dans la base de données
+        if (resetToken.expiresAt < currentDate) {
+            console.log("Token expiration date in database:", resetToken.expiresAt);  // Log pour vérifier la date d'expiration en base de données
+            throw new AppError(400, 'Reset token has expired (Database expiration)');
+        }
+
+        // Vérifier si le token a déjà été utilisé
+        if (resetToken.used) {
+            throw new AppError(400, 'Reset token has already been used');
         }
 
         // Hasher le nouveau mot de passe
@@ -410,13 +507,17 @@ class AuthService {
         // Invalider tous les refresh tokens
         await prisma.refreshToken.deleteMany({ where: { userId: resetToken.userId } });
 
-        // Envoyer un email de confirmation
+        // Envoyer un email de confirmation si l'utilisateur a un email enregistré
         if (resetToken.user.email) {
             await emailService.sendPasswordChangedEmail(resetToken.user.email);
         }
 
+        console.log("Mot de passe réinitialisé avec succès pour l'utilisateur", resetToken.userId);
+
         return { success: true, message: 'Password reset successfully' };
     }
+
+
 
     // ============ VERIFY EMAIL/PHONE ============
     async verifyAccount(token) {

@@ -1,3 +1,7 @@
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+const progressionService = require('../progression/progression.service');
+
 // Récupérer toutes les étapes liées à un utilisateur (via userStepProgress)
 exports.getStepsByUserId = async (userId) => {
   return await prisma.userStepProgress.findMany({
@@ -28,9 +32,11 @@ exports.completeStepForUser = async (userId, stepId) => {
     data: { status: 'completed', completedAt: new Date() }
   });
 };
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
 
+// Compléter une étape avec déblocage automatique de la suivante
+exports.completeStepWithAutoUnlock = async (userId, stepId) => {
+  return await progressionService.completeStepAndUnlockNext(userId, stepId);
+};
 
 exports.create = async (data) => {
   // Only keep valid Step fields for Prisma

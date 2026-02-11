@@ -49,12 +49,36 @@ const authController = {
     }),
     
     // Réinitialisation du mot de passe
-    resetPassword: asyncHandler(async (req, res) => {
-        const validatedData = resetPasswordSchema.parse(req.body);
-        const result = await authService.resetPassword(validatedData);
+    // resetPassword: asyncHandler(async (req, res) => {
+    //     const validatedData = resetPasswordSchema.parse(req.body);
+    //     const result = await authService.resetPassword(validatedData);
         
-        res.json(result);
-    }),
+    //     res.json(result);
+    // }),
+    resetPassword: asyncHandler(async (req, res) => {
+    try {
+        // Vérification du token dans les données de la requête
+        const validatedData = resetPasswordSchema.parse(req.body);
+
+        // Vérifie si le token est bien présent
+        if (!validatedData.token) {
+            return res.status(400).json({ error: "Token is required" });
+        }
+
+        console.log("Token reçu:", validatedData.token);  // Log du token reçu pour vérifier
+
+        // Appel du service pour réinitialiser le mot de passe
+        const result = await authService.resetPassword(validatedData);
+
+        console.log("Résultat du reset de mot de passe:", result);  // Log du résultat
+
+        res.json(result);  // Retourne le résultat à l'utilisateur
+    } catch (error) {
+        console.error("Erreur lors de la réinitialisation du mot de passe:", error);  // Log des erreurs
+        res.status(error.status || 500).json({ error: error.message || 'Internal Server Error' });
+    }
+   }),
+
     
     // Vérification du compte
     verifyAccount: asyncHandler(async (req, res) => {

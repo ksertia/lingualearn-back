@@ -1,3 +1,7 @@
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+const progressionService = require('../progression/progression.service');
+
 // Récupérer tous les modules liés à un utilisateur (via userModuleProgress)
 exports.getModulesByUserId = async (userId) => {
   return await prisma.userModuleProgress.findMany({
@@ -28,8 +32,11 @@ exports.completeModuleForUser = async (userId, moduleId) => {
     data: { status: 'completed', completedAt: new Date() }
   });
 };
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+
+// Compléter un module avec déblocage automatique du suivant
+exports.completeModuleWithAutoUnlock = async (userId, moduleId) => {
+  return await progressionService.completeModuleAndUnlockNext(userId, moduleId);
+};
 
 exports.create = async (data) => {
   // Vérifier que le levelId existe
