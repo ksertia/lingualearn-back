@@ -341,7 +341,7 @@ class AuthService {
         }
 
         // Générer un token de réinitialisation
-        const resetToken = crypto.randomBytes(32).toString('hex');
+        const resetCode = crypto.randomBytes(32).toString('hex');
         const resetTokenExpires = new Date(Date.now() + appConfig.tokens.resetTokenExpiry * 1000);
 
         // Supprimer les anciens tokens
@@ -350,7 +350,7 @@ class AuthService {
         // Créer un nouveau token
         await prisma.passwordResetToken.create({
             data: {
-                token: resetToken,
+                token: resetCode,
                 userId: user.id,
                 expiresAt: resetTokenExpires,
             },
@@ -368,60 +368,31 @@ class AuthService {
         return { success: true, message: 'If an account exists, a reset link has been sent' };
     }
 
-    // ============ RESET PASSWORD ============
-    // async resetPassword(data) {
-    //     const { token, password } = data;
+    // ============ Verify code  ============
+    async verifyCode (code) {
+        // Vérifier le code de réinitialisation
+        const resetToken = await prisma.passwordResetToken.findFirst({
+            where: { 
+                token: code,
+                used: false,
+                expiresAt: { gte: new Date() }
+            },
+            include: { user: true },
+        });
 
-    //     // Trouver le token
-    //     const resetToken = await prisma.passwordResetToken.findFirst({
-    //         where: { token },
-    //         include: { user: true },
-    //     });
+        if (!resetToken) {
+            throw new AppError(400, 'Invalid or expired reset code');
+        }
 
-    //     if (!resetToken) {
-    //         throw new AppError(400, 'Invalid or expired reset token');
-    //     }
+        return { 
+            success: true, 
+            message: 'Code verified successfully',
+            token: resetToken.token,
+            userId: resetToken.userId
+        };
+    }
 
-    //     if (resetToken.used) {
-    //         throw new AppError(400, 'Reset token has already been used');
-    //     }
 
-    //     if (resetToken.expiresAt < new Date()) {
-    //         throw new AppError(400, 'Reset token has expired');
-    //     }
-
-    //     // Hasher le nouveau mot de passe
-    //     const passwordHash = await bcrypt.hash(password, 12);
-
-    //     // Mettre à jour le mot de passe de l'utilisateur
-    //     await prisma.user.update({
-    //         where: { id: resetToken.userId },
-    //         data: { passwordHash },
-    //     });
-
-    //     // Marquer le token comme utilisé
-    //     await prisma.passwordResetToken.update({
-    //         where: { id: resetToken.id },
-    //         data: { used: true },
-    //     });
-
-    //     // Invalider toutes les sessions existantes
-    //     await prisma.session.deleteMany({ where: { userId: resetToken.userId } });
-
-    //     // Invalider tous les refresh tokens
-    //     await prisma.refreshToken.deleteMany({ where: { userId: resetToken.userId } });
-
-    //     // Envoyer un email de confirmation
-    //     if (resetToken.user.email) {
-    //         await emailService.sendPasswordChangedEmail(resetToken.user.email);
-    //     }
-
-    //     return { success: true, message: 'Password reset successfully' };
-    // }
-
-// const jwt = require('jsonwebtoken');
-
-// const jwt = require('jsonwebtoken');
 
     async resetPassword(data) {
         const { token, password } = data;

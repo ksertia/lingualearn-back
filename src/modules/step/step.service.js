@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
 
 // Récupérer toutes les étapes liées à un utilisateur (via userStepProgress)

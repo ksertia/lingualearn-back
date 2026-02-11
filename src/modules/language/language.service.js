@@ -28,8 +28,7 @@ exports.completeLanguageForUser = async (userId, languageId) => {
 	       data: { status: 'completed', completedAt: new Date() }
        });
 };
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { prisma } = require('../../config/prisma');
 
 exports.create = async (data) => {
 	// Calcul automatique de l'index si non fourni

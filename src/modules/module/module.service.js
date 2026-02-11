@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
 
 // Récupérer tous les modules liés à un utilisateur (via userModuleProgress)
