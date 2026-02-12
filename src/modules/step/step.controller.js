@@ -25,10 +25,8 @@ exports.completeStep = async (req, res, next) => {
 exports.getByUserId = async (req, res, next) => {
   try {
     const steps = await stepService.getStepsByUserId(req.params.userId);
-    if (!steps || steps.length === 0) {
-      return res.status(404).json({ error: 'Aucune étape trouvée pour cet utilisateur' });
-    }
-    res.json({ data: steps });
+    // Retourner un tableau vide si aucun parcours sélectionné (comportement normal)
+    res.json({ success: true, data: steps });
   } catch (err) {
     next(err);
   }

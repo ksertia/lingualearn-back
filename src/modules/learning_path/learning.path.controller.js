@@ -27,15 +27,13 @@ const service = require('./learning.path.service');
 const { createLearningPathSchema, updateLearningPathSchema } = require('./learning.path.schema');
 
 async function getByUserId(req, res, next) {
-       try {
-	       const paths = await service.getPathsByUserId(req.params.userId);
-	       if (!paths || paths.length === 0) {
-		       return res.status(404).json({ error: 'Aucun parcours trouvé pour cet utilisateur' });
-	       }
-	       res.json({ data: paths });
-       } catch (err) {
-	       next(err);
-       }
+	try {
+		const paths = await service.getPathsByUserId(req.params.userId);
+		// Retourner un tableau vide si aucun module sélectionné (comportement normal)
+		res.json({ success: true, data: paths });
+	} catch (err) {
+		next(err);
+	}
 }
 
 module.exports.getByUserId = getByUserId;

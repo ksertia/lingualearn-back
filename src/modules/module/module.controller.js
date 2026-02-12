@@ -25,9 +25,7 @@ exports.completeModule = async (req, res, next) => {
 exports.getByUserId = async (req, res, next) => {
   try {
     const modules = await service.getModulesByUserId(req.params.userId);
-    if (!modules || modules.length === 0) {
-      return res.status(404).json({ success: false, error: 'Aucun module trouvé pour cet utilisateur' });
-    }
+    // Retourner un tableau vide si aucun niveau sélectionné (comportement normal)
     res.json({ success: true, data: modules });
   } catch (err) {
     next(err);

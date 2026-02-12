@@ -1,10 +1,8 @@
 async function getByUserId(req, res, next) {
 	try {
 		const levels = await service.getLevelsByUserId(req.params.userId);
-		if (!levels || levels.length === 0) {
-			return res.status(404).json({ error: 'Aucun niveau trouvé pour cet utilisateur' });
-		}
-		res.json({ data: levels });
+		// Retourner un tableau vide si aucune langue sélectionnée (comportement normal)
+		res.json({ success: true, data: levels });
 	} catch (err) {
 		next(err);
 	}

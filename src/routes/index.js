@@ -66,6 +66,11 @@ router.get('/users/:userId/learning-paths', learningPathController.getByUserId);
 router.post('/users/:userId/learning-paths/:pathId/start', learningPathController.startPath);
 router.post('/users/:userId/learning-paths/:pathId/complete', learningPathController.completePath);
 
+// Alias routes pour /paths (raccourci)
+router.get('/users/:userId/paths', learningPathController.getByUserId);
+router.post('/users/:userId/paths/:pathId/start', learningPathController.startPath);
+router.post('/users/:userId/paths/:pathId/complete', learningPathController.completePath);
+
 // User step progression routes (mounted under /api/v1)
 router.get('/users/:userId/steps', stepController.getByUserId);
 router.post('/users/:userId/steps/:stepId/start', stepController.startStep);
