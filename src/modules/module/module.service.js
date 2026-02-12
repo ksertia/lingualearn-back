@@ -53,10 +53,41 @@ exports.getModulesByUserId = async (userId) => {
 };
 
 exports.startModuleForUser = async (userId, moduleId) => {
-  return prisma.userModuleProgress.update({
+  const progress = await prisma.userModuleProgress.update({
     where: { userId_moduleId: { userId, moduleId } },
-    data: { status: 'started', startedAt: new Date() }
+    data: { 
+      status: 'started', 
+      startedAt: new Date(),
+      lastAccessedAt: new Date()
+    }
   });
+  
+  // Débloquer automatiquement le premier parcours du module
+  const firstPath = await prisma.path.findFirst({
+    where: { moduleId },
+    orderBy: { index: 'asc' }
+  });
+  
+  if (firstPath) {
+    // Créer la progression pour le premier parcours avec status 'unlocked'
+    await prisma.userPathProgress.upsert({
+      where: { userId_pathId: { userId, pathId: firstPath.id } },
+      update: { 
+        status: 'unlocked',
+        unlockedAt: new Date(),
+        lastAccessedAt: new Date()
+      },
+      create: {
+        userId,
+        pathId: firstPath.id,
+        status: 'unlocked',
+        unlockedAt: new Date(),
+        lastAccessedAt: new Date()
+      }
+    });
+  }
+  
+  return progress;
 };
 
 exports.completeModuleForUser = async (userId, moduleId) => {

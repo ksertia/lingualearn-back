@@ -57,10 +57,41 @@ async function getPathsByUserId(userId) {
 }
 
 async function startPathForUser(userId, pathId) {
-       return prisma.userPathProgress.update({
-	       where: { userId_pathId: { userId, pathId } },
-	       data: { status: 'started', startedAt: new Date() }
-       });
+	const progress = await prisma.userPathProgress.update({
+		where: { userId_pathId: { userId, pathId } },
+		data: { 
+			status: 'started', 
+			startedAt: new Date(),
+			lastAccessedAt: new Date()
+		}
+	});
+	
+	// Débloquer automatiquement la première étape du parcours
+	const firstStep = await prisma.step.findFirst({
+		where: { pathId },
+		orderBy: { index: 'asc' }
+	});
+	
+	if (firstStep) {
+		// Créer la progression pour la première étape avec status 'unlocked'
+		await prisma.userStepProgress.upsert({
+			where: { userId_stepId: { userId, stepId: firstStep.id } },
+			update: { 
+				status: 'unlocked',
+				unlockedAt: new Date(),
+				lastAccessedAt: new Date()
+			},
+			create: {
+				userId,
+				stepId: firstStep.id,
+				status: 'unlocked',
+				unlockedAt: new Date(),
+				lastAccessedAt: new Date()
+			}
+		});
+	}
+	
+	return progress;
 }
 
 async function completePathForUser(userId, pathId) {

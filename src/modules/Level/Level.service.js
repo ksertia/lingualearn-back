@@ -112,6 +112,31 @@ async function selectLevelForUser(userId, levelId) {
 				lastAccessedAt: new Date()
 			} 
 		});
+		
+		// Débloquer automatiquement le premier module du niveau
+		const firstModule = await prisma.module.findFirst({
+			where: { levelId },
+			orderBy: { index: 'asc' }
+		});
+		
+		if (firstModule) {
+			// Créer la progression pour le premier module avec status 'unlocked'
+			await prisma.userModuleProgress.upsert({
+				where: { userId_moduleId: { userId, moduleId: firstModule.id } },
+				update: { 
+					status: 'unlocked',
+					unlockedAt: new Date(),
+					lastAccessedAt: new Date()
+				},
+				create: {
+					userId,
+					moduleId: firstModule.id,
+					status: 'unlocked',
+					unlockedAt: new Date(),
+					lastAccessedAt: new Date()
+				}
+			});
+		}
 	} else {
 		// Mettre à jour lastAccessedAt si déjà sélectionné
 		progress = await prisma.userLevelProgress.update({
