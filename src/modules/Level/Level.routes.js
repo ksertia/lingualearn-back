@@ -161,7 +161,6 @@ router.delete('/:id', authMiddleware, allowRoles('admin', 'plateform_manager'), 
  */
 router.get('/api/v1/users/:userId/levels', controller.getByUserId);
 
-
 /**
  * @swagger
  * /api/v1/users/{userId}/levels/{levelId}/select:
@@ -174,14 +173,27 @@ router.get('/api/v1/users/:userId/levels', controller.getByUserId);
  *         required: true
  *         schema:
  *           type: string
+ *         description: ID de l'utilisateur
  *       - in: path
  *         name: levelId
  *         required: true
  *         schema:
  *           type: string
+ *         description: ID du niveau
  *     responses:
  *       201:
- *         description: Progression créée ou existante
+ *         description: Niveau sélectionné avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *       404:
+ *         description: Niveau non trouvé
  */
 router.post('/api/v1/users/:userId/levels/:levelId/select', controller.selectLevel);
 

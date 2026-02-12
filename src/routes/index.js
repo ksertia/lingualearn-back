@@ -50,39 +50,27 @@ router.use('/discover', discoverRoutes);
 router.use('/evaluation', evaluationRoutes);
 router.use('/progression', progressionRoutes);
 
-// User language progression routes (mounted under /api/v1)
-router.get('/users/:userId/languages', languageController.getByUserId);
+// User language and level selection routes (mounted under /api/v1)
 router.post('/users/:userId/languages/:languageId/select', languageController.selectLanguage);
-router.post('/users/:userId/languages/:languageId/start', languageController.startLanguage);
-router.post('/users/:userId/languages/:languageId/complete', languageController.completeLanguage);
-
-// User level progression routes (mounted under /api/v1)
-router.get('/users/:userId/levels', levelController.getByUserId);
 router.post('/users/:userId/levels/:levelId/select', levelController.selectLevel);
-router.post('/users/:userId/levels/:levelId/start', levelController.startLevel);
-router.post('/users/:userId/levels/:levelId/complete', levelController.completeLevel);
 
 // User module progression routes (mounted under /api/v1)
 router.get('/users/:userId/modules', moduleController.getByUserId);
-router.post('/users/:userId/modules/:moduleId/select', moduleController.selectModule);
 router.post('/users/:userId/modules/:moduleId/start', moduleController.startModule);
 router.post('/users/:userId/modules/:moduleId/complete', moduleController.completeModule);
 
 // User learning path progression routes (mounted under /api/v1)
 router.get('/users/:userId/learning-paths', learningPathController.getByUserId);
-router.post('/users/:userId/learning-paths/:pathId/select', learningPathController.selectPath);
 router.post('/users/:userId/learning-paths/:pathId/start', learningPathController.startPath);
 router.post('/users/:userId/learning-paths/:pathId/complete', learningPathController.completePath);
 
 // User step progression routes (mounted under /api/v1)
 router.get('/users/:userId/steps', stepController.getByUserId);
-router.post('/users/:userId/steps/:stepId/select', stepController.selectStep);
 router.post('/users/:userId/steps/:stepId/start', stepController.startStep);
 router.post('/users/:userId/steps/:stepId/complete', stepController.completeStep);
 
 // User course progression routes (mounted under /api/v1)
 router.get('/users/:userId/courses', courseController.getCoursesByUserId);
-router.post('/users/:userId/courses/:courseId/select', courseController.selectCourse);
 router.post('/users/:userId/courses/:courseId/start', courseController.startCourse);
 router.post('/users/:userId/courses/:courseId/complete', courseController.completeCourse);
 

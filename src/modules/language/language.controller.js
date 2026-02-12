@@ -193,27 +193,3 @@ exports.getAvailableLevels = async (req, res, next) => {
 		next(err);
 	}
 };
-
-// Démarrer une langue avec un niveau choisi par l'utilisateur
-exports.startLanguageWithLevel = async (req, res, next) => {
-	try {
-		const { userId, languageId } = req.params;
-		const { levelId } = req.body;
-		
-		if (!levelId) {
-			return res.status(400).json({ 
-				success: false, 
-				error: 'Le levelId est requis dans le body' 
-			});
-		}
-		
-		const result = await service.startLanguageWithLevel(userId, languageId, levelId);
-		res.status(201).json({ 
-			success: true, 
-			message: 'Langue et niveau initialisés avec succès',
-			data: result 
-		});
-	} catch (err) {
-		next(err);
-	}
-};

@@ -1,14 +1,4 @@
 // Progression endpoints
-exports.selectModule = async (req, res, next) => {
-  try {
-    const { userId, moduleId } = req.params;
-    const progress = await service.selectModuleForUser(userId, moduleId);
-    res.status(201).json({ success: true, data: progress });
-  } catch (err) {
-    next(err);
-  }
-};
-
 exports.startModule = async (req, res, next) => {
   try {
     const { userId, moduleId } = req.params;

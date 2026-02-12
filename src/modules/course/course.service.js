@@ -21,20 +21,6 @@ const getLessonStepId = async (courseId) => {
   return lesson.stepId;
 };
 
-// Progression utilisateur pour Course (via Step)
-exports.selectCourseForUser = async (userId, courseId) => {
-  const stepId = await getLessonStepId(courseId);
-  let progress = await prisma.userStepProgress.findUnique({
-    where: { userId_stepId: { userId, stepId } }
-  });
-  if (!progress) {
-    progress = await prisma.userStepProgress.create({
-      data: { userId, stepId, status: 'locked' }
-    });
-  }
-  return progress;
-};
-
 exports.startCourseForUser = async (userId, courseId) => {
   const stepId = await getLessonStepId(courseId);
   return prisma.userStepProgress.update({
