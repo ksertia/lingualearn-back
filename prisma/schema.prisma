@@ -77,16 +77,16 @@ model Profile {
 }
 
 model Language {
-  id           String                 @id @default(cuid())
-  code         String                 @unique @db.VarChar(10)
-  name         String                 @db.VarChar(100)
-  description  String?                @db.Text
-  iconUrl      String?                @db.VarChar(500)
-  isActive     Boolean                @default(true)
-  index        Int                    @default(0)
-  createdAt    DateTime               @default(now())
-  updatedAt    DateTime               @updatedAt
-  Certificate  Certificate[]
+  id          String   @id @default(cuid())
+  code        String   @unique @db.VarChar(10)
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  iconUrl     String?  @db.VarChar(500)
+  isActive    Boolean  @default(true)
+  index       Int      @default(0) // For ordering
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   levels       Level[]
   userProgress UserLanguageProgress[]
 
@@ -114,15 +114,16 @@ model Level {
 }
 
 model Module {
-  id           String               @id @default(cuid())
-  levelId      String
-  title        String               @db.VarChar(200)
-  description  String?              @db.Text
-  iconUrl      String?              @db.VarChar(500)
-  index        Int                  @default(0)
-  isActive     Boolean              @default(true)
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  id          String   @id @default(cuid())
+  levelId     String
+  title       String   @db.VarChar(200)
+  description String?  @db.Text
+  iconUrl     String?  @db.VarChar(500)
+  index       Int      @default(0) // For ordering within level
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   level        Level                @relation(fields: [levelId], references: [id], onDelete: Cascade)
   paths        Path[]
   userProgress UserModuleProgress[]
@@ -267,7 +268,6 @@ model UserLanguageProgress {
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, languageId])
-  @@index([languageId], map: "user_language_progress_languageId_fkey")
   @@map("user_language_progress")
 }
 
@@ -289,7 +289,6 @@ model UserLevelProgress {
   user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, levelId])
-  @@index([levelId], map: "user_level_progress_levelId_fkey")
   @@map("user_level_progress")
 }
 
@@ -311,7 +310,6 @@ model UserModuleProgress {
   user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, moduleId])
-  @@index([moduleId], map: "user_module_progress_moduleId_fkey")
   @@map("user_module_progress")
 }
 
@@ -335,7 +333,6 @@ model UserPathProgress {
   user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, pathId])
-  @@index([pathId], map: "user_path_progress_pathId_fkey")
   @@map("user_path_progress")
 }
 
@@ -344,16 +341,16 @@ model UserStepProgress {
   userId      String
   stepId      String
   status      String    @default("not_started") @db.VarChar(20)
-  progress    Decimal   @default(0.00) @db.Decimal(5, 2)
+  progress    Decimal   @default(0.0) @db.Decimal(5, 2)
   score       Decimal?  @db.Decimal(5, 2)
   completedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  step        Step      @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  step Step @relation(fields: [stepId], references: [id], onDelete: Cascade)
 
   @@unique([userId, stepId])
-  @@index([stepId], map: "user_step_progress_stepId_fkey")
   @@map("user_step_progress")
 }
 

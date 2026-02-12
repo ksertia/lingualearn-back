@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { prisma } = require('../../config/prisma');
 
 exports.submitEvaluation = async (data) => {
   // Nettoyage des sessions expirées (optionnel, peut être déplacé en tâche CRON)

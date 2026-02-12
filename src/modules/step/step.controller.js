@@ -22,8 +22,12 @@ exports.startStep = async (req, res, next) => {
 exports.completeStep = async (req, res, next) => {
   try {
     const { userId, stepId } = req.params;
-    const progress = await stepService.completeStepForUser(userId, stepId);
-    res.json({ success: true, data: progress });
+    const progress = await stepService.completeStepWithAutoUnlock(userId, stepId);
+    res.json({ 
+      success: true, 
+      message: 'Étape complétée avec succès. Prochaine étape débloquée automatiquement.',
+      data: progress 
+    });
   } catch (err) {
     next(err);
   }

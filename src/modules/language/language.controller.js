@@ -153,3 +153,67 @@ exports.remove = async (req, res, next) => {
 		next(err);
 	}
 };
+
+// Activer une langue
+exports.activateLanguage = async (req, res, next) => {
+	try {
+		const language = await service.activateLanguage(req.params.id);
+		res.json({ success: true, message: 'Langue activée avec succès', data: language });
+	} catch (err) {
+		next(err);
+	}
+};
+
+// Désactiver une langue
+exports.deactivateLanguage = async (req, res, next) => {
+	try {
+		const language = await service.deactivateLanguage(req.params.id);
+		res.json({ success: true, message: 'Langue désactivée avec succès', data: language });
+	} catch (err) {
+		next(err);
+	}
+};
+
+// Récupérer toutes les langues actives
+exports.getActiveLanguages = async (req, res, next) => {
+	try {
+		const languages = await service.getActiveLanguages();
+		res.json({ success: true, data: languages });
+	} catch (err) {
+		next(err);
+	}
+};
+
+// Récupérer les niveaux disponibles pour une langue
+exports.getAvailableLevels = async (req, res, next) => {
+	try {
+		const result = await service.getAvailableLevels(req.params.id);
+		res.json({ success: true, data: result });
+	} catch (err) {
+		next(err);
+	}
+};
+
+// Démarrer une langue avec un niveau choisi par l'utilisateur
+exports.startLanguageWithLevel = async (req, res, next) => {
+	try {
+		const { userId, languageId } = req.params;
+		const { levelId } = req.body;
+		
+		if (!levelId) {
+			return res.status(400).json({ 
+				success: false, 
+				error: 'Le levelId est requis dans le body' 
+			});
+		}
+		
+		const result = await service.startLanguageWithLevel(userId, languageId, levelId);
+		res.status(201).json({ 
+			success: true, 
+			message: 'Langue et niveau initialisés avec succès',
+			data: result 
+		});
+	} catch (err) {
+		next(err);
+	}
+};

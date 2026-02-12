@@ -20,13 +20,17 @@ exports.startPath = async (req, res, next) => {
 };
 
 exports.completePath = async (req, res, next) => {
-       try {
-	       const { userId, pathId } = req.params;
-	       const progress = await service.completePathForUser(userId, pathId);
-	       res.json({ success: true, data: progress });
-       } catch (err) {
-	       next(err);
-       }
+	try {
+		const { userId, pathId } = req.params;
+		const progress = await service.completePathWithAutoUnlock(userId, pathId);
+		res.json({ 
+			success: true, 
+			message: 'Parcours complété avec succès. Prochain parcours débloqué automatiquement.',
+			data: progress 
+		});
+	} catch (err) {
+		next(err);
+	}
 };
 
 const service = require('./learning.path.service');
