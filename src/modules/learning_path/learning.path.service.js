@@ -9,15 +9,6 @@ async function getPathsByUserId(userId) {
        });
 }
 
-// Progression utilisateur pour Path
-async function selectPathForUser(userId, pathId) {
-       let progress = await prisma.userPathProgress.findUnique({ where: { userId_pathId: { userId, pathId } } });
-       if (!progress) {
-	       progress = await prisma.userPathProgress.create({ data: { userId, pathId, status: 'locked' } });
-       }
-       return progress;
-}
-
 async function startPathForUser(userId, pathId) {
        return prisma.userPathProgress.update({
 	       where: { userId_pathId: { userId, pathId } },
@@ -114,7 +105,6 @@ module.exports = {
 	updatePath,
 	deletePath,
 	getPathsByUserId,
-	selectPathForUser,
 	startPathForUser,
 	completePathForUser,
 	completePathWithAutoUnlock

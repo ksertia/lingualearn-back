@@ -179,29 +179,6 @@ router.get('/api/v1/users/:userId/paths', controller.getByUserId);
 
 /**
  * @swagger
- * /api/v1/users/{userId}/paths/{pathId}/select:
- *   post:
- *     summary: Sélectionner un parcours pour un utilisateur
- *     tags: [Paths]
- *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
- *         schema:
- *           type: string
- *       - in: path
- *         name: pathId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       201:
- *         description: Progression créée ou existante
- */
-router.post('/api/v1/users/:userId/paths/:pathId/select', controller.selectPath);
-
-/**
- * @swagger
  * /api/v1/users/{userId}/paths/{pathId}/start:
  *   post:
  *     summary: Démarrer un parcours pour un utilisateur

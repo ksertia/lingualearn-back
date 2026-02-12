@@ -18,16 +18,6 @@ const getCoursesByUserId = async (req, res, next) => {
 	}
 };
 
-const selectCourse = async (req, res, next) => {
-	try {
-		const { userId, courseId } = req.params;
-		const progress = await courseService.selectCourseForUser(userId, courseId);
-		res.status(201).json({ success: true, data: progress });
-	} catch (error) {
-		next(error);
-	}
-};
-
 const startCourse = async (req, res, next) => {
 	try {
 		const { userId, courseId } = req.params;
@@ -243,7 +233,6 @@ const getCoursesByLevel = async (req, res) => {
 
 module.exports = {
 	getCoursesByUserId,
-	selectCourse,
 	startCourse,
 	completeCourse,
 	getCourses,

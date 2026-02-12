@@ -1,14 +1,4 @@
 // Progression endpoints
-exports.selectPath = async (req, res, next) => {
-       try {
-	       const { userId, pathId } = req.params;
-	       const progress = await service.selectPathForUser(userId, pathId);
-	       res.status(201).json({ success: true, data: progress });
-       } catch (err) {
-	       next(err);
-       }
-};
-
 exports.startPath = async (req, res, next) => {
        try {
 	       const { userId, pathId } = req.params;
@@ -126,7 +116,6 @@ module.exports = {
 	update,
 	remove,
 	getByUserId,
-	selectPath: exports.selectPath,
 	startPath: exports.startPath,
 	completePath: exports.completePath
 };

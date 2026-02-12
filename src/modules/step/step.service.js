@@ -9,15 +9,6 @@ exports.getStepsByUserId = async (userId) => {
   });
 };
 
-// Progression utilisateur pour Step
-exports.selectStepForUser = async (userId, stepId) => {
-  let progress = await prisma.userStepProgress.findUnique({ where: { userId_stepId: { userId, stepId } } });
-  if (!progress) {
-    progress = await prisma.userStepProgress.create({ data: { userId, stepId, status: 'locked' } });
-  }
-  return progress;
-};
-
 exports.startStepForUser = async (userId, stepId) => {
   return prisma.userStepProgress.update({
     where: { userId_stepId: { userId, stepId } },

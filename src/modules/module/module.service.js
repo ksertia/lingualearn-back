@@ -9,15 +9,6 @@ exports.getModulesByUserId = async (userId) => {
   });
 };
 
-// Progression utilisateur pour Module
-exports.selectModuleForUser = async (userId, moduleId) => {
-  let progress = await prisma.userModuleProgress.findUnique({ where: { userId_moduleId: { userId, moduleId } } });
-  if (!progress) {
-    progress = await prisma.userModuleProgress.create({ data: { userId, moduleId, status: 'locked' } });
-  }
-  return progress;
-};
-
 exports.startModuleForUser = async (userId, moduleId) => {
   return prisma.userModuleProgress.update({
     where: { userId_moduleId: { userId, moduleId } },

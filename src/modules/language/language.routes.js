@@ -677,68 +677,6 @@ router.get('/:id/available-levels', controller.getAvailableLevels);
 
 /**
  * @swagger
- * /api/v1/users/{userId}/languages/{languageId}/start-with-level:
- *   post:
- *     summary: Démarrer une langue avec un niveau choisi par l'utilisateur
- *     tags: [Languages]
- *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
- *         schema:
- *           type: string
- *         description: ID de l'utilisateur
- *       - in: path
- *         name: languageId
- *         required: true
- *         schema:
- *           type: string
- *         description: ID de la langue
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - levelId
- *             properties:
- *               levelId:
- *                 type: string
- *                 description: ID du niveau de départ choisi par l'utilisateur
- *                 example: clxxx...
- *     responses:
- *       201:
- *         description: Langue et niveau initialisés avec succès
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 message:
- *                   type: string
- *                 data:
- *                   type: object
- *                   properties:
- *                     languageProgress:
- *                       type: object
- *                     levelProgress:
- *                       type: object
- *                     level:
- *                       type: object
- *                     language:
- *                       type: object
- *       400:
- *         description: levelId manquant
- *       404:
- *         description: Langue ou niveau non trouvé
- */
-router.post('/api/v1/users/:userId/languages/:languageId/start-with-level', controller.startLanguageWithLevel);
-
-/**
- * @swagger
  * /api/v1/users/{userId}/languages:
  *   get:
  *     summary: Récupérer les langues liées à un utilisateur
@@ -757,7 +695,6 @@ router.post('/api/v1/users/:userId/languages/:languageId/start-with-level', cont
  */
 router.get('/api/v1/users/:userId/languages', controller.getByUserId);
 
-
 /**
  * @swagger
  * /api/v1/users/{userId}/languages/{languageId}/select:
@@ -770,14 +707,27 @@ router.get('/api/v1/users/:userId/languages', controller.getByUserId);
  *         required: true
  *         schema:
  *           type: string
+ *         description: ID de l'utilisateur
  *       - in: path
  *         name: languageId
  *         required: true
  *         schema:
  *           type: string
+ *         description: ID de la langue
  *     responses:
  *       201:
- *         description: Progression créée ou existante
+ *         description: Langue sélectionnée avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *       404:
+ *         description: Langue non trouvée
  */
 router.post('/api/v1/users/:userId/languages/:languageId/select', controller.selectLanguage);
 
