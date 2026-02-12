@@ -3,10 +3,53 @@ const progressionService = require('../progression/progression.service');
 
 // Récupérer tous les modules liés à un utilisateur (via userModuleProgress)
 exports.getModulesByUserId = async (userId) => {
-  return await prisma.userModuleProgress.findMany({
-    where: { userId },
-    include: { module: true }
+  // 1. Trouver le niveau actuel de l'utilisateur
+  const userLevelProgress = await prisma.userLevelProgress.findFirst({
+    where: { 
+      userId,
+      status: { in: ['unlocked', 'started'] }  // Niveau actif
+    },
+    orderBy: { lastAccessedAt: 'desc' }
   });
+
+  if (!userLevelProgress) {
+    return [];  // Aucun niveau actif
+  }
+
+  // 2. Récupérer TOUS les modules du niveau avec leur progression
+  const modules = await prisma.module.findMany({
+    where: { levelId: userLevelProgress.levelId },
+    orderBy: { index: 'asc' },
+    include: {
+      userProgress: {
+        where: { userId }  // Progression si elle existe
+      }
+    }
+  });
+
+  // 3. Formater la réponse avec le statut
+  return modules.map(module => ({
+    id: module.id,
+    title: module.title,
+    description: module.description,
+    index: module.index,
+    thumbnailUrl: module.thumbnailUrl,
+    estimatedHours: module.estimatedHours,
+    isActive: module.isActive,
+    
+    // Progression (peut être null si jamais touché)
+    progress: module.userProgress[0] || null,
+    
+    // Statut calculé
+    status: module.userProgress[0]?.status || 'locked',
+    progressPercentage: module.userProgress[0]?.progressPercentage || 0,
+    totalXp: module.userProgress[0]?.totalXp || 0,
+    timeSpentMinutes: module.userProgress[0]?.timeSpentMinutes || 0,
+    unlockedAt: module.userProgress[0]?.unlockedAt || null,
+    startedAt: module.userProgress[0]?.startedAt || null,
+    completedAt: module.userProgress[0]?.completedAt || null,
+    lastAccessedAt: module.userProgress[0]?.lastAccessedAt || null
+  }));
 };
 
 exports.startModuleForUser = async (userId, moduleId) => {

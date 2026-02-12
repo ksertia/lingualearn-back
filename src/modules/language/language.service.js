@@ -1,9 +1,37 @@
 // Récupérer toutes les langues liées à un utilisateur (via userLanguageProgress)
 exports.getLanguagesByUserId = async (userId) => {
-       return await prisma.userLanguageProgress.findMany({
-	       where: { userId },
-	       include: { language: true }
-       });
+	// Récupérer TOUTES les langues actives avec leur progression
+	const languages = await prisma.language.findMany({
+		where: { isActive: true },
+		orderBy: { createdAt: 'asc' },
+		include: {
+			userProgress: {
+				where: { userId }  // Progression si elle existe
+			}
+		}
+	});
+
+	// Formater la réponse avec le statut
+	return languages.map(language => ({
+		id: language.id,
+		name: language.name,
+		code: language.code,
+		flagUrl: language.flagUrl,
+		description: language.description,
+		isActive: language.isActive,
+		
+		// Progression (peut être null si jamais touché)
+		progress: language.userProgress[0] || null,
+		
+		// Statut calculé
+		status: language.userProgress[0]?.status || 'not_started',
+		overallProgress: language.userProgress[0]?.overallProgress || 0,
+		totalXp: language.userProgress[0]?.totalXp || 0,
+		totalTimeMinutes: language.userProgress[0]?.totalTimeMinutes || 0,
+		startedAt: language.userProgress[0]?.startedAt || null,
+		completedAt: language.userProgress[0]?.completedAt || null,
+		lastAccessedAt: language.userProgress[0]?.lastAccessedAt || null
+	}));
 };
 
 // Progression utilisateur pour Language

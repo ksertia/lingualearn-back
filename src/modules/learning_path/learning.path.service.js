@@ -3,10 +3,57 @@ const progressionService = require('../progression/progression.service');
 
 // Récupérer tous les parcours liés à un utilisateur (via userPathProgress)
 async function getPathsByUserId(userId) {
-       return prisma.userPathProgress.findMany({
-	       where: { userId },
-	       include: { path: true }
-       });
+	// 1. Trouver le module actuel de l'utilisateur
+	const userModuleProgress = await prisma.userModuleProgress.findFirst({
+		where: { 
+			userId,
+			status: { in: ['unlocked', 'started'] }  // Module actif
+		},
+		orderBy: { lastAccessedAt: 'desc' }
+	});
+
+	if (!userModuleProgress) {
+		return [];  // Aucun module actif
+	}
+
+	// 2. Récupérer TOUS les parcours du module avec leur progression
+	const paths = await prisma.path.findMany({
+		where: { moduleId: userModuleProgress.moduleId },
+		orderBy: { index: 'asc' },
+		include: {
+			userProgress: {
+				where: { userId }  // Progression si elle existe
+			}
+		}
+	});
+
+	// 3. Formater la réponse avec le statut
+	return paths.map(path => ({
+		id: path.id,
+		title: path.title,
+		description: path.description,
+		index: path.index,
+		moduleId: path.moduleId,
+		thumbnailUrl: path.thumbnailUrl,
+		difficulty: path.difficulty,
+		estimatedHours: path.estimatedHours,
+		isActive: path.isActive,
+		
+		// Progression (peut être null si jamais touché)
+		progress: path.userProgress[0] || null,
+		
+		// Statut calculé
+		status: path.userProgress[0]?.status || 'locked',
+		progressPercentage: path.userProgress[0]?.progressPercentage || 0,
+		currentStepIndex: path.userProgress[0]?.currentStepIndex || 0,
+		totalXp: path.userProgress[0]?.totalXp || 0,
+		timeSpentMinutes: path.userProgress[0]?.timeSpentMinutes || 0,
+		quizScore: path.userProgress[0]?.quizScore || null,
+		unlockedAt: path.userProgress[0]?.unlockedAt || null,
+		startedAt: path.userProgress[0]?.startedAt || null,
+		completedAt: path.userProgress[0]?.completedAt || null,
+		lastAccessedAt: path.userProgress[0]?.lastAccessedAt || null
+	}));
 }
 
 async function startPathForUser(userId, pathId) {

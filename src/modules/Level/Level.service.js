@@ -1,9 +1,54 @@
 // Récupérer tous les niveaux liés à un utilisateur (via userLevelProgress)
 async function getLevelsByUserId(userId) {
-	return prisma.userLevelProgress.findMany({
+	// 1. Trouver la langue actuelle de l'utilisateur
+	const userLanguageProgress = await prisma.userLanguageProgress.findFirst({
 		where: { userId },
-		include: { level: true }
+		orderBy: [
+			{ lastAccessedAt: 'desc' },
+			{ createdAt: 'desc' }
+		]
 	});
+
+	if (!userLanguageProgress) {
+		// Aucune langue sélectionnée - retourner tableau vide
+		// L'utilisateur doit d'abord sélectionner une langue
+		return [];
+	}
+
+	// 2. Récupérer TOUS les niveaux de la langue avec leur progression
+	const levels = await prisma.level.findMany({
+		where: { languageId: userLanguageProgress.languageId },
+		orderBy: { index: 'asc' },
+		include: {
+			userProgress: {
+				where: { userId }  // Progression si elle existe
+			}
+		}
+	});
+
+	// 3. Formater la réponse avec le statut
+	return levels.map(level => ({
+		id: level.id,
+		code: level.code,
+		name: level.name,
+		description: level.description,
+		index: level.index,
+		isActive: level.isActive,
+		languageId: level.languageId,
+		
+		// Progression (peut être null si jamais touché)
+		progress: level.userProgress[0] || null,
+		
+		// Statut calculé
+		status: level.userProgress[0]?.status || 'locked',
+		progressPercentage: level.userProgress[0]?.progressPercentage || 0,
+		totalXp: level.userProgress[0]?.totalXp || 0,
+		timeSpentMinutes: level.userProgress[0]?.timeSpentMinutes || 0,
+		unlockedAt: level.userProgress[0]?.unlockedAt || null,
+		startedAt: level.userProgress[0]?.startedAt || null,
+		completedAt: level.userProgress[0]?.completedAt || null,
+		lastAccessedAt: level.userProgress[0]?.lastAccessedAt || null
+	}));
 }
 
 module.exports.getLevelsByUserId = getLevelsByUserId;

@@ -3,10 +3,83 @@ const progressionService = require('../progression/progression.service');
 
 // Récupérer toutes les étapes liées à un utilisateur (via userStepProgress)
 exports.getStepsByUserId = async (userId) => {
-  return await prisma.userStepProgress.findMany({
-    where: { userId },
-    include: { step: true }
+  // 1. Trouver le parcours actuel de l'utilisateur
+  const userPathProgress = await prisma.userPathProgress.findFirst({
+    where: { 
+      userId,
+      status: { in: ['unlocked', 'started'] }  // Parcours actif
+    },
+    orderBy: { lastAccessedAt: 'desc' }
   });
+
+  if (!userPathProgress) {
+    return [];  // Aucun parcours actif
+  }
+
+  // 2. Récupérer TOUTES les étapes du parcours avec leur progression
+  const steps = await prisma.step.findMany({
+    where: { pathId: userPathProgress.pathId },
+    orderBy: { index: 'asc' },
+    include: {
+      userProgress: {
+        where: { userId }  // Progression si elle existe
+      },
+      lesson: {
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          videoUrl: true
+        }
+      },
+      exercise: {
+        select: {
+          id: true,
+          title: true,
+          instructions: true,
+          points: true,
+          xpReward: true,
+          coinReward: true
+        }
+      },
+      quiz: {
+        select: {
+          id: true,
+          title: true,
+          passingScore: true,
+          timeLimitMinutes: true,
+          xpReward: true,
+          coinReward: true
+        }
+      }
+    }
+  });
+
+  // 3. Formater la réponse avec le statut
+  return steps.map(step => ({
+    id: step.id,
+    title: step.title,
+    description: step.description,
+    index: step.index,
+    pathId: step.pathId,
+    stepType: step.stepType,
+    estimatedMinutes: step.estimatedMinutes,
+    isActive: step.isActive,
+    
+    // Contenu selon le type
+    lesson: step.lesson || null,
+    exercise: step.exercise || null,
+    quiz: step.quiz || null,
+    
+    // Progression (peut être null si jamais touché)
+    progress: step.userProgress[0] || null,
+    
+    // Statut calculé
+    status: step.userProgress[0]?.status || 'locked',
+    progressValue: step.userProgress[0]?.progress || 0,
+    score: step.userProgress[0]?.score || null,
+    completedAt: step.userProgress[0]?.completedAt || null
+  }));
 };
 
 exports.startStepForUser = async (userId, stepId) => {
