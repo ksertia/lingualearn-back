@@ -231,4 +231,60 @@ router.post('/api/v1/users/:userId/levels/:levelId/start', controller.startLevel
  */
 router.post('/api/v1/users/:userId/levels/:levelId/complete', controller.completeLevel);
 
+/**
+ * @swagger
+ * /api/v1/levels/{id}/activate:
+ *   patch:
+ *     summary: Activer un niveau
+ *     tags: [Levels]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du niveau
+ *     responses:
+ *       200:
+ *         description: Niveau activé avec succès
+ *       404:
+ *         description: Niveau non trouvé
+ *     security:
+ *       - bearerAuth: []
+ */
+router.patch(
+  '/:id/activate',
+  authMiddleware,
+  allowRoles('admin', 'plateform_manager'),
+  controller.activateLevel
+);
+
+/**
+ * @swagger
+ * /api/v1/levels/{id}/deactivate:
+ *   patch:
+ *     summary: Désactiver un niveau
+ *     tags: [Levels]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du niveau
+ *     responses:
+ *       200:
+ *         description: Niveau désactivé avec succès
+ *       404:
+ *         description: Niveau non trouvé
+ *     security:
+ *       - bearerAuth: []
+ */
+router.patch(
+  '/:id/deactivate',
+  authMiddleware,
+  allowRoles('admin', 'plateform_manager'),
+  controller.deactivateLevel
+);
+
 module.exports = router;

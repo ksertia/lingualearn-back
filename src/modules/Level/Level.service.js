@@ -81,6 +81,30 @@ async function completeLevelWithAutoUnlock(userId, levelId) {
 	return await progressionService.completeLevelAndUnlockNext(userId, levelId);
 }
 
+// Activer un niveau
+async function activateLevel(id) {
+  const level = await prisma.level.findUnique({ where: { id } });
+  if (!level) {
+    throw new Error('Niveau introuvable');
+  }
+  return await prisma.level.update({
+    where: { id },
+    data: { isActive: true }
+  });
+}
+
+// Désactiver un niveau
+async function deactivateLevel(id) {
+  const level = await prisma.level.findUnique({ where: { id } });
+  if (!level) {
+    throw new Error('Niveau introuvable');
+  }
+  return await prisma.level.update({
+    where: { id },
+    data: { isActive: false }
+  });
+}
+
 module.exports = {
 	createLevel,
 	getAllLevels,
@@ -91,5 +115,7 @@ module.exports = {
 	selectLevelForUser,
 	startLevelForUser,
 	completeLevelForUser,
-	completeLevelWithAutoUnlock
+	completeLevelWithAutoUnlock,
+	activateLevel,
+	deactivateLevel
 };

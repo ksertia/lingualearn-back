@@ -104,6 +104,36 @@ exports.completeLevel = async (req, res, next) => {
        }
 };
 
+// Activer un niveau
+async function activateLevel(req, res, next) {
+  try {
+    const { id } = req.params; // ID du niveau
+    const level = await service.activateLevel(id);
+    res.json({
+      success: true,
+      message: 'Niveau activé avec succès',
+      data: level
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Désactiver un niveau
+async function deactivateLevel(req, res, next) {
+  try {
+    const { id } = req.params; // ID du niveau
+    const level = await service.deactivateLevel(id);
+    res.json({
+      success: true,
+      message: 'Niveau désactivé avec succès',
+      data: level
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
 	create,
 	getAll,
@@ -113,5 +143,7 @@ module.exports = {
 	getByUserId,
 	selectLevel: exports.selectLevel,
 	startLevel: exports.startLevel,
-	completeLevel: exports.completeLevel
+	completeLevel: exports.completeLevel,
+	activateLevel,
+	deactivateLevel
 };
