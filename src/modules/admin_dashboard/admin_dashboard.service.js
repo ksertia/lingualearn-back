@@ -53,6 +53,80 @@ async function getDashboardStats(filters = {}) {
   };
 }
 
+
+// Fonction utilitaire pour convertir les filtres
+function parseBoolean(value) {
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return value; // garde la valeur originale si ce n'est pas "true"/"false"
+}
+
+async function getTotalUsers(filters = {}) {
+  const where = {};
+
+  // Conversion explicite des booléens
+  if (filters.userType) where.accountType = filters.userType;
+  if (filters.isActive !== undefined) where.isActive = parseBoolean(filters.isActive);
+  if (filters.isVerified !== undefined) where.isVerified = parseBoolean(filters.isVerified);
+  if (filters.withSubscription !== undefined) {
+    const withSub = parseBoolean(filters.withSubscription);
+    if (withSub === true) where.subscriptionId = { not: null };
+  }
+  if (filters.startDate || filters.endDate) {
+    where.createdAt = {};
+    if (filters.startDate) where.createdAt.gte = new Date(filters.startDate);
+    if (filters.endDate) where.createdAt.lte = new Date(filters.endDate);
+  }
+
+  return await prisma.user.count({ where });
+}
+
+// Total utilisateurs (avec filtres optionnels)
+async function getTotalUsers(filters = {}) {
+  const where = {};
+  if (filters.userType) where.accountType = filters.userType;
+  if (filters.isActive !== undefined) where.isActive = filters.isActive;
+  if (filters.isVerified !== undefined) where.isVerified = filters.isVerified;
+  if (filters.withSubscription) where.subscriptionId = { not: null };
+  if (filters.startDate || filters.endDate) {
+    where.createdAt = {};
+    if (filters.startDate) where.createdAt.gte = new Date(filters.startDate);
+    if (filters.endDate) where.createdAt.lte = new Date(filters.endDate);
+  }
+  return await prisma.user.count({ where });
+}
+
+// Total des parcours
+async function getTotalLearningPaths() {
+  return await prisma.Path.count();
+}
+
+// Total des étapes
+async function getTotalSteps() {
+  return await prisma.step.count();
+}
+
+// Total des leçons
+async function getTotalLessons() {
+  return await prisma.lesson.count();
+}
+
+// Total des quiz d'étape
+async function getTotalStepQuizzes() {
+  return await prisma.Quiz.count();
+}
+
+// Total des niveaux (optionnel)
+async function getTotalLevels() {
+  return await prisma.level.count();
+}
+
 module.exports = {
-  getDashboardStats
+  getDashboardStats,
+  getTotalUsers,
+  getTotalLearningPaths,
+  getTotalSteps,
+  getTotalLessons,
+  getTotalStepQuizzes,
+  getTotalLevels 
 };
