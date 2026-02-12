@@ -6,6 +6,10 @@ const { prisma } = require('../../config/prisma');
  */
 class ProgressionUnlockService {
   
+  constructor() {
+    this.prisma = prisma;
+  }
+  
   /**
    * États de progression valides
    */
