@@ -51,7 +51,9 @@ router.use('/evaluation', evaluationRoutes);
 router.use('/progression', progressionRoutes);
 
 // User language and level selection routes (mounted under /api/v1)
+router.get('/users/:userId/languages', languageController.getByUserId);
 router.post('/users/:userId/languages/:languageId/select', languageController.selectLanguage);
+router.get('/users/:userId/levels', levelController.getByUserId);
 router.post('/users/:userId/levels/:levelId/select', levelController.selectLevel);
 
 // User module progression routes (mounted under /api/v1)

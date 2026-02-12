@@ -102,7 +102,22 @@ async function selectLevelForUser(userId, levelId) {
 	// Vérifie si déjà sélectionné
 	let progress = await prisma.userLevelProgress.findUnique({ where: { userId_levelId: { userId, levelId } } });
 	if (!progress) {
-		 progress = await prisma.userLevelProgress.create({ data: { userId, levelId, status: 'locked' } });
+		// Créer et démarrer automatiquement le niveau
+		progress = await prisma.userLevelProgress.create({ 
+			data: { 
+				userId, 
+				levelId, 
+				status: 'started',  // Démarré automatiquement
+				startedAt: new Date(),
+				lastAccessedAt: new Date()
+			} 
+		});
+	} else {
+		// Mettre à jour lastAccessedAt si déjà sélectionné
+		progress = await prisma.userLevelProgress.update({
+			where: { userId_levelId: { userId, levelId } },
+			data: { lastAccessedAt: new Date() }
+		});
 	}
 	return progress;
 }

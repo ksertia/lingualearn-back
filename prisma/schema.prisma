@@ -89,6 +89,7 @@ model Language {
 
   levels       Level[]
   userProgress UserLanguageProgress[]
+  certificates Certificate[]
 
   @@index([index])
   @@map("languages")

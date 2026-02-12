@@ -36,11 +36,26 @@ exports.getLanguagesByUserId = async (userId) => {
 
 // Progression utilisateur pour Language
 exports.selectLanguageForUser = async (userId, languageId) => {
-       let progress = await prisma.userLanguageProgress.findUnique({ where: { userId_languageId: { userId, languageId } } });
-       if (!progress) {
-	       progress = await prisma.userLanguageProgress.create({ data: { userId, languageId, status: 'not_started' } });
-       }
-       return progress;
+	let progress = await prisma.userLanguageProgress.findUnique({ where: { userId_languageId: { userId, languageId } } });
+	if (!progress) {
+		// Créer et démarrer automatiquement la langue
+		progress = await prisma.userLanguageProgress.create({ 
+			data: { 
+				userId, 
+				languageId, 
+				status: 'started',  // Démarré automatiquement
+				startedAt: new Date(),
+				lastAccessedAt: new Date()
+			} 
+		});
+	} else {
+		// Mettre à jour lastAccessedAt si déjà sélectionné
+		progress = await prisma.userLanguageProgress.update({
+			where: { userId_languageId: { userId, languageId } },
+			data: { lastAccessedAt: new Date() }
+		});
+	}
+	return progress;
 };
 
 exports.startLanguageForUser = async (userId, languageId) => {
