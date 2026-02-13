@@ -223,4 +223,72 @@ router.post('/api/v1/users/:userId/paths/:pathId/start', controller.startPath);
  */
 router.post('/api/v1/users/:userId/paths/:pathId/complete', controller.completePath);
 
+/**
+ * @swagger
+ * /api/v1/users/{userId}/modules/{moduleId}/paths:
+ *   get:
+ *     summary: Récupérer les parcours d'un module spécifique pour un utilisateur
+ *     tags: [Paths]
+ *     description: Permet de récupérer tous les parcours d'un module spécifique avec la progression de l'utilisateur, même si ce n'est pas le module actif
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de l'utilisateur
+ *       - in: path
+ *         name: moduleId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du module dont on veut récupérer les parcours
+ *     responses:
+ *       200:
+ *         description: Liste des parcours du module avec leur progression
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       title:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ *                       index:
+ *                         type: integer
+ *                       moduleId:
+ *                         type: string
+ *                       status:
+ *                         type: string
+ *                         enum: [locked, unlocked, started, completed]
+ *                       progressPercentage:
+ *                         type: integer
+ *                       totalXp:
+ *                         type: integer
+ *                       unlockedAt:
+ *                         type: string
+ *                         format: date-time
+ *                         nullable: true
+ *                       startedAt:
+ *                         type: string
+ *                         format: date-time
+ *                         nullable: true
+ *                       completedAt:
+ *                         type: string
+ *                         format: date-time
+ *                         nullable: true
+ */
+router.get('/api/v1/users/:userId/modules/:moduleId/paths', controller.getPathsByModuleId);
+
 module.exports = router;

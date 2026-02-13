@@ -38,6 +38,19 @@ async function getByUserId(req, res, next) {
 
 module.exports.getByUserId = getByUserId;
 
+// Récupérer les parcours d'un module spécifique pour un utilisateur
+async function getPathsByModuleId(req, res, next) {
+	try {
+		const { userId, moduleId } = req.params;
+		const paths = await service.getPathsByModuleId(userId, moduleId);
+		res.json({ success: true, data: paths });
+	} catch (err) {
+		next(err);
+	}
+}
+
+module.exports.getPathsByModuleId = getPathsByModuleId;
+
 // Helper to pick only allowed fields for Path creation
 function pickPathFields(body) {
 	return {
@@ -114,6 +127,7 @@ module.exports = {
 	update,
 	remove,
 	getByUserId,
+	getPathsByModuleId,
 	startPath: exports.startPath,
 	completePath: exports.completePath
 };

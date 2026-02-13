@@ -71,6 +71,10 @@ router.get('/users/:userId/paths', learningPathController.getByUserId);
 router.post('/users/:userId/paths/:pathId/start', learningPathController.startPath);
 router.post('/users/:userId/paths/:pathId/complete', learningPathController.completePath);
 
+// Routes pour récupérer les parcours d'un module spécifique
+router.get('/users/:userId/modules/:moduleId/paths', learningPathController.getPathsByModuleId);
+router.get('/users/:userId/modules/:moduleId/learning-paths', learningPathController.getPathsByModuleId);
+
 // User step progression routes (mounted under /api/v1)
 router.get('/users/:userId/steps', stepController.getByUserId);
 router.post('/users/:userId/steps/:stepId/start', stepController.startStep);

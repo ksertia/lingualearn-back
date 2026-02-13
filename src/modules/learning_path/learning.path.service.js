@@ -56,6 +56,48 @@ async function getPathsByUserId(userId) {
 	}));
 }
 
+// Récupérer tous les parcours d'un module spécifique pour un utilisateur
+async function getPathsByModuleId(userId, moduleId) {
+	// Récupérer TOUS les parcours du module avec leur progression
+	const paths = await prisma.path.findMany({
+		where: { moduleId },
+		orderBy: { index: 'asc' },
+		include: {
+			userProgress: {
+				where: { userId }  // Progression si elle existe
+			}
+		}
+	});
+
+	// Formater la réponse avec le statut
+	return paths.map(path => ({
+		id: path.id,
+		title: path.title,
+		description: path.description,
+		index: path.index,
+		moduleId: path.moduleId,
+		thumbnailUrl: path.thumbnailUrl,
+		difficulty: path.difficulty,
+		estimatedHours: path.estimatedHours,
+		isActive: path.isActive,
+		
+		// Progression (peut être null si jamais touché)
+		progress: path.userProgress[0] || null,
+		
+		// Statut calculé
+		status: path.userProgress[0]?.status || 'locked',
+		progressPercentage: path.userProgress[0]?.progressPercentage || 0,
+		currentStepIndex: path.userProgress[0]?.currentStepIndex || 0,
+		totalXp: path.userProgress[0]?.totalXp || 0,
+		timeSpentMinutes: path.userProgress[0]?.timeSpentMinutes || 0,
+		quizScore: path.userProgress[0]?.quizScore || null,
+		unlockedAt: path.userProgress[0]?.unlockedAt || null,
+		startedAt: path.userProgress[0]?.startedAt || null,
+		completedAt: path.userProgress[0]?.completedAt || null,
+		lastAccessedAt: path.userProgress[0]?.lastAccessedAt || null
+	}));
+}
+
 async function startPathForUser(userId, pathId) {
 	const progress = await prisma.userPathProgress.update({
 		where: { userId_pathId: { userId, pathId } },
@@ -183,6 +225,7 @@ module.exports = {
 	updatePath,
 	deletePath,
 	getPathsByUserId,
+	getPathsByModuleId,
 	startPathForUser,
 	completePathForUser,
 	completePathWithAutoUnlock
