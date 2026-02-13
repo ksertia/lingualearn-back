@@ -80,6 +80,10 @@ router.get('/users/:userId/steps', stepController.getByUserId);
 router.post('/users/:userId/steps/:stepId/start', stepController.startStep);
 router.post('/users/:userId/steps/:stepId/complete', stepController.completeStep);
 
+// Routes pour récupérer les étapes d'un parcours spécifique
+router.get('/users/:userId/paths/:pathId/steps', stepController.getStepsByPathId);
+router.get('/users/:userId/learning-paths/:pathId/steps', stepController.getStepsByPathId);
+
 // User course progression routes (mounted under /api/v1)
 router.get('/users/:userId/courses', courseController.getCoursesByUserId);
 router.post('/users/:userId/courses/:courseId/start', courseController.startCourse);

@@ -82,6 +82,74 @@ exports.getStepsByUserId = async (userId) => {
   }));
 };
 
+// Récupérer toutes les étapes d'un parcours spécifique pour un utilisateur
+exports.getStepsByPathId = async (userId, pathId) => {
+  // Récupérer TOUTES les étapes du parcours avec leur progression
+  const steps = await prisma.step.findMany({
+    where: { pathId },
+    orderBy: { index: 'asc' },
+    include: {
+      userProgress: {
+        where: { userId }  // Progression si elle existe
+      },
+      lesson: {
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          videoUrl: true
+        }
+      },
+      exercise: {
+        select: {
+          id: true,
+          title: true,
+          instructions: true,
+          points: true,
+          xpReward: true,
+          coinReward: true
+        }
+      },
+      quiz: {
+        select: {
+          id: true,
+          title: true,
+          passingScore: true,
+          timeLimitMinutes: true,
+          xpReward: true,
+          coinReward: true
+        }
+      }
+    }
+  });
+
+  // Formater la réponse avec le statut
+  return steps.map(step => ({
+    id: step.id,
+    title: step.title,
+    description: step.description,
+    index: step.index,
+    pathId: step.pathId,
+    stepType: step.stepType,
+    estimatedMinutes: step.estimatedMinutes,
+    isActive: step.isActive,
+    
+    // Contenu selon le type
+    lesson: step.lesson || null,
+    exercise: step.exercise || null,
+    quiz: step.quiz || null,
+    
+    // Progression (peut être null si jamais touché)
+    progress: step.userProgress[0] || null,
+    
+    // Statut calculé
+    status: step.userProgress[0]?.status || 'locked',
+    progressValue: step.userProgress[0]?.progress || 0,
+    score: step.userProgress[0]?.score || null,
+    completedAt: step.userProgress[0]?.completedAt || null
+  }));
+};
+
 exports.startStepForUser = async (userId, stepId) => {
   return prisma.userStepProgress.update({
     where: { userId_stepId: { userId, stepId } },

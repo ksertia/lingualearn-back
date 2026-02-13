@@ -31,6 +31,17 @@ exports.getByUserId = async (req, res, next) => {
     next(err);
   }
 };
+
+// Récupérer les étapes d'un parcours spécifique pour un utilisateur
+exports.getStepsByPathId = async (req, res, next) => {
+  try {
+    const { userId, pathId } = req.params;
+    const steps = await stepService.getStepsByPathId(userId, pathId);
+    res.json({ success: true, data: steps });
+  } catch (err) {
+    next(err);
+  }
+};
 const stepService = require('./step.service');
 const { createStepSchema, updateStepSchema } = require('./step.schema');
 const { asyncHandler } = require('../../middleware/asyncHandler');
