@@ -136,6 +136,56 @@ async function selectLevelForUser(userId, levelId) {
 					lastAccessedAt: new Date()
 				}
 			});
+			
+			// Débloquer automatiquement le premier parcours du module
+			const firstPath = await prisma.path.findFirst({
+				where: { moduleId: firstModule.id },
+				orderBy: { index: 'asc' }
+			});
+			
+			if (firstPath) {
+				// Créer la progression pour le premier parcours avec status 'unlocked'
+				await prisma.userPathProgress.upsert({
+					where: { userId_pathId: { userId, pathId: firstPath.id } },
+					update: { 
+						status: 'unlocked',
+						unlockedAt: new Date(),
+						lastAccessedAt: new Date()
+					},
+					create: {
+						userId,
+						pathId: firstPath.id,
+						status: 'unlocked',
+						unlockedAt: new Date(),
+						lastAccessedAt: new Date()
+					}
+				});
+				
+				// Débloquer automatiquement la première étape du parcours
+				const firstStep = await prisma.step.findFirst({
+					where: { pathId: firstPath.id },
+					orderBy: { index: 'asc' }
+				});
+				
+				if (firstStep) {
+					// Créer la progression pour la première étape avec status 'unlocked'
+					await prisma.userStepProgress.upsert({
+						where: { userId_stepId: { userId, stepId: firstStep.id } },
+						update: { 
+							status: 'unlocked',
+							unlockedAt: new Date(),
+							lastAccessedAt: new Date()
+						},
+						create: {
+							userId,
+							stepId: firstStep.id,
+							status: 'unlocked',
+							unlockedAt: new Date(),
+							lastAccessedAt: new Date()
+						}
+					});
+				}
+			}
 		}
 	} else {
 		// Mettre à jour lastAccessedAt si déjà sélectionné

@@ -319,11 +319,16 @@ class ProgressionUnlockService {
    * Gère la complétion d'un module
    */
   async handleModuleCompletion(userId, moduleId) {
+    // Vérifier que le module existe
+    const module = await this.prisma.module.findUnique({ where: { id: moduleId } });
+    if (!module) {
+      throw new Error(`Module avec l'ID ${moduleId} introuvable`);
+    }
+    
     // Marquer le module comme complété
     await this.completeElement(userId, ProgressionUnlockService.ELEMENT_TYPES.MODULE, moduleId);
 
     // Récupérer le module suivant dans le même niveau
-    const module = await this.prisma.module.findUnique({ where: { id: moduleId } });
     const nextModule = await this.getNextModule(module.levelId, module.index);
 
     if (nextModule) {
@@ -598,39 +603,46 @@ class ProgressionUnlockService {
 
     switch (elementType) {
       case ProgressionUnlockService.ELEMENT_TYPES.LEVEL:
-        return await this.prisma.userLevelProgress.update({
+        return await this.prisma.userLevelProgress.upsert({
           where: { userId_levelId: { userId, levelId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, levelId: elementId, ...updateData }
         });
       case ProgressionUnlockService.ELEMENT_TYPES.MODULE:
-        return await this.prisma.userModuleProgress.update({
+        return await this.prisma.userModuleProgress.upsert({
           where: { userId_moduleId: { userId, moduleId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, moduleId: elementId, ...updateData }
         });
       case ProgressionUnlockService.ELEMENT_TYPES.PATH:
-        return await this.prisma.userPathProgress.update({
+        return await this.prisma.userPathProgress.upsert({
           where: { userId_pathId: { userId, pathId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, pathId: elementId, ...updateData }
         });
       case ProgressionUnlockService.ELEMENT_TYPES.STEP:
-        return await this.prisma.userStepProgress.update({
+        return await this.prisma.userStepProgress.upsert({
           where: { userId_stepId: { userId, stepId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, stepId: elementId, ...updateData }
         });
       case ProgressionUnlockService.ELEMENT_TYPES.COURSE:
-        return await this.prisma.userCourseProgress.update({
+        return await this.prisma.userCourseProgress.upsert({
           where: { userId_courseId: { userId, courseId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, courseId: elementId, ...updateData }
         });
       case ProgressionUnlockService.ELEMENT_TYPES.EXERCISE:
-        return await this.prisma.userExerciseProgress.update({
+        return await this.prisma.userExerciseProgress.upsert({
           where: { userId_exerciseId: { userId, exerciseId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, exerciseId: elementId, ...updateData }
         });
       case ProgressionUnlockService.ELEMENT_TYPES.QUIZ:
-        return await this.prisma.userQuizProgress.update({
+        return await this.prisma.userQuizProgress.upsert({
           where: { userId_quizId: { userId, quizId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, quizId: elementId, ...updateData }
         });
     }
   }
