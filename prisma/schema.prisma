@@ -1,28 +1,11 @@
 generator client {
   provider = "prisma-client-js"
-<<<<<<< HEAD
 }
 
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
-
-model DiscoverySession {
-  id        String   @id @db.VarChar(50)
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-
-  @@map("discovery_sessions")
-}
-=======
-}
-
-datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
-}
->>>>>>> 8491009d1ff95debb35ecb0bcac2fbb94280f66e
 
 model User {
   id                  String                 @id @default(cuid())
@@ -104,13 +87,9 @@ model Language {
   createdAt    DateTime               @default(now())
   updatedAt    DateTime               @updatedAt
   flagUrl      String?                @db.VarChar(500)
-  Certificate  Certificate[]
+  certificates Certificate[]
   levels       Level[]
   userProgress UserLanguageProgress[]
-<<<<<<< HEAD
-=======
-  certificates Certificate[]
->>>>>>> 8491009d1ff95debb35ecb0bcac2fbb94280f66e
 
   @@index([index])
   @@map("languages")
@@ -759,4 +738,10 @@ model Transaction {
 
   @@index([userId, createdAt])
   @@map("transactions")
+}
+
+model discovery_sessions {
+  id        String   @id @db.VarChar(50)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
