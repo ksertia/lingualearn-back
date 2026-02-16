@@ -5,6 +5,10 @@ const { prisma } = require('../../config/prisma');
  * Logique séquentielle stricte : Chaque élément doit être terminé pour débloquer le suivant
  */
 class ProgressionUnlockService {
+
+   constructor() {
+    this.prisma = prisma; 
+  }
   
   /**
    * États de progression valides
