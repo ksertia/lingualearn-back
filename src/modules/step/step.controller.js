@@ -1,14 +1,4 @@
 // Progression endpoints
-exports.selectStep = async (req, res, next) => {
-  try {
-    const { userId, stepId } = req.params;
-    const progress = await stepService.selectStepForUser(userId, stepId);
-    res.status(201).json({ success: true, data: progress });
-  } catch (err) {
-    next(err);
-  }
-};
-
 exports.startStep = async (req, res, next) => {
   try {
     const { userId, stepId } = req.params;
@@ -22,8 +12,12 @@ exports.startStep = async (req, res, next) => {
 exports.completeStep = async (req, res, next) => {
   try {
     const { userId, stepId } = req.params;
-    const progress = await stepService.completeStepForUser(userId, stepId);
-    res.json({ success: true, data: progress });
+    const progress = await stepService.completeStepWithAutoUnlock(userId, stepId);
+    res.json({ 
+      success: true, 
+      message: 'Étape complétée avec succès. Prochaine étape débloquée automatiquement.',
+      data: progress 
+    });
   } catch (err) {
     next(err);
   }
@@ -31,10 +25,19 @@ exports.completeStep = async (req, res, next) => {
 exports.getByUserId = async (req, res, next) => {
   try {
     const steps = await stepService.getStepsByUserId(req.params.userId);
-    if (!steps || steps.length === 0) {
-      return res.status(404).json({ error: 'Aucune étape trouvée pour cet utilisateur' });
-    }
-    res.json({ data: steps });
+    // Retourner un tableau vide si aucun parcours sélectionné (comportement normal)
+    res.json({ success: true, data: steps });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Récupérer les étapes d'un parcours spécifique pour un utilisateur
+exports.getStepsByPathId = async (req, res, next) => {
+  try {
+    const { userId, pathId } = req.params;
+    const steps = await stepService.getStepsByPathId(userId, pathId);
+    res.json({ success: true, data: steps });
   } catch (err) {
     next(err);
   }

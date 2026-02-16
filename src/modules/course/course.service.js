@@ -2,15 +2,57 @@ const { prisma } = require('../../config/prisma');
 
 // Récupérer tous les cours liés à un utilisateur (via userStepProgress -> step -> lesson)
 exports.getCoursesByUserId = async (userId) => {
-  return prisma.userStepProgress.findMany({
-    where: {
+  // 1. Trouver le parcours actuel de l'utilisateur
+  const userPathProgress = await prisma.userPathProgress.findFirst({
+    where: { 
       userId,
-      step: { stepType: 'lesson' }
+      status: { in: ['unlocked', 'started'] }  // Parcours actif
     },
+    orderBy: { lastAccessedAt: 'desc' }
+  });
+
+  if (!userPathProgress) {
+    return [];  // Aucun parcours actif
+  }
+
+  // 2. Récupérer TOUTES les étapes de type 'lesson' du parcours avec leur progression
+  const steps = await prisma.step.findMany({
+    where: { 
+      pathId: userPathProgress.pathId,
+      stepType: 'lesson'
+    },
+    orderBy: { index: 'asc' },
     include: {
-      step: { include: { lesson: true } }
+      lesson: true,
+      userProgress: {
+        where: { userId }  // Progression si elle existe
+      }
     }
   });
+
+  // 3. Formater la réponse avec le statut
+  return steps.map(step => ({
+    id: step.lesson?.id,
+    title: step.lesson?.title,
+    content: step.lesson?.content,
+    videoUrl: step.lesson?.videoUrl,
+    duration: step.lesson?.duration,
+    
+    // Info de l'étape
+    stepId: step.id,
+    stepTitle: step.title,
+    stepIndex: step.index,
+    estimatedMinutes: step.estimatedMinutes,
+    
+    // Progression (peut être null si jamais touché)
+    progress: step.userProgress[0] || null,
+    
+    // Statut calculé
+    status: step.userProgress[0]?.status || 'locked',
+    progressValue: step.userProgress[0]?.progress || 0,
+    score: step.userProgress[0]?.score || null,
+    completedAt: step.userProgress[0]?.completedAt || null
+  })).filter(course => course.id);  // Filtrer les steps sans lesson
 };
 
 const getLessonStepId = async (courseId) => {
@@ -19,20 +61,6 @@ const getLessonStepId = async (courseId) => {
     throw new Error('Cours non trouvé');
   }
   return lesson.stepId;
-};
-
-// Progression utilisateur pour Course (via Step)
-exports.selectCourseForUser = async (userId, courseId) => {
-  const stepId = await getLessonStepId(courseId);
-  let progress = await prisma.userStepProgress.findUnique({
-    where: { userId_stepId: { userId, stepId } }
-  });
-  if (!progress) {
-    progress = await prisma.userStepProgress.create({
-      data: { userId, stepId, status: 'locked' }
-    });
-  }
-  return progress;
 };
 
 exports.startCourseForUser = async (userId, courseId) => {

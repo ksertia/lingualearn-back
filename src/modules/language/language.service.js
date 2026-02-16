@@ -1,18 +1,61 @@
 // Récupérer toutes les langues liées à un utilisateur (via userLanguageProgress)
 exports.getLanguagesByUserId = async (userId) => {
-       return await prisma.userLanguageProgress.findMany({
-	       where: { userId },
-	       include: { language: true }
-       });
+	// Récupérer TOUTES les langues actives avec leur progression
+	const languages = await prisma.language.findMany({
+		where: { isActive: true },
+		orderBy: { createdAt: 'asc' },
+		include: {
+			userProgress: {
+				where: { userId }  // Progression si elle existe
+			}
+		}
+	});
+
+	// Formater la réponse avec le statut
+	return languages.map(language => ({
+		id: language.id,
+		name: language.name,
+		code: language.code,
+		flagUrl: language.flagUrl,
+		description: language.description,
+		isActive: language.isActive,
+		
+		// Progression (peut être null si jamais touché)
+		progress: language.userProgress[0] || null,
+		
+		// Statut calculé
+		status: language.userProgress[0]?.status || 'not_started',
+		overallProgress: language.userProgress[0]?.overallProgress || 0,
+		totalXp: language.userProgress[0]?.totalXp || 0,
+		totalTimeMinutes: language.userProgress[0]?.totalTimeMinutes || 0,
+		startedAt: language.userProgress[0]?.startedAt || null,
+		completedAt: language.userProgress[0]?.completedAt || null,
+		lastAccessedAt: language.userProgress[0]?.lastAccessedAt || null
+	}));
 };
 
 // Progression utilisateur pour Language
 exports.selectLanguageForUser = async (userId, languageId) => {
-       let progress = await prisma.userLanguageProgress.findUnique({ where: { userId_languageId: { userId, languageId } } });
-       if (!progress) {
-	       progress = await prisma.userLanguageProgress.create({ data: { userId, languageId, status: 'not_started' } });
-       }
-       return progress;
+	let progress = await prisma.userLanguageProgress.findUnique({ where: { userId_languageId: { userId, languageId } } });
+	if (!progress) {
+		// Créer et démarrer automatiquement la langue
+		progress = await prisma.userLanguageProgress.create({ 
+			data: { 
+				userId, 
+				languageId, 
+				status: 'started',  // Démarré automatiquement
+				startedAt: new Date(),
+				lastAccessedAt: new Date()
+			} 
+		});
+	} else {
+		// Mettre à jour lastAccessedAt si déjà sélectionné
+		progress = await prisma.userLanguageProgress.update({
+			where: { userId_languageId: { userId, languageId } },
+			data: { lastAccessedAt: new Date() }
+		});
+	}
+	return progress;
 };
 
 exports.startLanguageForUser = async (userId, languageId) => {
@@ -55,11 +98,16 @@ exports.create = async (data) => {
 	return await prisma.language.create({ data: { ...data, index } });
 };
 
-exports.getAll = async () => {
+exports.getAll = async (includeInactive = false) => {
+	const where = includeInactive ? {} : { isActive: true };
 	return await prisma.language.findMany({
+		where,
 		orderBy: { index: 'asc' },
 		include: {
-			levels: true
+			levels: {
+				where: { isActive: true },
+				orderBy: { index: 'asc' }
+			}
 		}
 	});
 };
@@ -339,4 +387,82 @@ exports.remove = async (id) => {
 	if (!language) return null;
 	await prisma.language.delete({ where: { id } });
 	return true;
+};
+
+// Activer une langue
+exports.activateLanguage = async (id) => {
+	const language = await prisma.language.findUnique({ where: { id } });
+	if (!language) {
+		throw new Error('Langue introuvable');
+	}
+	return await prisma.language.update({
+		where: { id },
+		data: { isActive: true }
+	});
+};
+
+// Désactiver une langue
+exports.deactivateLanguage = async (id) => {
+	const language = await prisma.language.findUnique({ where: { id } });
+	if (!language) {
+		throw new Error('Langue introuvable');
+	}
+	return await prisma.language.update({
+		where: { id },
+		data: { isActive: false }
+	});
+};
+
+// Récupérer toutes les langues actives
+exports.getActiveLanguages = async () => {
+	return await prisma.language.findMany({
+		where: { isActive: true },
+		orderBy: { index: 'asc' },
+		include: {
+			levels: {
+				where: { isActive: true },
+				orderBy: { index: 'asc' }
+			}
+		}
+	});
+};
+
+// Récupérer les niveaux disponibles pour une langue
+exports.getAvailableLevels = async (languageId) => {
+	const language = await prisma.language.findUnique({ 
+		where: { id: languageId },
+		include: {
+			levels: {
+				where: { isActive: true },
+				orderBy: { index: 'asc' },
+				select: {
+					id: true,
+					code: true,
+					name: true,
+					description: true,
+					index: true,
+					isActive: true,
+					_count: {
+						select: {
+							modules: true
+						}
+					}
+				}
+			}
+		}
+	});
+	
+	if (!language) {
+		throw new Error('Langue introuvable');
+	}
+	
+	return {
+		language: {
+			id: language.id,
+			code: language.code,
+			name: language.name,
+			isActive: language.isActive
+		},
+		levels: language.levels
+	};
 };

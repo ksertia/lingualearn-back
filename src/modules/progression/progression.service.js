@@ -5,6 +5,10 @@ const { prisma } = require('../../config/prisma');
  * Logique séquentielle stricte : Chaque élément doit être terminé pour débloquer le suivant
  */
 class ProgressionUnlockService {
+
+  constructor() {
+    this.prisma = prisma;
+  }
   
   /**
    * États de progression valides
@@ -21,15 +25,16 @@ class ProgressionUnlockService {
    * Types d'éléments
    */
   static ELEMENT_TYPES = {
-    LANGUAGE: 'language',
-    LEVEL: 'level',
-    MODULE: 'module',
-    PATH: 'path',
-    STEP: 'step',
-    COURSE: 'course',
-    EXERCISE: 'exercise',
-    QUIZ: 'quiz'
-  };
+  LANGUAGE: 'language',
+  LEVEL: 'level',
+  MODULE: 'module',
+  PATH: 'path',
+  STEP: 'step',
+  LESSON: 'lesson',      
+  EXERCISE: 'exercise',
+  QUIZ: 'quiz',
+  PATH_QUIZ: 'path_quiz' 
+};
 
   /**
    * Initialise la progression pour un utilisateur sur une langue
@@ -110,66 +115,74 @@ class ProgressionUnlockService {
   }
 
   /**
-   * Débloque une étape et son contenu (courses, exercises, quiz)
-   */
-  async unlockStepWithContent(userId, stepId) {
-    // Débloquer l'étape
-    await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.STEP, stepId);
+ * Débloque une étape et son contenu (lessons, exercises, quiz)
+ */
+async unlockStepWithContent(userId, stepId) {
+  // Débloquer l'étape
+  await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.STEP, stepId);
 
-    // Débloquer tous les courses, exercises et quiz de cette étape en parallèle
-    const [courses, exercises, quizzes] = await Promise.all([
-      this.prisma.course.findMany({ where: { stepId, isActive: true }, orderBy: { order: 'asc' } }),
-      this.prisma.exercise.findMany({ where: { stepId, isActive: true }, orderBy: { order: 'asc' } }),
-      this.prisma.stepQuiz.findMany({ where: { stepId, isActive: true }, orderBy: { order: 'asc' } })
-    ]);
+  // Récupérer les différents types de contenu de cette étape
+  const [lesson, exercises, quiz] = await Promise.all([
+    this.prisma.lesson.findFirst({ 
+      where: { stepId }, 
+      orderBy: { index: 'asc' } 
+    }),
+    this.prisma.exercise.findMany({ 
+      where: { stepId}, 
+      orderBy: { index: 'asc' } 
+    }),
+    this.prisma.quiz.findFirst({ 
+      where: { stepId }, 
+      orderBy: { index: 'asc' } 
+    })
+  ]);
 
-    // Débloquer le premier élément de chaque type
-    const unlockPromises = [];
-    if (courses.length > 0) {
-      unlockPromises.push(this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.COURSE, courses[0].id));
-    }
-    if (exercises.length > 0) {
-      unlockPromises.push(this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.EXERCISE, exercises[0].id));
-    }
-    if (quizzes.length > 0) {
-      unlockPromises.push(this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.QUIZ, quizzes[0].id));
-    }
-
-    await Promise.all(unlockPromises);
-
-    return await this.getUserProgress(userId, ProgressionUnlockService.ELEMENT_TYPES.STEP, stepId);
+  // Débloquer le premier élément de chaque type trouvé
+  const unlockPromises = [];
+  
+  // Pour une leçon (il n'y en a qu'une par étape d'après votre schéma)
+  if (lesson) {
+    // Si vous avez un modèle pour la progression des leçons, débloquez-le
+    // Sinon, vous pouvez ignorer car les leçons n'ont pas de progression
+    console.log(`Leçon trouvée pour l'étape ${stepId}: ${lesson.title}`);
   }
+  
+  // Débloquer le premier exercice
+  if (exercises.length > 0) {
+    unlockPromises.push(this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.EXERCISE, exercises[0].id));
+  }
+  
+  // Débloquer le premier quiz
+  if (quiz) {
+    unlockPromises.push(this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.QUIZ, quiz.id));
+  }
+
+  await Promise.all(unlockPromises);
+
+  return await this.getUserProgress(userId, ProgressionUnlockService.ELEMENT_TYPES.STEP, stepId);
+}
 
   /**
-   * Complète un course et débloque le suivant ou l'exercise
-   */
-  async completeCourseAndUnlockNext(userId, courseId) {
-    try {
-      await this.validateUser(userId);
-      const course = await this.prisma.course.findUnique({ where: { id: courseId } });
-      if (!course) throw new Error('Course non trouvé');
+ * Complète une leçon (lesson) et débloque l'exercise suivant
+ */
+async completeCourseAndUnlockNext(userId, lessonId) {
+  try {
+    await this.validateUser(userId);
+    const lesson = await this.prisma.lesson.findUnique({ 
+      where: { id: lessonId },
+      include: { step: true }
+    });
+    if (!lesson) throw new Error('Leçon non trouvée');
 
-      // Marquer le course comme complété
-      await this.completeElement(userId, ProgressionUnlockService.ELEMENT_TYPES.COURSE, courseId);
+    // Marquer la leçon comme complétée (si vous avez un modèle pour ça)
+    // Sinon, passez directement aux exercices
+    await this.unlockNextContentType(userId, lesson.stepId, 'exercise');
 
-      // Récupérer le course suivant
-      const nextCourse = await this.prisma.course.findFirst({
-        where: { stepId: course.stepId, order: { gt: course.order }, isActive: true },
-        orderBy: { order: 'asc' }
-      });
-
-      if (nextCourse) {
-        await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.COURSE, nextCourse.id);
-      } else {
-        // Tous les courses complétés, débloquer les exercises
-        await this.unlockNextContentType(userId, course.stepId, 'exercise');
-      }
-
-      return { success: true, message: 'Course complété avec succès' };
-    } catch (error) {
-      throw new Error(`Erreur lors de la complétion du course: ${error.message}`);
-    }
+    return { success: true, message: 'Leçon complétée avec succès' };
+  } catch (error) {
+    throw new Error(`Erreur lors de la complétion de la leçon: ${error.message}`);
   }
+}
 
   /**
    * Complète un exercise et débloque le suivant ou le quiz
@@ -203,37 +216,30 @@ class ProgressionUnlockService {
   }
 
   /**
-   * Complète un quiz et débloque l'étape suivante
-   */
-  async completeQuizAndUnlockNext(userId, quizId, score = null) {
-    try {
-      await this.validateUser(userId);
-      const quiz = await this.prisma.stepQuiz.findUnique({ where: { id: quizId } });
-      if (!quiz) throw new Error('Quiz non trouvé');
+ * Complète un quiz et débloque l'étape suivante
+ */
+async completeQuizAndUnlockNext(userId, quizId, score = null) {
+  try {
+    await this.validateUser(userId);
+    const quiz = await this.prisma.quiz.findUnique({ 
+      where: { id: quizId },
+      include: { step: true }
+    });
+    if (!quiz) throw new Error('Quiz non trouvé');
 
-      // Marquer le quiz comme complété avec le score
-      await this.completeElement(userId, ProgressionUnlockService.ELEMENT_TYPES.QUIZ, quizId, {
-        score: score
-      });
+    // Marquer le quiz comme complété
+    await this.completeElement(userId, ProgressionUnlockService.ELEMENT_TYPES.QUIZ, quizId, {
+      score: score
+    });
 
-      // Récupérer le quiz suivant
-      const nextQuiz = await this.prisma.stepQuiz.findFirst({
-        where: { stepId: quiz.stepId, order: { gt: quiz.order }, isActive: true },
-        orderBy: { order: 'asc' }
-      });
+    // Tous les contenus de l'étape sont complétés, passer à l'étape suivante
+    await this.completeStepAndUnlockNext(userId, quiz.stepId);
 
-      if (nextQuiz) {
-        await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.QUIZ, nextQuiz.id);
-      } else {
-        // Tous les quiz complétés, marquer l'étape comme complétée
-        await this.completeStepAndUnlockNext(userId, quiz.stepId);
-      }
-
-      return { success: true, message: 'Quiz complété avec succès', score };
-    } catch (error) {
-      throw new Error(`Erreur lors de la complétion du quiz: ${error.message}`);
-    }
+    return { success: true, message: 'Quiz complété avec succès', score };
+  } catch (error) {
+    throw new Error(`Erreur lors de la complétion du quiz: ${error.message}`);
   }
+}
 
   /**
    * Débloque le prochain type de contenu dans une étape
@@ -315,11 +321,16 @@ class ProgressionUnlockService {
    * Gère la complétion d'un module
    */
   async handleModuleCompletion(userId, moduleId) {
+    // Vérifier que le module existe
+    const module = await this.prisma.module.findUnique({ where: { id: moduleId } });
+    if (!module) {
+      throw new Error(`Module avec l'ID ${moduleId} introuvable`);
+    }
+    
     // Marquer le module comme complété
     await this.completeElement(userId, ProgressionUnlockService.ELEMENT_TYPES.MODULE, moduleId);
 
     // Récupérer le module suivant dans le même niveau
-    const module = await this.prisma.module.findUnique({ where: { id: moduleId } });
     const nextModule = await this.getNextModule(module.levelId, module.index);
 
     if (nextModule) {
@@ -594,39 +605,46 @@ class ProgressionUnlockService {
 
     switch (elementType) {
       case ProgressionUnlockService.ELEMENT_TYPES.LEVEL:
-        return await this.prisma.userLevelProgress.update({
+        return await this.prisma.userLevelProgress.upsert({
           where: { userId_levelId: { userId, levelId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, levelId: elementId, ...updateData }
         });
       case ProgressionUnlockService.ELEMENT_TYPES.MODULE:
-        return await this.prisma.userModuleProgress.update({
+        return await this.prisma.userModuleProgress.upsert({
           where: { userId_moduleId: { userId, moduleId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, moduleId: elementId, ...updateData }
         });
       case ProgressionUnlockService.ELEMENT_TYPES.PATH:
-        return await this.prisma.userPathProgress.update({
+        return await this.prisma.userPathProgress.upsert({
           where: { userId_pathId: { userId, pathId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, pathId: elementId, ...updateData }
         });
       case ProgressionUnlockService.ELEMENT_TYPES.STEP:
-        return await this.prisma.userStepProgress.update({
+        return await this.prisma.userStepProgress.upsert({
           where: { userId_stepId: { userId, stepId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, stepId: elementId, ...updateData }
         });
       case ProgressionUnlockService.ELEMENT_TYPES.COURSE:
-        return await this.prisma.userCourseProgress.update({
+        return await this.prisma.userCourseProgress.upsert({
           where: { userId_courseId: { userId, courseId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, courseId: elementId, ...updateData }
         });
       case ProgressionUnlockService.ELEMENT_TYPES.EXERCISE:
-        return await this.prisma.userExerciseProgress.update({
+        return await this.prisma.userExerciseProgress.upsert({
           where: { userId_exerciseId: { userId, exerciseId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, exerciseId: elementId, ...updateData }
         });
       case ProgressionUnlockService.ELEMENT_TYPES.QUIZ:
-        return await this.prisma.userQuizProgress.update({
+        return await this.prisma.userQuizProgress.upsert({
           where: { userId_quizId: { userId, quizId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, quizId: elementId, ...updateData }
         });
     }
   }

@@ -637,28 +637,32 @@ class UserService {
                                                     userProgress: {
                                                         where: { userId }
                                                     },
-                                                    courses: {
-                                                        orderBy: { order: 'asc' },
-                                                        include: {
-                                                            userProgress: {
-                                                                where: { userId }
-                                                            }
+                                                    lesson: {
+                                                        select: {
+                                                            id: true,
+                                                            title: true,
+                                                            content: true,
+                                                            videoUrl: true
                                                         }
                                                     },
-                                                    exercises: {
-                                                        orderBy: { order: 'asc' },
-                                                        include: {
-                                                            userProgress: {
-                                                                where: { userId }
-                                                            }
+                                                    exercise: {
+                                                        select: {
+                                                            id: true,
+                                                            title: true,
+                                                            instructions: true,
+                                                            points: true,
+                                                            xpReward: true,
+                                                            coinReward: true
                                                         }
                                                     },
-                                                    quizzes: {
-                                                        orderBy: { order: 'asc' },
-                                                        include: {
-                                                            userProgress: {
-                                                                where: { userId }
-                                                            }
+                                                    quiz: {
+                                                        select: {
+                                                            id: true,
+                                                            title: true,
+                                                            passingScore: true,
+                                                            timeLimitMinutes: true,
+                                                            xpReward: true,
+                                                            coinReward: true
                                                         }
                                                     }
                                                 }
@@ -801,7 +805,7 @@ class UserService {
         let currentModule = null;
         let currentPath = null;
         let currentStep = null;
-        let currentCourse = null;
+        let currentLesson = null;
         let currentExercise = null;
         let currentQuiz = null;
 
@@ -815,7 +819,11 @@ class UserService {
         }
 
         if (!currentLevel && languageData.levels.length > 0) {
-            currentLevel = languageData.levels[0];
+            // Si aucun niveau débloqué, retourner le premier avec status 'blocked'
+            currentLevel = { 
+                ...languageData.levels[0], 
+                currentProgress: { status: 'blocked' } 
+            };
         }
 
         // Trouver le module actuel
@@ -828,7 +836,11 @@ class UserService {
                 }
             }
             if (!currentModule && currentLevel.modules.length > 0) {
-                currentModule = currentLevel.modules[0];
+                // Si aucun module débloqué, retourner le premier avec status 'blocked'
+                currentModule = { 
+                    ...currentLevel.modules[0], 
+                    currentProgress: { status: 'blocked' } 
+                };
             }
         }
 
@@ -842,7 +854,11 @@ class UserService {
                 }
             }
             if (!currentPath && currentModule.paths.length > 0) {
-                currentPath = currentModule.paths[0];
+                // Si aucun parcours débloqué, retourner le premier avec status 'blocked'
+                currentPath = { 
+                    ...currentModule.paths[0], 
+                    currentProgress: { status: 'blocked' } 
+                };
             }
         }
 
@@ -856,97 +872,74 @@ class UserService {
                 }
             }
             if (!currentStep && currentPath.steps.length > 0) {
-                currentStep = currentPath.steps[0];
+                // Si aucune étape débloquée, retourner la première avec status 'blocked'
+                currentStep = { 
+                    ...currentPath.steps[0], 
+                    currentProgress: { status: 'blocked' } 
+                };
             }
         }
 
-        // Trouver le course actuel
-        if (currentStep?.courses) {
-            for (const course of currentStep.courses) {
-                const progress = course.userProgress?.[0];
-                if (progress && (progress.status === 'started' || progress.status === 'unlocked')) {
-                    currentCourse = { ...course, currentProgress: progress };
-                    break;
-                }
-            }
-            if (!currentCourse && currentStep.courses.length > 0) {
-                currentCourse = currentStep.courses[0];
-            }
+        // Déterminer le contenu actuel selon le type de step
+        if (currentStep?.lesson) {
+            currentLesson = currentStep.lesson;
         }
-
-        // Trouver l'exercise actuel
-        if (currentStep?.exercises) {
-            for (const exercise of currentStep.exercises) {
-                const progress = exercise.userProgress?.[0];
-                if (progress && (progress.status === 'started' || progress.status === 'unlocked')) {
-                    currentExercise = { ...exercise, currentProgress: progress };
-                    break;
-                }
-            }
-            if (!currentExercise && currentStep.exercises.length > 0) {
-                currentExercise = currentStep.exercises[0];
-            }
+        
+        if (currentStep?.exercise) {
+            currentExercise = currentStep.exercise;
         }
-
-        // Trouver le quiz actuel
-        if (currentStep?.quizzes) {
-            for (const quiz of currentStep.quizzes) {
-                const progress = quiz.userProgress?.[0];
-                if (progress && (progress.status === 'started' || progress.status === 'unlocked')) {
-                    currentQuiz = { ...quiz, currentProgress: progress };
-                    break;
-                }
-            }
-            if (!currentQuiz && currentStep.quizzes.length > 0) {
-                currentQuiz = currentStep.quizzes[0];
-            }
+        
+        if (currentStep?.quiz) {
+            currentQuiz = currentStep.quiz;
         }
 
         return {
             currentLevel: currentLevel ? {
                 id: currentLevel.id,
-                name: currentLevel.name,
+                title: currentLevel.title,
                 index: currentLevel.index,
-                status: currentLevel.currentProgress?.status || 'locked'
+                status: currentLevel.currentProgress?.status || 'blocked'
             } : null,
             currentModule: currentModule ? {
                 id: currentModule.id,
-                name: currentModule.name,
+                title: currentModule.title,
                 index: currentModule.index,
-                status: currentModule.currentProgress?.status || 'locked'
+                status: currentModule.currentProgress?.status || 'blocked'
             } : null,
             currentPath: currentPath ? {
                 id: currentPath.id,
                 title: currentPath.title,
                 index: currentPath.index,
-                status: currentPath.currentProgress?.status || 'locked'
+                status: currentPath.currentProgress?.status || 'blocked'
             } : null,
             currentStep: currentStep ? {
                 id: currentStep.id,
-                name: currentStep.name,
+                title: currentStep.title,
                 index: currentStep.index,
-                type: currentStep.type,
-                status: currentStep.currentProgress?.status || 'locked'
+                stepType: currentStep.stepType,
+                status: currentStep.currentProgress?.status || 'blocked'
             } : null,
-            currentCourse: currentCourse ? {
-                id: currentCourse.id,
-                title: currentCourse.title,
-                order: currentCourse.order,
-                status: currentCourse.currentProgress?.status || 'locked'
+            currentLesson: currentLesson ? {
+                id: currentLesson.id,
+                title: currentLesson.title,
+                content: currentLesson.content,
+                videoUrl: currentLesson.videoUrl
             } : null,
             currentExercise: currentExercise ? {
                 id: currentExercise.id,
                 title: currentExercise.title,
-                type: currentExercise.type,
-                order: currentExercise.order,
-                status: currentExercise.currentProgress?.status || 'locked'
+                instructions: currentExercise.instructions,
+                points: currentExercise.points,
+                xpReward: currentExercise.xpReward,
+                coinReward: currentExercise.coinReward
             } : null,
             currentQuiz: currentQuiz ? {
                 id: currentQuiz.id,
                 title: currentQuiz.title,
-                order: currentQuiz.order,
-                status: currentQuiz.currentProgress?.status || 'locked',
-                lastScore: currentQuiz.currentProgress?.score || null
+                passingScore: currentQuiz.passingScore,
+                timeLimitMinutes: currentQuiz.timeLimitMinutes,
+                xpReward: currentQuiz.xpReward,
+                coinReward: currentQuiz.coinReward
             } : null
         };
     }

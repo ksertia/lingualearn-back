@@ -1,6 +1,6 @@
 const { z } = require('zod');
 
-// Registration schema
+// Registration schema - AJOUT DU CHAMP "createdBy"
 const registerSchema = z.object({
     firstName: z.string().min(1, 'First name is required'),
     lastName: z.string().min(1, 'Last name is required'),
@@ -17,11 +17,12 @@ const registerSchema = z.object({
         .regex(/^[a-zA-Z0-9_.]+$/, 'Username can only contain letters, numbers, dots and underscores')
         .optional()
         .nullable(),
-    accountType: z.enum(['admin', 'learner', 'sub_account_learner', 'plateform_manager','teacher']),
+    accountType: z.enum(['admin', 'learner', 'sub_account_learner', 'platform_manager', 'teacher']), // CORRIGÉ: plateform_manager → platform_manager
     parentId: z.preprocess(
         val => (val === 'null' ? null : val),
         z.string().optional().nullable()
-    ) // For child accounts
+    ),
+    createdBy: z.string().optional().nullable() // AJOUTÉ: pour savoir qui a créé l'utilisateur
 }).refine(data => data.email || data.phone, {
     message: 'Either email or phone must be provided',
     path: ['email']

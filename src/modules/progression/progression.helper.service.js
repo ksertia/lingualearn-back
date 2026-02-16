@@ -12,44 +12,58 @@ class ProgressionHelperService {
    * avec tous les niveaux, modules, parcours et étapes structurés
    */
   async getCompleteUserProgression(userId, languageId) {
-    try {
-      // Validation
-      await this.validateUser(userId);
-      const language = await this.validateLanguage(languageId);
+  try {
+    // Validation
+    await this.validateUser(userId);
+    const language = await this.validateLanguage(languageId);
 
-      const languageProgress = await prisma.userLanguageProgress.findUnique({
-        where: { userId_languageId: { userId, languageId } },
-        include: {
-          language: true,
-          levelProgress: {
-            include: {
-              level: {
-                include: {
-                  modules: {
-                    where: { isActive: true },
-                    orderBy: { index: 'asc' },
-                    include: {
-                      userProgress: {
-                        where: { userId }
-                      },
-                      paths: {
-                        where: { isActive: true },
-                        orderBy: { index: 'asc' },
-                        include: {
-                          userProgress: {
-                            where: { userId }
-                          },
-                          steps: {
-                            where: { isActive: true },
-                            orderBy: { index: 'asc' },
-                            include: {
-                              userProgress: {
-                                where: { userId }
-                              }
-                            }
-                          }
-                        }
-                      }
+    // Récupérer la progression de la langue
+    const languageProgress = await prisma.userLanguageProgress.findUnique({
+      where: { userId_languageId: { userId, languageId } },
+      include: {
+        language: true
+      }
+    });
+
+    if (!languageProgress) {
+      return null;
+    }
+
+    // Récupérer tous les niveaux de cette langue avec leurs progressions
+    const levels = await prisma.level.findMany({
+      where: { 
+        languageId,
+        isActive: true 
+      },
+      orderBy: { index: 'asc' },
+      include: {
+        // Progression de l'utilisateur pour ce niveau
+        userProgress: {
+          where: { userId }
+        },
+        modules: {
+          where: { isActive: true },
+          orderBy: { index: 'asc' },
+          include: {
+            // Progression de l'utilisateur pour ce module
+            userProgress: {
+              where: { userId }
+            },
+            paths: {
+              where: { isActive: true },
+              orderBy: { index: 'asc' },
+              include: {
+                // Progression de l'utilisateur pour ce parcours
+                userProgress: {
+                  where: { userId }
+                },
+                steps: {
+                  where: { isActive: true },
+                  orderBy: { index: 'asc' },
+                  include: {
+                    // Progression de l'utilisateur pour cette étape
+                    userProgress: {
+                      where: { userId }
                     }
                   }
                 }
@@ -57,30 +71,19 @@ class ProgressionHelperService {
             }
           }
         }
-      });
-
-      if (!languageProgress) {
-        return null;
       }
+    });
 
-      return this.structureProgressionData(userId, languageProgress);
-    } catch (error) {
-      throw new Error(`Erreur lors de la récupération de la progression: ${error.message}`);
-    }
-  }
-
-  /**
-   * Structure les données de progression pour une meilleure lisibilité
-   */
-  structureProgressionData(userId, languageProgress) {
-    return {
+    // Construire l'objet de progression complet
+    const completeProgression = {
       user: userId,
       language: {
         id: languageProgress.language.id,
         code: languageProgress.language.code,
         name: languageProgress.language.name,
         description: languageProgress.language.description,
-        iconUrl: languageProgress.language.iconUrl
+        iconUrl: languageProgress.language.iconUrl,
+        flagUrl: languageProgress.language.flagUrl
       },
       overallProgress: {
         id: languageProgress.id,
@@ -92,24 +95,24 @@ class ProgressionHelperService {
         completedAt: languageProgress.completedAt,
         lastAccessedAt: languageProgress.lastAccessedAt
       },
-      levels: languageProgress.levelProgress.map(levelProgress => ({
-        id: levelProgress.level.id,
-        code: levelProgress.level.code,
-        name: levelProgress.level.name,
-        description: levelProgress.level.description,
-        index: levelProgress.level.index,
-        userProgress: {
-          id: levelProgress.id,
-          status: levelProgress.status,
-          progressPercentage: levelProgress.progressPercentage,
-          totalXp: levelProgress.totalXp,
-          timeSpentMinutes: levelProgress.timeSpentMinutes,
-          unlockedAt: levelProgress.unlockedAt,
-          startedAt: levelProgress.startedAt,
-          completedAt: levelProgress.completedAt,
-          lastAccessedAt: levelProgress.lastAccessedAt
-        },
-        modules: levelProgress.level.modules.map(module => ({
+      levels: levels.map(level => ({
+        id: level.id,
+        code: level.code,
+        name: level.name,
+        description: level.description,
+        index: level.index,
+        userProgress: level.userProgress[0] ? {
+          id: level.userProgress[0].id,
+          status: level.userProgress[0].status,
+          progressPercentage: level.userProgress[0].progressPercentage,
+          totalXp: level.userProgress[0].totalXp,
+          timeSpentMinutes: level.userProgress[0].timeSpentMinutes,
+          unlockedAt: level.userProgress[0].unlockedAt,
+          startedAt: level.userProgress[0].startedAt,
+          completedAt: level.userProgress[0].completedAt,
+          lastAccessedAt: level.userProgress[0].lastAccessedAt
+        } : null,
+        modules: level.modules.map(module => ({
           id: module.id,
           title: module.title,
           description: module.description,
@@ -159,14 +162,23 @@ class ProgressionHelperService {
                 status: step.userProgress[0].status,
                 progress: step.userProgress[0].progress,
                 score: step.userProgress[0].score,
-                completedAt: step.userProgress[0].completedAt
+                completedAt: step.userProgress[0].completedAt,
+                startedAt: step.userProgress[0].startedAt,
+                timeSpentMinutes: step.userProgress[0].timeSpentMinutes,
+                totalXp: step.userProgress[0].totalXp
               } : null
             }))
           }))
         }))
       }))
     };
+
+    return completeProgression;
+  } catch (error) {
+    console.error('Erreur détaillée:', error);
+    throw new Error(`Erreur lors de la récupération de la progression: ${error.message}`);
   }
+}
 
   /**
    * Calcule les statistiques de progression d'un utilisateur
