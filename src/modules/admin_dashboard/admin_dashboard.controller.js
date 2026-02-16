@@ -80,6 +80,76 @@ const getDashboard = async (req, res) => {
 
 };
 
+// Total utilisateurs
+const getTotalUsers = async (req, res) => {
+  try {
+    const { error, value } = dashboardFilterSchema.validate(req.query);
+    if (error) {
+      return res.status(400).json({ success: false, message: error.details[0].message });
+    }
+    const total = await service.getTotalUsers(value); // ← value avec types convertis
+    res.status(200).json({ success: true, data: { total } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Total parcours – pas de filtres, pas besoin de validation
+const getTotalLearningPaths = async (req, res) => {
+  try {
+    const total = await service.getTotalLearningPaths();
+    res.status(200).json({ success: true, data: { total } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Total étapes
+const getTotalSteps = async (req, res) => {
+  try {
+    const total = await service.getTotalSteps();
+    res.status(200).json({ success: true, data: { total } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Total leçons
+const getTotalLessons = async (req, res) => {
+  try {
+    const total = await service.getTotalLessons();
+    res.status(200).json({ success: true, data: { total } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Total quiz
+const getTotalQuizzes = async (req, res) => {
+  try {
+    const total = await service.getTotalStepQuizzes();
+    res.status(200).json({ success: true, data: { total } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Total niveaux (optionnel)
+const getTotalLevels = async (req, res) => {
+  try {
+    const total = await service.getTotalLevels();
+    res.status(200).json({ success: true, data: { total } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   getDashboard,
+  getTotalUsers,
+  getTotalLearningPaths,
+  getTotalSteps,
+  getTotalLessons,
+  getTotalQuizzes,
+  getTotalLevels
 };

@@ -173,29 +173,6 @@ router.get('/api/v1/users/:userId/steps', controller.getByUserId);
 
 /**
  * @swagger
- * /api/v1/users/{userId}/steps/{stepId}/select:
- *   post:
- *     summary: Sélectionner une étape pour un utilisateur
- *     tags: [Steps]
- *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
- *         schema:
- *           type: string
- *       - in: path
- *         name: stepId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       201:
- *         description: Progression créée ou existante
- */
-router.post('/api/v1/users/:userId/steps/:stepId/select', controller.selectStep);
-
-/**
- * @swagger
  * /api/v1/users/{userId}/steps/{stepId}/start:
  *   post:
  *     summary: Démarrer une étape pour un utilisateur
@@ -239,5 +216,75 @@ router.post('/api/v1/users/:userId/steps/:stepId/start', controller.startStep);
  *         description: Progression mise à jour
  */
 router.post('/api/v1/users/:userId/steps/:stepId/complete', controller.completeStep);
+
+/**
+ * @swagger
+ * /api/v1/users/{userId}/paths/{pathId}/steps:
+ *   get:
+ *     summary: Récupérer les étapes d'un parcours spécifique pour un utilisateur
+ *     tags: [Steps]
+ *     description: Permet de récupérer toutes les étapes d'un parcours spécifique avec la progression de l'utilisateur, même si ce n'est pas le parcours actif
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de l'utilisateur
+ *       - in: path
+ *         name: pathId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du parcours dont on veut récupérer les étapes
+ *     responses:
+ *       200:
+ *         description: Liste des étapes du parcours avec leur progression
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       title:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ *                       index:
+ *                         type: integer
+ *                       pathId:
+ *                         type: string
+ *                       stepType:
+ *                         type: string
+ *                         enum: [lesson, exercise, quiz]
+ *                       status:
+ *                         type: string
+ *                         enum: [locked, unlocked, started, completed]
+ *                       progressValue:
+ *                         type: integer
+ *                       lesson:
+ *                         type: object
+ *                         nullable: true
+ *                       exercise:
+ *                         type: object
+ *                         nullable: true
+ *                       quiz:
+ *                         type: object
+ *                         nullable: true
+ *                       completedAt:
+ *                         type: string
+ *                         format: date-time
+ *                         nullable: true
+ */
+router.get('/api/v1/users/:userId/paths/:pathId/steps', controller.getStepsByPathId);
 
 module.exports = router;

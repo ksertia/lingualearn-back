@@ -1,3 +1,4 @@
+
 // Progression endpoints
 exports.selectLanguage = async (req, res, next) => {
        try {
@@ -154,3 +155,42 @@ exports.remove = async (req, res, next) => {
 	}
 };
 
+// Activer une langue
+exports.activateLanguage = async (req, res, next) => {
+	try {
+		const language = await service.activateLanguage(req.params.id);
+		res.json({ success: true, message: 'Langue activée avec succès', data: language });
+	} catch (err) {
+		next(err);
+	}
+};
+
+// Désactiver une langue
+exports.deactivateLanguage = async (req, res, next) => {
+	try {
+		const language = await service.deactivateLanguage(req.params.id);
+		res.json({ success: true, message: 'Langue désactivée avec succès', data: language });
+	} catch (err) {
+		next(err);
+	}
+};
+
+// Récupérer toutes les langues actives
+exports.getActiveLanguages = async (req, res, next) => {
+	try {
+		const languages = await service.getActiveLanguages();
+		res.json({ success: true, data: languages });
+	} catch (err) {
+		next(err);
+	}
+};
+
+// Récupérer les niveaux disponibles pour une langue
+exports.getAvailableLevels = async (req, res, next) => {
+	try {
+		const result = await service.getAvailableLevels(req.params.id);
+		res.json({ success: true, data: result });
+	} catch (err) {
+		next(err);
+	}
+};

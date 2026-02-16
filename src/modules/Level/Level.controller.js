@@ -1,10 +1,8 @@
 async function getByUserId(req, res, next) {
 	try {
 		const levels = await service.getLevelsByUserId(req.params.userId);
-		if (!levels || levels.length === 0) {
-			return res.status(404).json({ error: 'Aucun niveau trouvé pour cet utilisateur' });
-		}
-		res.json({ data: levels });
+		// Retourner un tableau vide si aucune langue sélectionnée (comportement normal)
+		res.json({ success: true, data: levels });
 	} catch (err) {
 		next(err);
 	}
@@ -104,6 +102,36 @@ exports.completeLevel = async (req, res, next) => {
        }
 };
 
+// Activer un niveau
+async function activateLevel(req, res, next) {
+  try {
+    const { id } = req.params; // ID du niveau
+    const level = await service.activateLevel(id);
+    res.json({
+      success: true,
+      message: 'Niveau activé avec succès',
+      data: level
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Désactiver un niveau
+async function deactivateLevel(req, res, next) {
+  try {
+    const { id } = req.params; // ID du niveau
+    const level = await service.deactivateLevel(id);
+    res.json({
+      success: true,
+      message: 'Niveau désactivé avec succès',
+      data: level
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
 	create,
 	getAll,
@@ -113,5 +141,7 @@ module.exports = {
 	getByUserId,
 	selectLevel: exports.selectLevel,
 	startLevel: exports.startLevel,
-	completeLevel: exports.completeLevel
+	completeLevel: exports.completeLevel,
+	activateLevel,
+	deactivateLevel
 };

@@ -3,8 +3,7 @@ const express = require('express');
 const router = express.Router();
 const evaluationController = require('./evaluation.controller');
 const { v4: uuidv4 } = require('uuid');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { prisma } = require('../../config/prisma');
 
 
 /**

@@ -1,14 +1,4 @@
 // Progression endpoints
-exports.selectPath = async (req, res, next) => {
-       try {
-	       const { userId, pathId } = req.params;
-	       const progress = await service.selectPathForUser(userId, pathId);
-	       res.status(201).json({ success: true, data: progress });
-       } catch (err) {
-	       next(err);
-       }
-};
-
 exports.startPath = async (req, res, next) => {
        try {
 	       const { userId, pathId } = req.params;
@@ -20,31 +10,46 @@ exports.startPath = async (req, res, next) => {
 };
 
 exports.completePath = async (req, res, next) => {
-       try {
-	       const { userId, pathId } = req.params;
-	       const progress = await service.completePathForUser(userId, pathId);
-	       res.json({ success: true, data: progress });
-       } catch (err) {
-	       next(err);
-       }
+	try {
+		const { userId, pathId } = req.params;
+		const progress = await service.completePathWithAutoUnlock(userId, pathId);
+		res.json({ 
+			success: true, 
+			message: 'Parcours complété avec succès. Prochain parcours débloqué automatiquement.',
+			data: progress 
+		});
+	} catch (err) {
+		next(err);
+	}
 };
 
 const service = require('./learning.path.service');
 const { createLearningPathSchema, updateLearningPathSchema } = require('./learning.path.schema');
 
 async function getByUserId(req, res, next) {
-       try {
-	       const paths = await service.getPathsByUserId(req.params.userId);
-	       if (!paths || paths.length === 0) {
-		       return res.status(404).json({ error: 'Aucun parcours trouvé pour cet utilisateur' });
-	       }
-	       res.json({ data: paths });
-       } catch (err) {
-	       next(err);
-       }
+	try {
+		const paths = await service.getPathsByUserId(req.params.userId);
+		// Retourner un tableau vide si aucun module sélectionné (comportement normal)
+		res.json({ success: true, data: paths });
+	} catch (err) {
+		next(err);
+	}
 }
 
 module.exports.getByUserId = getByUserId;
+
+// Récupérer les parcours d'un module spécifique pour un utilisateur
+async function getPathsByModuleId(req, res, next) {
+	try {
+		const { userId, moduleId } = req.params;
+		const paths = await service.getPathsByModuleId(userId, moduleId);
+		res.json({ success: true, data: paths });
+	} catch (err) {
+		next(err);
+	}
+}
+
+module.exports.getPathsByModuleId = getPathsByModuleId;
 
 // Helper to pick only allowed fields for Path creation
 function pickPathFields(body) {
@@ -122,7 +127,7 @@ module.exports = {
 	update,
 	remove,
 	getByUserId,
-	selectPath: exports.selectPath,
+	getPathsByModuleId,
 	startPath: exports.startPath,
 	completePath: exports.completePath
 };

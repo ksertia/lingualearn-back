@@ -10,6 +10,10 @@ class ProgressionUnlockService {
     this.prisma = prisma; 
   }
   
+  constructor() {
+    this.prisma = prisma;
+  }
+  
   /**
    * États de progression valides
    */
@@ -29,7 +33,10 @@ class ProgressionUnlockService {
     LEVEL: 'level',
     MODULE: 'module',
     PATH: 'path',
-    STEP: 'step'
+    STEP: 'step',
+    COURSE: 'course',
+    EXERCISE: 'exercise',
+    QUIZ: 'quiz'
   };
 
   /**
@@ -95,7 +102,7 @@ class ProgressionUnlockService {
   }
 
   /**
-   * Débloque un parcours et sa première étape
+   * Débloque un parcours et sa première étape avec son contenu
    */
   async unlockPathWithChildren(userId, pathId) {
     // Débloquer le parcours
@@ -104,10 +111,159 @@ class ProgressionUnlockService {
     // Récupérer et débloquer la première étape
     const firstStep = await this.getFirstStep(pathId);
     if (firstStep) {
-      await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.STEP, firstStep.id);
+      await this.unlockStepWithContent(userId, firstStep.id);
     }
 
     return await this.getUserProgress(userId, ProgressionUnlockService.ELEMENT_TYPES.PATH, pathId);
+  }
+
+  /**
+   * Débloque une étape et son contenu (courses, exercises, quiz)
+   */
+  async unlockStepWithContent(userId, stepId) {
+    // Débloquer l'étape
+    await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.STEP, stepId);
+
+    // Débloquer tous les courses, exercises et quiz de cette étape en parallèle
+    const [courses, exercises, quizzes] = await Promise.all([
+      this.prisma.course.findMany({ where: { stepId, isActive: true }, orderBy: { order: 'asc' } }),
+      this.prisma.exercise.findMany({ where: { stepId, isActive: true }, orderBy: { order: 'asc' } }),
+      this.prisma.stepQuiz.findMany({ where: { stepId, isActive: true }, orderBy: { order: 'asc' } })
+    ]);
+
+    // Débloquer le premier élément de chaque type
+    const unlockPromises = [];
+    if (courses.length > 0) {
+      unlockPromises.push(this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.COURSE, courses[0].id));
+    }
+    if (exercises.length > 0) {
+      unlockPromises.push(this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.EXERCISE, exercises[0].id));
+    }
+    if (quizzes.length > 0) {
+      unlockPromises.push(this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.QUIZ, quizzes[0].id));
+    }
+
+    await Promise.all(unlockPromises);
+
+    return await this.getUserProgress(userId, ProgressionUnlockService.ELEMENT_TYPES.STEP, stepId);
+  }
+
+  /**
+   * Complète un course et débloque le suivant ou l'exercise
+   */
+  async completeCourseAndUnlockNext(userId, courseId) {
+    try {
+      await this.validateUser(userId);
+      const course = await this.prisma.course.findUnique({ where: { id: courseId } });
+      if (!course) throw new Error('Course non trouvé');
+
+      // Marquer le course comme complété
+      await this.completeElement(userId, ProgressionUnlockService.ELEMENT_TYPES.COURSE, courseId);
+
+      // Récupérer le course suivant
+      const nextCourse = await this.prisma.course.findFirst({
+        where: { stepId: course.stepId, order: { gt: course.order }, isActive: true },
+        orderBy: { order: 'asc' }
+      });
+
+      if (nextCourse) {
+        await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.COURSE, nextCourse.id);
+      } else {
+        // Tous les courses complétés, débloquer les exercises
+        await this.unlockNextContentType(userId, course.stepId, 'exercise');
+      }
+
+      return { success: true, message: 'Course complété avec succès' };
+    } catch (error) {
+      throw new Error(`Erreur lors de la complétion du course: ${error.message}`);
+    }
+  }
+
+  /**
+   * Complète un exercise et débloque le suivant ou le quiz
+   */
+  async completeExerciseAndUnlockNext(userId, exerciseId) {
+    try {
+      await this.validateUser(userId);
+      const exercise = await this.prisma.exercise.findUnique({ where: { id: exerciseId } });
+      if (!exercise) throw new Error('Exercise non trouvé');
+
+      // Marquer l'exercise comme complété
+      await this.completeElement(userId, ProgressionUnlockService.ELEMENT_TYPES.EXERCISE, exerciseId);
+
+      // Récupérer l'exercise suivant
+      const nextExercise = await this.prisma.exercise.findFirst({
+        where: { stepId: exercise.stepId, order: { gt: exercise.order }, isActive: true },
+        orderBy: { order: 'asc' }
+      });
+
+      if (nextExercise) {
+        await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.EXERCISE, nextExercise.id);
+      } else {
+        // Tous les exercises complétés, débloquer les quiz
+        await this.unlockNextContentType(userId, exercise.stepId, 'quiz');
+      }
+
+      return { success: true, message: 'Exercise complété avec succès' };
+    } catch (error) {
+      throw new Error(`Erreur lors de la complétion de l'exercise: ${error.message}`);
+    }
+  }
+
+  /**
+   * Complète un quiz et débloque l'étape suivante
+   */
+  async completeQuizAndUnlockNext(userId, quizId, score = null) {
+    try {
+      await this.validateUser(userId);
+      const quiz = await this.prisma.stepQuiz.findUnique({ where: { id: quizId } });
+      if (!quiz) throw new Error('Quiz non trouvé');
+
+      // Marquer le quiz comme complété avec le score
+      await this.completeElement(userId, ProgressionUnlockService.ELEMENT_TYPES.QUIZ, quizId, {
+        score: score
+      });
+
+      // Récupérer le quiz suivant
+      const nextQuiz = await this.prisma.stepQuiz.findFirst({
+        where: { stepId: quiz.stepId, order: { gt: quiz.order }, isActive: true },
+        orderBy: { order: 'asc' }
+      });
+
+      if (nextQuiz) {
+        await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.QUIZ, nextQuiz.id);
+      } else {
+        // Tous les quiz complétés, marquer l'étape comme complétée
+        await this.completeStepAndUnlockNext(userId, quiz.stepId);
+      }
+
+      return { success: true, message: 'Quiz complété avec succès', score };
+    } catch (error) {
+      throw new Error(`Erreur lors de la complétion du quiz: ${error.message}`);
+    }
+  }
+
+  /**
+   * Débloque le prochain type de contenu dans une étape
+   */
+  async unlockNextContentType(userId, stepId, contentType) {
+    if (contentType === 'exercise') {
+      const firstExercise = await this.prisma.exercise.findFirst({
+        where: { stepId, isActive: true },
+        orderBy: { order: 'asc' }
+      });
+      if (firstExercise) {
+        await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.EXERCISE, firstExercise.id);
+      }
+    } else if (contentType === 'quiz') {
+      const firstQuiz = await this.prisma.stepQuiz.findFirst({
+        where: { stepId, isActive: true },
+        orderBy: { order: 'asc' }
+      });
+      if (firstQuiz) {
+        await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.QUIZ, firstQuiz.id);
+      }
+    }
   }
 
   /**
@@ -130,8 +286,8 @@ class ProgressionUnlockService {
       const nextStep = await this.getNextStep(step.pathId, step.index);
       
       if (nextStep) {
-        // Débloquer l'étape suivante
-        await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.STEP, nextStep.id);
+        // Débloquer l'étape suivante avec son contenu
+        await this.unlockStepWithContent(userId, nextStep.id);
       } else {
         // C'était la dernière étape du parcours
         await this.handlePathCompletion(userId, step.pathId);
@@ -167,11 +323,16 @@ class ProgressionUnlockService {
    * Gère la complétion d'un module
    */
   async handleModuleCompletion(userId, moduleId) {
+    // Vérifier que le module existe
+    const module = await this.prisma.module.findUnique({ where: { id: moduleId } });
+    if (!module) {
+      throw new Error(`Module avec l'ID ${moduleId} introuvable`);
+    }
+    
     // Marquer le module comme complété
     await this.completeElement(userId, ProgressionUnlockService.ELEMENT_TYPES.MODULE, moduleId);
 
     // Récupérer le module suivant dans le même niveau
-    const module = await this.prisma.module.findUnique({ where: { id: moduleId } });
     const nextModule = await this.getNextModule(module.levelId, module.index);
 
     if (nextModule) {
@@ -406,6 +567,36 @@ class ProgressionUnlockService {
           });
         }
         break;
+      case ProgressionUnlockService.ELEMENT_TYPES.COURSE:
+        progress = await this.prisma.userCourseProgress.findUnique({
+          where: { userId_courseId: { userId, courseId: elementId } }
+        });
+        if (!progress) {
+          progress = await this.prisma.userCourseProgress.create({
+            data: { userId, courseId: elementId, status: ProgressionUnlockService.STATUS.LOCKED }
+          });
+        }
+        break;
+      case ProgressionUnlockService.ELEMENT_TYPES.EXERCISE:
+        progress = await this.prisma.userExerciseProgress.findUnique({
+          where: { userId_exerciseId: { userId, exerciseId: elementId } }
+        });
+        if (!progress) {
+          progress = await this.prisma.userExerciseProgress.create({
+            data: { userId, exerciseId: elementId, status: ProgressionUnlockService.STATUS.LOCKED }
+          });
+        }
+        break;
+      case ProgressionUnlockService.ELEMENT_TYPES.QUIZ:
+        progress = await this.prisma.userQuizProgress.findUnique({
+          where: { userId_quizId: { userId, quizId: elementId } }
+        });
+        if (!progress) {
+          progress = await this.prisma.userQuizProgress.create({
+            data: { userId, quizId: elementId, status: ProgressionUnlockService.STATUS.LOCKED }
+          });
+        }
+        break;
     }
 
     return progress;
@@ -416,24 +607,46 @@ class ProgressionUnlockService {
 
     switch (elementType) {
       case ProgressionUnlockService.ELEMENT_TYPES.LEVEL:
-        return await this.prisma.userLevelProgress.update({
+        return await this.prisma.userLevelProgress.upsert({
           where: { userId_levelId: { userId, levelId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, levelId: elementId, ...updateData }
         });
       case ProgressionUnlockService.ELEMENT_TYPES.MODULE:
-        return await this.prisma.userModuleProgress.update({
+        return await this.prisma.userModuleProgress.upsert({
           where: { userId_moduleId: { userId, moduleId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, moduleId: elementId, ...updateData }
         });
       case ProgressionUnlockService.ELEMENT_TYPES.PATH:
-        return await this.prisma.userPathProgress.update({
+        return await this.prisma.userPathProgress.upsert({
           where: { userId_pathId: { userId, pathId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, pathId: elementId, ...updateData }
         });
       case ProgressionUnlockService.ELEMENT_TYPES.STEP:
-        return await this.prisma.userStepProgress.update({
+        return await this.prisma.userStepProgress.upsert({
           where: { userId_stepId: { userId, stepId: elementId } },
-          data: updateData
+          update: updateData,
+          create: { userId, stepId: elementId, ...updateData }
+        });
+      case ProgressionUnlockService.ELEMENT_TYPES.COURSE:
+        return await this.prisma.userCourseProgress.upsert({
+          where: { userId_courseId: { userId, courseId: elementId } },
+          update: updateData,
+          create: { userId, courseId: elementId, ...updateData }
+        });
+      case ProgressionUnlockService.ELEMENT_TYPES.EXERCISE:
+        return await this.prisma.userExerciseProgress.upsert({
+          where: { userId_exerciseId: { userId, exerciseId: elementId } },
+          update: updateData,
+          create: { userId, exerciseId: elementId, ...updateData }
+        });
+      case ProgressionUnlockService.ELEMENT_TYPES.QUIZ:
+        return await this.prisma.userQuizProgress.upsert({
+          where: { userId_quizId: { userId, quizId: elementId } },
+          update: updateData,
+          create: { userId, quizId: elementId, ...updateData }
         });
     }
   }
