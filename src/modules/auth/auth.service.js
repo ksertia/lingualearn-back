@@ -264,7 +264,7 @@ class AuthService {
 
         // Envoyer l'email de réinitialisation
         if (user.email) {
-            const emailSent = await emailService.sendPasswordResetEmail(user.email, resetToken);
+            const emailSent = await emailService.sendPasswordResetEmail(user.email, resetCode);
             if (!emailSent) {
                 logger.error(`Password reset email failed for ${user.email}`);
                 throw new AppError(500, 'Erreur lors de l\'envoi de l\'email de réinitialisation. Contactez le support.');
