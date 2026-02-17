@@ -262,7 +262,7 @@ class UserService {
                         code: true,
                         name: true,
                         description: true,
-                        flagUrl: true,
+                        // flagUrl: true,
                         isActive: true
                     }
                 }
@@ -287,7 +287,7 @@ class UserService {
                         code: true,
                         name: true,
                         description: true,
-                        flagUrl: true,
+                        // flagUrl: true,
                         isActive: true,
                         levels: {
                             where: { isActive: true },
@@ -719,7 +719,7 @@ class UserService {
         if (data.isActive !== undefined) updateData.isActive = data.isActive;
         if (data.isVerified !== undefined) updateData.isVerified = data.isVerified;
         if (data.firstLogin !== undefined) updateData.firstLogin = data.firstLogin;
-        if (data.subscriptionPlan !== undefined) updateData.subscriptionPlan = data.subscriptionPlan;
+        // if (data.subscriptionPlan !== undefined) updateData.subscriptionPlan = data.subscriptionPlan;
         if (data.subscriptionEndsAt !== undefined) updateData.subscriptionEndsAt = data.subscriptionEndsAt;
         // Mettre à jour l'utilisateur
         const updatedUser = await prisma.user.update({
@@ -734,9 +734,9 @@ class UserService {
                 isVerified: true,
                 isActive: true,
                 firstLogin: true,
-                subscriptionPlan: true,
+                // subscriptionPlan: true,
                 subscriptionEndsAt: true,
-                updatedAt: true
+                // updatedAt: true
             }
         });
         return updatedUser;
