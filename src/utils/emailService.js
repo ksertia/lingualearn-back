@@ -118,23 +118,25 @@ class EmailService {
     /* =========================
        RESET PASSWORD
     ========================== */
-    async sendPasswordResetEmail(email, resetToken) {
-        const resetLink = `${appConfig.clientUrl}/reset-password?token=${resetToken}`;
-
+    async sendPasswordResetOTP(email, otp, expiresInMinutes = 10) {
+        // Crée un message HTML pour l'OTP
         const html = this.emailTemplate({
-            title: 'Password Reset Request',
+            title: 'Password Reset OTP',
             message: `
                 <p>You requested to reset your password.</p>
-                <p>Please click the button below to continue.</p>
+                <p>Your OTP code is: <strong>${otp}</strong></p>
+                <p>This code will expire in ${expiresInMinutes} minutes.</p>
             `,
-            buttonText: 'Reset Password',
-            buttonLink: resetLink,
+            buttonText: 'Go to Reset Page',
+            buttonLink: `${appConfig.clientUrl}/reset-password`,
             color: '#2563eb',
-            footerNote: 'This link will expire in 1 hour. If you did not request a password reset, please ignore this email.'
+            footerNote: 'If you did not request a password reset, please ignore this email.'
         });
 
-        return this.sendEmail(email, 'Password Reset Request', html);
+        // Envoie l'email
+        return this.sendEmail(email, 'Password Reset OTP', html);
     }
+
 
     /* =========================
        EMAIL VERIFICATION

@@ -7,7 +7,8 @@ const {
     resetPasswordSchema,
     verifySchema,
     changePasswordSchema,
-    refreshTokenSchema
+    refreshTokenSchema,
+    verifyOTPSchema
 } = require('./auth.schema');
 
 const authController = {
@@ -47,6 +48,19 @@ const authController = {
         const result = await authService.forgotPassword(validatedData.loginInfo);
         res.json(result);
     }),
+
+    // Nouveau controller pour verify-otp
+    verifyOTP: asyncHandler(async (req, res) => {
+    console.log("Body reçu:", req.body);
+    // Valider le body
+    const { loginInfo, otp } = verifyOTPSchema.parse(req.body);
+
+    // Appel du service avec le nom attendu
+    const result = await authService.verifyCode(loginInfo, otp); // otp devient inputOTP dans le service
+
+    res.json(result);
+    }),
+
     
     // Réinitialisation du mot de passe
     // resetPassword: asyncHandler(async (req, res) => {
@@ -56,28 +70,31 @@ const authController = {
     //     res.json(result);
     // }),
     resetPassword: asyncHandler(async (req, res) => {
-    try {
-        // Vérification du token dans les données de la requête
-        const validatedData = resetPasswordSchema.parse(req.body);
+        try {
+            // Valider le body avec le schéma
+            const { loginInfo, otp, password } = resetPasswordSchema.parse(req.body);
 
-        // Vérifie si le token est bien présent
-        if (!validatedData.token) {
-            return res.status(400).json({ error: "Token is required" });
+            console.log("Body reçu:", req.body); // Debug : vérifier loginInfo, otp et password
+
+            // Appel du service resetPassword avec loginInfo
+            const result = await authService.resetPassword(loginInfo, otp, password);
+
+            console.log("Résultat du reset de mot de passe:", result);
+
+            res.json(result); // Retourner la réponse au client
+        } catch (error) {
+            if (error instanceof z.ZodError) {
+                return res.status(400).json({ success: false, error: error.errors });
+            }
+            console.error("Erreur lors de la réinitialisation du mot de passe:", error);
+            res.status(error.status || 500).json({
+                success: false,
+                error: error.message || 'Internal Server Error'
+            });
         }
+    }),
 
-        console.log("Token reçu:", validatedData.token);  // Log du token reçu pour vérifier
 
-        // Appel du service pour réinitialiser le mot de passe
-        const result = await authService.resetPassword(validatedData);
-
-        console.log("Résultat du reset de mot de passe:", result);  // Log du résultat
-
-        res.json(result);  // Retourne le résultat à l'utilisateur
-    } catch (error) {
-        console.error("Erreur lors de la réinitialisation du mot de passe:", error);  // Log des erreurs
-        res.status(error.status || 500).json({ error: error.message || 'Internal Server Error' });
-    }
-   }),
 
     
     // Vérification du compte
