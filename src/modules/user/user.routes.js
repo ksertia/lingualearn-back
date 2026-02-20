@@ -55,6 +55,71 @@ router.get('/me', userController.getCurrentUser);
  */
 router.put('/me', userController.updateUser);
 
+
+/**
+ * @swagger
+ * /api/v1/users/profile-filters:
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Get users by profile filters
+ *     description: Retrieve users using advanced profile filters
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: country
+ *         schema:
+ *           type: string
+ *         description: Filter by country
+ *       - in: query
+ *         name: language
+ *         schema:
+ *           type: string
+ *         description: Filter by language
+ *       - in: query
+ *         name: level
+ *         schema:
+ *           type: string
+ *         description: Filter by language level (A1, A2, B1, B2, C1, C2)
+ *       - in: query
+ *         name: accountType
+ *         schema:
+ *           type: string
+ *         description: Filter by account type
+ *       - in: query
+ *         name: minAge
+ *         schema:
+ *           type: integer
+ *         description: Minimum age
+ *       - in: query
+ *         name: maxAge
+ *         schema:
+ *           type: integer
+ *         description: Maximum age
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by username or email
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Number of results per page
+ *     responses:
+ *       200:
+ *         description: Users retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/profile-filters', userController.getUsersByProfileFilters);
+
 /**
  * @swagger
  * /api/v1/users/me:

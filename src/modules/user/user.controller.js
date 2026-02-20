@@ -27,6 +27,29 @@ const userController = {
             data: result
         });
     }),
+
+    // Récupérer les utilisateurs selon des filtres de profil
+    getUsersByProfileFilters: asyncHandler(async (req, res) => {
+
+        const filters = {
+            country: req.query.country,
+            language: req.query.language,
+            level: req.query.level,
+            accountType: req.query.accountType,
+            minAge: req.query.minAge,
+            maxAge: req.query.maxAge,
+            page: req.query.page,
+            limit: req.query.limit,
+            search: req.query.search
+        };
+
+        const result = await userService.getUsersByProfileFilters(filters);
+
+        res.json({
+            success: true,
+            data: result
+        });
+    }),
     
     // Récupérer un utilisateur par ID
     getUserById: asyncHandler(async (req, res) => {

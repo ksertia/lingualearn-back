@@ -151,6 +151,7 @@ const router = express.Router();
  */
 router.post('/register', authController.register);
 
+
 /**
  * @swagger
  * /api/v1/auth/login:

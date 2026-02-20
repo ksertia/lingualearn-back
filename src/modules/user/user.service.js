@@ -136,6 +136,114 @@ class UserService {
             }
         };
     }
+
+    /**
+   * Filtre les utilisateurs via leur profil (relation 1-1 optionnelle)
+   * @param {Object} filters
+   */
+    async getUsersByProfileFilters(filters = {}) {
+        const {
+        page = 1,
+        limit = 20,
+
+        // filtres User (optionnels)
+        accountType,
+        isActive,
+        isVerified,
+        firstLogin,
+
+        // filtres Profile
+        firstName,
+        lastName,
+        displayName,
+        preferredLanguage,
+        timezone,
+
+        // search global (email/phone/username + displayName)
+        search,
+        } = filters;
+
+        const take = Number(limit);
+        const skip = (Number(page) - 1) * take;
+
+        const where = {};
+
+        // --- Filtres User ---
+        if (accountType) where.accountType = accountType;
+        if (isActive !== undefined) where.isActive = isActive;
+        if (isVerified !== undefined) where.isVerified = isVerified;
+        if (firstLogin !== undefined) where.firstLogin = firstLogin;
+
+        // --- Filtres Profile (1-1 => is) ---
+        const profileIs = {
+        ...(firstName && { firstName: { contains: firstName, mode: 'insensitive' } }),
+        ...(lastName && { lastName: { contains: lastName, mode: 'insensitive' } }),
+        ...(displayName && { displayName: { contains: displayName, mode: 'insensitive' } }),
+        ...(preferredLanguage && { preferredLanguage }),
+        ...(timezone && { timezone }),
+        };
+
+        if (Object.keys(profileIs).length > 0) {
+        where.profile = { is: profileIs };
+        // 👉 IMPORTANT: ça exclut automatiquement les users sans profile
+        // (car il faut que profile existe pour matcher)
+        }
+
+        // --- Search global (OR) ---
+        if (search) {
+        where.OR = [
+            { email: { contains: search, mode: 'insensitive' } },
+            { phone: { contains: search, mode: 'insensitive' } },
+            { username: { contains: search, mode: 'insensitive' } },
+            { profile: { is: { displayName: { contains: search, mode: 'insensitive' } } } },
+            { profile: { is: { firstName: { contains: search, mode: 'insensitive' } } } },
+            { profile: { is: { lastName: { contains: search, mode: 'insensitive' } } } },
+        ];
+        }
+
+        const [users, total] = await Promise.all([
+        prisma.user.findMany({
+            where,
+            skip,
+            take,
+            orderBy: { createdAt: 'desc' },
+            select: {
+            id: true,
+            email: true,
+            phone: true,
+            username: true,
+            accountType: true,
+            isActive: true,
+            isVerified: true,
+            firstLogin: true,
+            createdAt: true,
+            profile: {
+                select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                displayName: true,
+                birthDate: true,
+                avatarUrl: true,
+                timezone: true,
+                preferredLanguage: true,
+                },
+            },
+            },
+        }),
+        prisma.user.count({ where }),
+        ]);
+
+        return {
+        users,
+        pagination: {
+            page: Number(page),
+            limit: take,
+            total,
+            pages: Math.ceil(total / take),
+        },
+        };
+    }
     
     // Récupérer un utilisateur par ID
     async getUserById(id) {
