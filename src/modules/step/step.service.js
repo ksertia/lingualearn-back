@@ -2,12 +2,11 @@ const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
 
 // Récupérer toutes les étapes liées à un utilisateur (via userStepProgress)
-exports.getStepsByUserId = async (userId) => {
+exports.getStepsByUserId = async (userId, pathId) => {
   // 1. Trouver le parcours actuel de l'utilisateur
   const userPathProgress = await prisma.userPathProgress.findFirst({
     where: { 
-      userId,
-      status: { in: ['unlocked', 'started'] }  // Parcours actif
+      userId_pathId: { userId, pathId }
     },
     orderBy: { lastAccessedAt: 'desc' }
   });
