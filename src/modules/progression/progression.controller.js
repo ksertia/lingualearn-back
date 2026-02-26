@@ -162,7 +162,9 @@ exports.getUserProgression = async (req, res, next) => {
       });
     }
 
-    const progression = await progressionService.getUserProgression(
+    console.log('Recherche progression pour:', { userId: value.userId, languageId: value.languageId });
+
+    const progression = await progressionHelper.getCompleteUserProgression(
       value.userId,
       value.languageId
     );

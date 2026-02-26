@@ -151,6 +151,7 @@ const router = express.Router();
  */
 router.post('/register', authController.register);
 
+
 /**
  * @swagger
  * /api/v1/auth/login:
@@ -193,24 +194,105 @@ router.post('/forgot-password', authController.forgotPassword);
 
 /**
  * @swagger
- * /api/v1/auth/reset-password:
+ * /api/v1/auth/verify-otp:
  *   post:
+ *     summary: Verify OTP for password reset
  *     tags: [Authentication]
- *     summary: Reset password
- *     description: Reset user password with a valid reset token
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/ResetPassword'
+ *             type: object
+ *             properties:
+ *               loginInfo:
+ *                 type: string
+ *                 example: kagamaboubacar@gmail.com
+ *               otp:
+ *                 type: string
+ *                 example: 123456
+ *     responses:
+ *       200:
+ *         description: OTP verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: OTP verified successfully
+ *                 userId:
+ *                   type: string
+ *       400:
+ *         description: Invalid or expired OTP
+ */
+router.post('/verify-otp', authController.verifyOTP);
+
+/**
+ * @swagger
+ * /api/v1/auth/reset-password:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: Reset user password
+ *     description: Reset the password of a user using a valid OTP code
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - otp
+ *               - password
+ *             properties:
+ *               loginInfo:
+ *                 type: string
+ *                 format: email
+ *                 example: "kagamaboubacar@gmail.com"
+ *                 description: User's email address
+ *               otp:
+ *                 type: string
+ *                 example: "792604"
+ *                 description: OTP code sent to user's email or phone
+ *               password:
+ *                 type: string
+ *                 example: "NouveauMotDePasse123"
+ *                 description: New password to set
  *     responses:
  *       200:
  *         description: Password successfully reset
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Password reset successfully"
  *       400:
- *         description: Invalid or expired token
+ *         description: Invalid request or OTP expired
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                   example: "Invalid or expired code"
  */
 router.post('/reset-password', authController.resetPassword);
+
 
 /**
  * @swagger

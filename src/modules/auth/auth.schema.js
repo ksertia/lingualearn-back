@@ -1,4 +1,5 @@
 const { z } = require('zod');
+const { email } = require('zod/v4');
 
 // Registration schema - AJOUT DU CHAMP "createdBy"
 const registerSchema = z.object({
@@ -39,13 +40,25 @@ const forgotPasswordSchema = z.object({
     loginInfo: z.string().min(1, 'loginInfo is required')
 });
 
+// Schema de validation pour vérifier l'OTP
+const verifyOTPSchema = z.object({
+    loginInfo: z.string().min(1),
+    otp: z.string().min(4).max(6),
+});
+
 // Reset password schema
 const resetPasswordSchema = z.object({
-    token: z.string().min(1, 'Token is required'),
-    password: z.string()
-        .min(6, 'Password must be at least 6 characters')
-        .max(100, 'Password too long')
+  loginInfo: z.string().min(1),
+  otp: z.string().min(4).max(6),
+  password: z.string().min(6)  // définir une taille minimale pour le mot de passe
 });
+
+// const resetPasswordSchema = z.object({
+//     token: z.string().min(1, 'Token is required'),
+//     password: z.string()
+//         .min(6, 'Password must be at least 6 characters')
+//         .max(100, 'Password too long')
+// });
 
 // Verify email/phone schema
 const verifySchema = z.object({
@@ -72,5 +85,6 @@ module.exports = {
     resetPasswordSchema,
     verifySchema,
     changePasswordSchema,
-    refreshTokenSchema
+    refreshTokenSchema,
+    verifyOTPSchema
 };

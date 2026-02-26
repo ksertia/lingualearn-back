@@ -234,6 +234,78 @@ class AuthService {
     // ============ MOT DE PASSE OUBLIÉ ============
     async forgotPassword(loginInfo) {
         let user;
+
+        if (loginInfo.includes('@')) {
+            user = await prisma.user.findUnique({ where: { email: loginInfo } });
+        } else if (/^\+?\d+$/.test(loginInfo)) {
+            user = await prisma.user.findFirst({ where: { phone: loginInfo } });
+        } else {
+            user = await prisma.user.findUnique({ where: { username: loginInfo } });
+        }
+
+        // Toujours réponse générique (sécurité)
+        if (!user) {
+            return { success: true, message: 'If an account exists, a code has been sent' };
+        }
+
+        const MAX_REQUESTS_PER_HOUR = 3;
+        const OTP_EXPIRATION_MINUTES = 5;
+
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+        const requestCount = await prisma.verificationCode.count({
+            where: {
+                userId: user.id,
+                type: "RESET_PASSWORD",
+                createdAt: { gte: oneHourAgo }
+            }
+        });
+
+        if (requestCount >= MAX_REQUESTS_PER_HOUR) {
+            throw new AppError(429, 'Too many reset requests. Try again later.');
+        }
+
+        // Générer OTP 6 chiffres
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const codeHash = await bcrypt.hash(otp, 10);
+
+        const expiresAt = new Date(
+            Date.now() + OTP_EXPIRATION_MINUTES * 60 * 1000
+        );
+
+        // Supprimer anciens codes non utilisés
+        await prisma.verificationCode.deleteMany({
+            where: {
+                userId: user.id,
+                type: "RESET_PASSWORD",
+                isUsed: false
+            }
+        });
+
+        await prisma.verificationCode.create({
+            data: {
+                userId: user.id,
+                contactType: user.email ? "EMAIL" : "PHONE",
+                contactValue: user.email || user.phone,
+                codeHash,
+                type: "RESET_PASSWORD",
+                expiresAt
+            }
+        });
+
+        if (user.email) {
+            await emailService.sendPasswordResetOTP(user.email, otp);
+        }
+
+        return { success: true, message: 'If an account exists, a code has been sent' };
+    }
+
+
+    // ============ Verify code  ============
+    async verifyCode(loginInfo, inputOTP) {
+
+        let user;
+
         if (loginInfo.includes('@')) {
             user = await prisma.user.findUnique({ where: { email: loginInfo } });
         } else if (/^\+?\d+$/.test(loginInfo)) {
@@ -243,138 +315,107 @@ class AuthService {
         }
 
         if (!user) {
-            return { success: true, message: 'If an account exists, a reset link has been sent' };
+            throw new AppError(400, 'Invalid or expired code');
         }
 
-        // Générer un token de réinitialisation
-        const resetCode = crypto.randomBytes(32).toString('hex');
-        const resetTokenExpires = new Date(Date.now() + appConfig.tokens.resetTokenExpiry * 1000);
-
-        // Supprimer les anciens tokens
-        await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
-
-        // Créer un nouveau token
-        await prisma.passwordResetToken.create({
-            data: {
-                token: resetCode,
+        const record = await prisma.verificationCode.findFirst({
+            where: {
                 userId: user.id,
-                expiresAt: resetTokenExpires,
+                type: "RESET_PASSWORD",
+                isUsed: false
             },
+            orderBy: { createdAt: "desc" }
         });
 
-        // Envoyer l'email de réinitialisation
-        if (user.email) {
-            const emailSent = await emailService.sendPasswordResetEmail(user.email, resetToken);
-            if (!emailSent) {
-                logger.error(`Password reset email failed for ${user.email}`);
-                throw new AppError(500, 'Erreur lors de l\'envoi de l\'email de réinitialisation. Contactez le support.');
-            }
+        if (!record) {
+            throw new AppError(400, 'Invalid or expired code');
         }
 
-        return { success: true, message: 'If an account exists, a reset link has been sent' };
+        if (record.expiresAt < new Date()) {
+            throw new AppError(400, 'Code expired');
+        }
+
+        if (record.attempts >= 5) {
+            throw new AppError(429, 'Too many attempts');
+        }
+
+        const valid = await bcrypt.compare(inputOTP, record.codeHash);
+
+        if (!valid) {
+            await prisma.verificationCode.update({
+                where: { id: record.id },
+                data: { attempts: { increment: 1 } }
+            });
+
+            throw new AppError(400, 'Invalid code');
+        }
+
+        return { success: true, message: 'Code verified successfully' };
     }
 
-    // ============ Verify code  ============
-    async verifyCode (code) {
-        // Vérifier le code de réinitialisation
-        const resetToken = await prisma.passwordResetToken.findFirst({
-            where: { 
-                token: code,
-                used: false,
-                expiresAt: { gte: new Date() }
+
+    async resetPassword(loginInfo, otp, password) {
+
+        let user;
+
+        if (loginInfo.includes('@')) {
+            user = await prisma.user.findUnique({ where: { email: loginInfo } });
+        } else if (/^\+?\d+$/.test(loginInfo)) {
+            user = await prisma.user.findFirst({ where: { phone: loginInfo } });
+        } else {
+            user = await prisma.user.findUnique({ where: { username: loginInfo } });
+        }
+
+        if (!user) {
+            throw new AppError(400, 'Invalid request');
+        }
+
+        const record = await prisma.verificationCode.findFirst({
+            where: {
+                userId: user.id,
+                type: "RESET_PASSWORD",
+                isUsed: false
             },
-            include: { user: true },
+            orderBy: { createdAt: "desc" }
         });
 
-        if (!resetToken) {
-            throw new AppError(400, 'Invalid or expired reset code');
+        if (!record) {
+            throw new AppError(400, 'Invalid or expired code');
         }
 
-        return { 
-            success: true, 
-            message: 'Code verified successfully',
-            token: resetToken.token,
-            userId: resetToken.userId
-        };
-    }
-
-    async resetPassword(data) {
-        const { token, password } = data;
-
-        if (!token) {
-            throw new AppError(400, 'Token is required');
+        if (record.expiresAt < new Date()) {
+            throw new AppError(400, 'Code expired');
         }
 
-        //const secret = process.env.JWT_SECRET;  // Utilisez un secret d'environnement pour plus de sécurité
-        // let decoded;
-        // try {
-        //     // Décoder et vérifier le token
-        //     decoded = jwt.verify(token, secret);
-        //     console.log("Token décodé:", decoded);  // Log pour vérifier le contenu du token
-        // } catch (err) {
-        //     // Si le token est invalide ou expiré, lever une erreur
-        //     throw new AppError(400, 'Invalid or expired reset token');
-        // }
+        const valid = await bcrypt.compare(otp, record.codeHash);
 
-        // const { userId } = decoded;
-
-        // Recherche du token dans la base de données
-        console.log("Token recherché dans la base de données:", token);
-        const resetToken = await prisma.passwordResetToken.findFirst({
-            where: { token },
-            include: { user: true },
-        });
-
-        if (!resetToken) {
-            console.log("Token introuvable dans la base de données");
-            throw new AppError(400, 'Invalid or expired reset token');
+        if (!valid) {
+            throw new AppError(400, 'Invalid code');
         }
 
-        // Log de la vérification du token
-        console.log("Token trouvé dans la base de données:", resetToken.token);
-
-        // Vérifier si le token a déjà été utilisé
-        if (resetToken.used) {
-            console.log("Token déjà utilisé:", resetToken.token);
-            throw new AppError(400, 'Reset token has already been used');
-        }
-
-        const currentDate = new Date();
-        console.log("Date actuelle:", currentDate);  // Affiche la date actuelle
-        console.log("Expiration du token dans la base de données:", resetToken.expiresAt);  // Affiche l'expiration
-        if (resetToken.expiresAt < currentDate) {
-            console.log("Token expiré dans la base de données");
-            throw new AppError(400, 'Reset token has expired');
-        }
-
-        // Hasher le mot de passe
         const passwordHash = await bcrypt.hash(password, 12);
 
-        // Mettre à jour le mot de passe de l'utilisateur
         await prisma.user.update({
-            where: { id: resetToken.userId },
-            data: { passwordHash },
+            where: { id: user.id },
+            data: { passwordHash }
         });
 
-        // Marquer le token comme utilisé
-        await prisma.passwordResetToken.update({
-            where: { id: resetToken.id },
-            data: { used: true },
+        await prisma.verificationCode.update({
+            where: { id: record.id },
+            data: { isUsed: true }
         });
 
-        // Invalider toutes les sessions existantes
-        await prisma.session.deleteMany({ where: { userId: resetToken.userId } });
+        // Invalider sessions
+        await prisma.session.deleteMany({ where: { userId: user.id } });
+        await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
 
-        // Invalider tous les refresh tokens
-        await prisma.refreshToken.deleteMany({ where: { userId: resetToken.userId } });
-
-        // Envoyer un email de confirmation si l'utilisateur a un email enregistré
-        if (resetToken.user.email) {
-            await emailService.sendPasswordChangedEmail(resetToken.user.email);
+        if (user.email) {
+            await emailService.sendPasswordChangedEmail(user.email);
         }
 
         return { success: true, message: 'Password reset successfully' };
     }
+
 
     // ============ VERIFY EMAIL/PHONE ============
     async verifyAccount(token) {

@@ -1,3 +1,4 @@
+
 // Progression endpoints
 exports.selectLanguage = async (req, res, next) => {
        try {
