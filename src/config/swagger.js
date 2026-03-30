@@ -428,6 +428,7 @@ const options = {
     './src/modules/notification/notification.routes.js',
     './src/modules/gamification/gamification.routes.js',
     './src/modules/course/course.routes.js',
+    './src/modules/upload/upload.routes.js',
     './src/modules/module/module.routes.js',
     './src/modules/language/language.routes.js',
     './src/modules/evaluation/evaluation.routes.js',
