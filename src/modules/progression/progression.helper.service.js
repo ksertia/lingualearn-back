@@ -29,53 +29,124 @@ class ProgressionHelperService {
       return null;
     }
 
-    // Récupérer tous les niveaux de cette langue avec leurs progressions
+    // Récupérer tous les niveaux de cette langue (1 requête)
     const levels = await prisma.level.findMany({
       where: { 
         languageId,
         isActive: true 
       },
-      orderBy: { index: 'asc' },
-      include: {
-        // Progression de l'utilisateur pour ce niveau
-        userProgress: {
-          where: { userId }
-        },
-        modules: {
-          where: { isActive: true },
-          orderBy: { index: 'asc' },
-          include: {
-            // Progression de l'utilisateur pour ce module
-            userProgress: {
-              where: { userId }
-            },
-            paths: {
-              where: { isActive: true },
-              orderBy: { index: 'asc' },
-              include: {
-                // Progression de l'utilisateur pour ce parcours
-                userProgress: {
-                  where: { userId }
-                },
-                steps: {
-                  where: { isActive: true },
-                  orderBy: { index: 'asc' },
-                  include: {
-                    // Progression de l'utilisateur pour cette étape
-                    userProgress: {
-                      where: { userId }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+      orderBy: { index: 'asc' }
+    });
+
+    if (levels.length === 0) {
+      return this.buildEmptyProgression(languageProgress, userId);
+    }
+
+    // Récupérer toutes les progressions utilisateur en parallèle (4 requêtes)
+    const levelIds = levels.map(l => l.id);
+    const [levelProgress, modules] = await Promise.all([
+      prisma.userLevelProgress.findMany({
+        where: { userId, levelId: { in: levelIds } }
+      }),
+      prisma.module.findMany({
+        where: { levelId: { in: levelIds }, isActive: true },
+        orderBy: { index: 'asc' }
+      })
+    ]);
+
+    if (modules.length === 0) {
+      return this.buildProgressionWithLevels(languageProgress, userId, levels, levelProgress, [], [], [], []);
+    }
+
+    // Récupérer modules progress et paths (2 requêtes)
+    const moduleIds = modules.map(m => m.id);
+    const [moduleProgress, paths] = await Promise.all([
+      prisma.userModuleProgress.findMany({
+        where: { userId, moduleId: { in: moduleIds } }
+      }),
+      prisma.path.findMany({
+        where: { moduleId: { in: moduleIds }, isActive: true },
+        orderBy: { index: 'asc' }
+      })
+    ]);
+
+    if (paths.length === 0) {
+      return this.buildProgressionWithLevels(languageProgress, userId, levels, levelProgress, modules, moduleProgress, [], []);
+    }
+
+    // Récupérer paths progress et steps (2 requêtes)
+    const pathIds = paths.map(p => p.id);
+    const [pathProgress, steps] = await Promise.all([
+      prisma.userPathProgress.findMany({
+        where: { userId, pathId: { in: pathIds } }
+      }),
+      prisma.step.findMany({
+        where: { pathId: { in: pathIds }, isActive: true },
+        orderBy: { index: 'asc' }
+      })
+    ]);
+
+    // Récupérer step progress (1 requête)
+    const stepIds = steps.map(s => s.id);
+    const stepProgress = stepIds.length > 0 ? await prisma.userStepProgress.findMany({
+      where: { userId, stepId: { in: stepIds } }
+    }) : [];
+
+    return this.buildProgressionWithLevels(
+      languageProgress, userId, levels, levelProgress, 
+      modules, moduleProgress, paths, pathProgress, 
+      steps, stepProgress
+    );
+
+  }
+  catch (error) {
+    console.error('Erreur détaillée:', error);
+    throw new Error(`Erreur lors de la récupération de la progression: ${error.message}`);
+  }
+}
+
+  /**
+   * Construit la progression avec tous les éléments
+   */
+  buildProgressionWithLevels(languageProgress, userId, levels, levelProgress, modules = [], moduleProgress = [], paths = [], pathProgress = [], steps = [], stepProgress = []) {
+    // Créer des maps pour un accès rapide
+    const levelProgressMap = new Map(levelProgress.map(p => [p.levelId, p]));
+    const moduleProgressMap = new Map(moduleProgress.map(p => [p.moduleId, p]));
+    const pathProgressMap = new Map(pathProgress.map(p => [p.pathId, p]));
+    const stepProgressMap = new Map(stepProgress.map(p => [p.stepId, p]));
+
+    // Créer des maps hiérarchiques
+    const stepsMap = new Map();
+    steps.forEach(step => {
+      if (!stepsMap.has(step.pathId)) stepsMap.set(step.pathId, []);
+      stepsMap.get(step.pathId).push({
+        ...step,
+        userProgress: stepProgressMap.get(step.id) || null
+      });
+    });
+
+    const pathsMap = new Map();
+    paths.forEach(path => {
+      if (!pathsMap.has(path.moduleId)) pathsMap.set(path.moduleId, []);
+      pathsMap.get(path.moduleId).push({
+        ...path,
+        userProgress: pathProgressMap.get(path.id) || null,
+        steps: stepsMap.get(path.id) || []
+      });
+    });
+
+    const modulesMap = new Map();
+    modules.forEach(module => {
+      if (!modulesMap.has(module.levelId)) modulesMap.set(module.levelId, []);
+      modulesMap.get(module.levelId).push({
+        ...module,
+        userProgress: moduleProgressMap.get(module.id) || null,
+        paths: pathsMap.get(module.id) || []
+      });
     });
 
     // Construire l'objet de progression complet
-    const completeProgression = {
+    return {
       user: userId,
       language: {
         id: languageProgress.language.id,
@@ -101,84 +172,39 @@ class ProgressionHelperService {
         name: level.name,
         description: level.description,
         index: level.index,
-        userProgress: level.userProgress[0] ? {
-          id: level.userProgress[0].id,
-          status: level.userProgress[0].status,
-          progressPercentage: level.userProgress[0].progressPercentage,
-          totalXp: level.userProgress[0].totalXp,
-          timeSpentMinutes: level.userProgress[0].timeSpentMinutes,
-          unlockedAt: level.userProgress[0].unlockedAt,
-          startedAt: level.userProgress[0].startedAt,
-          completedAt: level.userProgress[0].completedAt,
-          lastAccessedAt: level.userProgress[0].lastAccessedAt
-        } : null,
-        modules: level.modules.map(module => ({
-          id: module.id,
-          title: module.title,
-          description: module.description,
-          iconUrl: module.iconUrl,
-          index: module.index,
-          userProgress: module.userProgress[0] ? {
-            id: module.userProgress[0].id,
-            status: module.userProgress[0].status,
-            progressPercentage: module.userProgress[0].progressPercentage,
-            totalXp: module.userProgress[0].totalXp,
-            timeSpentMinutes: module.userProgress[0].timeSpentMinutes,
-            unlockedAt: module.userProgress[0].unlockedAt,
-            startedAt: module.userProgress[0].startedAt,
-            completedAt: module.userProgress[0].completedAt,
-            lastAccessedAt: module.userProgress[0].lastAccessedAt
-          } : null,
-          paths: module.paths.map(path => ({
-            id: path.id,
-            title: path.title,
-            description: path.description,
-            thumbnailUrl: path.thumbnailUrl,
-            difficulty: path.difficulty,
-            estimatedHours: path.estimatedHours,
-            index: path.index,
-            userProgress: path.userProgress[0] ? {
-              id: path.userProgress[0].id,
-              status: path.userProgress[0].status,
-              currentStepIndex: path.userProgress[0].currentStepIndex,
-              progressPercentage: path.userProgress[0].progressPercentage,
-              totalXp: path.userProgress[0].totalXp,
-              timeSpentMinutes: path.userProgress[0].timeSpentMinutes,
-              quizScore: path.userProgress[0].quizScore,
-              unlockedAt: path.userProgress[0].unlockedAt,
-              startedAt: path.userProgress[0].startedAt,
-              completedAt: path.userProgress[0].completedAt,
-              lastAccessedAt: path.userProgress[0].lastAccessedAt
-            } : null,
-            steps: path.steps.map(step => ({
-              id: step.id,
-              title: step.title,
-              description: step.description,
-              stepType: step.stepType,
-              estimatedMinutes: step.estimatedMinutes,
-              index: step.index,
-              userProgress: step.userProgress[0] ? {
-                id: step.userProgress[0].id,
-                status: step.userProgress[0].status,
-                progress: step.userProgress[0].progress,
-                score: step.userProgress[0].score,
-                completedAt: step.userProgress[0].completedAt,
-                startedAt: step.userProgress[0].startedAt,
-                timeSpentMinutes: step.userProgress[0].timeSpentMinutes,
-                totalXp: step.userProgress[0].totalXp
-              } : null
-            }))
-          }))
-        }))
+        userProgress: levelProgressMap.get(level.id) || null,
+        modules: modulesMap.get(level.id) || []
       }))
     };
-
-    return completeProgression;
-  } catch (error) {
-    console.error('Erreur détaillée:', error);
-    throw new Error(`Erreur lors de la récupération de la progression: ${error.message}`);
   }
-}
+
+  /**
+   * Construit une progression vide
+   */
+  buildEmptyProgression(languageProgress, userId) {
+    return {
+      user: userId,
+      language: {
+        id: languageProgress.language.id,
+        code: languageProgress.language.code,
+        name: languageProgress.language.name,
+        description: languageProgress.language.description,
+        iconUrl: languageProgress.language.iconUrl,
+        flagUrl: languageProgress.language.flagUrl
+      },
+      overallProgress: {
+        id: languageProgress.id,
+        status: languageProgress.status,
+        overallProgress: languageProgress.overallProgress,
+        totalXp: languageProgress.totalXp,
+        totalTimeMinutes: languageProgress.totalTimeMinutes,
+        startedAt: languageProgress.startedAt,
+        completedAt: languageProgress.completedAt,
+        lastAccessedAt: languageProgress.lastAccessedAt
+      },
+      levels: []
+    };
+  }
 
   /**
    * Calcule les statistiques de progression d'un utilisateur
