@@ -658,6 +658,304 @@ class UserService {
         };
     }
 
+    // Récupérer le profil complet de l'utilisateur connecté avec la langue actuelle et la progression (OPTIMISÉ)
+    async getCurrentUserDetails(userId) {
+        // Vérifier le cache
+        const cachedUser = this.getCachedUser(`current:${userId}`);
+        if (cachedUser) return cachedUser;
+
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                email: true,
+                phone: true,
+                username: true,
+                accountType: true,
+                parentId: true,
+                isVerified: true,
+                subscriptionEndsAt: true,
+                isActive: true,
+                firstLogin: true,
+                lastLogin: true,
+                lastActive: true,
+                createdAt: true,
+                profile: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        displayName: true,
+                        birthDate: true,
+                        avatarUrl: true,
+                        timezone: true,
+                        preferredLanguage: true
+                    }
+                },
+                subscription: {
+                    select: {
+                        id: true,
+                        status: true,
+                        billingCycle: true,
+                        currentPeriodStart: true,
+                        currentPeriodEnd: true,
+                        cancelAtPeriodEnd: true,
+                        plan: {
+                            select: {
+                                planCode: true,
+                                planName: true,
+                                priceMonthly: true,
+                                priceYearly: true,
+                                currency: true
+                            }
+                        }
+                    }
+                },
+                stats: {
+                    select: {
+                        totalXp: true,
+                        totalCoins: true,
+                        currentStreak: true,
+                        longestStreak: true,
+                        totalStudyMinutes: true,
+                        totalExercisesCompleted: true,
+                        totalLessonsCompleted: true,
+                        totalStepsCompleted: true,
+                        totalLevelsCompleted: true,
+                        totalCertificatesEarned: true,
+                        totalBadgesEarned: true,
+                        accuracyRate: true
+                    }
+                }
+            }
+        });
+
+        if (!user) {
+            throw new AppError(404, 'User not found');
+        }
+
+        // Récupérer la progression de langue actuelle de manière optimisée
+        const progressList = await prisma.userLanguageProgress.findMany({
+            where: { userId },
+            orderBy: [
+                { lastAccessedAt: 'desc' },
+                { startedAt: 'desc' },
+                { createdAt: 'desc' }
+            ],
+            take: 1,
+            include: { 
+                language: {
+                    select: {
+                        id: true,
+                        code: true,
+                        name: true,
+                        description: true,
+                        iconUrl: true,
+                        flagUrl: true,
+                        isActive: true
+                    }
+                }
+            }
+        });
+
+        let currentLanguageProgress = progressList[0] || null;
+
+        // Si aucune progression et langue préférée définie, créer une progression par défaut
+        if (!currentLanguageProgress && user.profile?.preferredLanguage) {
+            const language = await prisma.language.findUnique({
+                where: { code: user.profile.preferredLanguage },
+                select: {
+                    id: true,
+                    code: true,
+                    name: true,
+                    description: true,
+                    iconUrl: true,
+                    flagUrl: true,
+                    isActive: true
+                }
+            });
+            if (language) {
+                currentLanguageProgress = {
+                    id: null,
+                    userId,
+                    languageId: language.id,
+                    status: 'not_started',
+                    overallProgress: null,
+                    totalXp: 0,
+                    totalTimeMinutes: 0,
+                    startedAt: null,
+                    completedAt: null,
+                    lastAccessedAt: null,
+                    createdAt: null,
+                    updatedAt: null,
+                    language
+                };
+            }
+        }
+
+        let currentLanguage = currentLanguageProgress?.language || null;
+        let currentState = null;
+
+        if (currentLanguageProgress?.languageId) {
+            // Calculer l'état actuel de manière optimisée (requêtes ciblées)
+            currentState = await this.calculateCurrentStateOptimizedForUser(userId, currentLanguageProgress.languageId);
+
+            // Mettre à jour lastAccessedAt si progression existe
+            if (currentLanguageProgress.id) {
+                await prisma.userLanguageProgress.update({
+                    where: { id: currentLanguageProgress.id },
+                    data: { lastAccessedAt: new Date() }
+                });
+            }
+        }
+
+        const result = {
+            user,
+            currentLanguage,
+            currentLanguageProgress,
+            currentState
+        };
+
+        // Mettre en cache
+        this.setCachedUser(`current:${userId}`, result);
+        
+        return result;
+    }
+
+    // Méthode optimisée pour calculer l'état actuel sans includes profonds (version pour getCurrentUserDetails)
+    async calculateCurrentStateOptimizedForUser(userId, languageId) {
+        // Récupérer le niveau actuel (1 requête optimisée)
+        const currentLevel = await prisma.userLevelProgress.findFirst({
+            where: { 
+                userId,
+                level: { languageId }
+            },
+            orderBy: { lastAccessedAt: 'desc' },
+            include: {
+                level: {
+                    select: {
+                        id: true,
+                        code: true,
+                        name: true,
+                        index: true
+                    }
+                }
+            }
+        });
+
+        if (!currentLevel) return null;
+
+        // Récupérer le module actuel (1 requête optimisée)
+        const currentModule = await prisma.userModuleProgress.findFirst({
+            where: { 
+                userId,
+                module: { levelId: currentLevel.levelId }
+            },
+            orderBy: { lastAccessedAt: 'desc' },
+            include: {
+                module: {
+                    select: {
+                        id: true,
+                        title: true,
+                        index: true
+                    }
+                }
+            }
+        });
+
+        // Récupérer le parcours actuel (1 requête optimisée)
+        const currentPath = currentModule ? await prisma.userPathProgress.findFirst({
+            where: { 
+                userId,
+                path: { moduleId: currentModule.moduleId }
+            },
+            orderBy: { lastAccessedAt: 'desc' },
+            include: {
+                path: {
+                    select: {
+                        id: true,
+                        title: true,
+                        index: true
+                    }
+                }
+            }
+        }) : null;
+
+        // Récupérer l'étape actuelle (1 requête optimisée)
+        const currentStep = currentPath ? await prisma.userStepProgress.findFirst({
+            where: { 
+                userId,
+                step: { pathId: currentPath.pathId }
+            },
+            orderBy: { lastAccessedAt: 'desc' },
+            include: {
+                step: {
+                    select: {
+                        id: true,
+                        title: true,
+                        stepType: true,
+                        index: true
+                    }
+                }
+            }
+        }) : null;
+
+        // Récupérer le contenu de l'étape actuelle si elle existe (1 requête conditionnelle)
+        let currentLesson = null;
+        let currentExercise = null;
+        let currentQuiz = null;
+
+        if (currentStep?.step) {
+            const [lesson, exercise, quiz] = await Promise.all([
+                prisma.lesson.findFirst({
+                    where: { stepId: currentStep.step.id },
+                    select: {
+                        id: true,
+                        title: true,
+                        content: true,
+                        videoUrl: true
+                    }
+                }),
+                prisma.exercise.findFirst({
+                    where: { stepId: currentStep.step.id },
+                    select: {
+                        id: true,
+                        title: true,
+                        instructions: true,
+                        points: true,
+                        xpReward: true,
+                        coinReward: true
+                    }
+                }),
+                prisma.quiz.findFirst({
+                    where: { stepId: currentStep.step.id },
+                    select: {
+                        id: true,
+                        title: true,
+                        passingScore: true,
+                        timeLimitMinutes: true,
+                        xpReward: true,
+                        coinReward: true
+                    }
+                })
+            ]);
+
+            currentLesson = lesson;
+            currentExercise = exercise;
+            currentQuiz = quiz;
+        }
+
+        return {
+            currentLevel: currentLevel?.level || null,
+            currentModule: currentModule?.module || null,
+            currentPath: currentPath?.path || null,
+            currentStep: currentStep?.step || null,
+            currentLesson,
+            currentExercise,
+            currentQuiz
+        };
+    }
+
     // Cleanup périodique du cache
     cleanupCache() {
         const now = Date.now();
