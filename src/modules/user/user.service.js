@@ -124,7 +124,19 @@ class UserService {
             };
         }
 
-        return baseFields;
+        // Ajouter le profil même pour la liste pour éviter les erreurs frontend
+        return {
+            ...baseFields,
+            profile: {
+                select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    displayName: true,
+                    avatarUrl: true
+                }
+            }
+        };
     }
 
     // Helper pour construire les filtres
