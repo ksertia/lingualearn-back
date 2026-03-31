@@ -670,11 +670,10 @@ class UserService {
         };
     }
 
-    // Récupérer le profil complet de l'utilisateur connecté avec la langue actuelle et la progression (OPTIMISÉ)
     async getCurrentUserDetails(userId) {
-        // Vérifier le cache
-        const cachedUser = this.getCachedUser(`current:${userId}`);
-        if (cachedUser) return cachedUser;
+        // Invalider le cache pour forcer la régénération avec les nouveaux champs
+        this.invalidateUserCache(`current:${userId}`);
+
 
         const user = await prisma.user.findUnique({
             where: { id: userId },
@@ -779,15 +778,15 @@ class UserService {
                     id: true,
                     code: true,
                     name: true,
-                    description: true,
-                    iconUrl: true,
+                    deonUrl: true,
                     isActive: true
                 }
             });
             if (language) {
                 currentLanguageProgress = {
                     id: null,
-                    userId,
+                    usscription: true,
+                    icerId,
                     languageId: language.id,
                     status: 'not_started',
                     overallProgress: null,
@@ -819,8 +818,15 @@ class UserService {
             }
         }
 
+        // Enrichir l'objet user avec les IDs nécessaires pour la redirection Flutter
+        const enrichedUser = {
+            ...user,
+            selectedLanguageId: currentLanguage?.id || null,
+            selectedLevelId: currentState?.currentLevel?.id || null
+        };
+
         const result = {
-            user,
+            user: enrichedUser,
             currentLanguage,
             currentLanguageProgress,
             currentState
