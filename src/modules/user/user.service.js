@@ -751,7 +751,7 @@ class UserService {
                         name: true,
                         description: true,
                         iconUrl: true,
-                        flagUrl: fasle,
+                        flagUrl: false,
                         isActive: true
                     }
                 }
