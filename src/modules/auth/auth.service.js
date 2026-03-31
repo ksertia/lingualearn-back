@@ -284,10 +284,11 @@ class AuthService {
 
         await prisma.verificationCode.create({
             data: {
-                userId: user.id,
+                user: {
+                    connect: { id: user.id }
+                },
                 contactType: user.email ? "EMAIL" : "PHONE",
                 contactValue: user.email || user.phone,
-                code: otp,
                 codeHash,
                 type: "RESET_PASSWORD",
                 expiresAt
@@ -609,10 +610,11 @@ class AuthService {
         
         await prisma.verificationCode.create({
             data: {
-                userId,
+                user: {
+                    connect: { id: userId }
+                },
                 contactType,
                 contactValue,
-                code,
                 codeHash,
                 type,
                 expiresAt: new Date(Date.now() + appConfig.tokens.verificationTokenExpiry * 1000),
