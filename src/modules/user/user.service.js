@@ -778,7 +778,7 @@ class UserService {
                     id: true,
                     code: true,
                     name: true,
-                    deonUrl: true,
+                    // deonUrl: true,
                     isActive: true
                 }
             });
