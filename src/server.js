@@ -47,6 +47,11 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // =====================
+// Servir les fichiers uploadés
+// =====================
+app.use('/uploads', express.static(__dirname + '/../uploads'));
+
+// =====================
 // Logging des requêtes
 // =====================
 app.use(requestLogger);

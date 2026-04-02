@@ -284,7 +284,9 @@ class AuthService {
 
         await prisma.verificationCode.create({
             data: {
-                userId: user.id,
+                user: {
+                    connect: { id: user.id }
+                },
                 contactType: user.email ? "EMAIL" : "PHONE",
                 contactValue: user.email || user.phone,
                 codeHash,
@@ -604,12 +606,16 @@ class AuthService {
 
     // Créer un code de vérification
     async createVerificationCode(userId, contactType, contactValue, type, code) {
+        const codeHash = await bcrypt.hash(code, 10);
+        
         await prisma.verificationCode.create({
             data: {
-                userId,
+                user: {
+                    connect: { id: userId }
+                },
                 contactType,
                 contactValue,
-                code,
+                codeHash,
                 type,
                 expiresAt: new Date(Date.now() + appConfig.tokens.verificationTokenExpiry * 1000),
             },

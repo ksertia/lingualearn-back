@@ -123,28 +123,65 @@ exports.getLanguageLevels = async (languageId) => {
 		return null;
 	}
 
-	// Récupérer tous les niveaux de la langue avec leurs modules
+	// Récupérer tous les niveaux de la langue (1 requête)
 	const levels = await prisma.level.findMany({
 		where: { languageId: language.id },
-		orderBy: { index: 'asc' },
-		include: {
-			modules: {
-				orderBy: { index: 'asc' },
-				include: {
-					paths: {
-						orderBy: { index: 'asc' },
-						include: {
-							steps: {
-								orderBy: { index: 'asc' }
-							}
-						}
-					}
-				}
-			}
-		}
+		orderBy: { index: 'asc' }
 	});
 
-	return levels;
+	if (levels.length === 0) return [];
+
+	// Récupérer tous les modules pour ces niveaux (1 requête)
+	const levelIds = levels.map(l => l.id);
+	const modules = await prisma.module.findMany({
+		where: { levelId: { in: levelIds } },
+		orderBy: { index: 'asc' }
+	});
+
+	// Récupérer tous les parcours pour ces modules (1 requête)
+	const moduleIds = modules.map(m => m.id);
+	const paths = moduleIds.length > 0 ? await prisma.path.findMany({
+		where: { moduleId: { in: moduleIds } },
+		orderBy: { index: 'asc' }
+	}) : [];
+
+	// Récupérer toutes les étapes pour ces parcours (1 requête)
+	const pathIds = paths.map(p => p.id);
+	const steps = pathIds.length > 0 ? await prisma.step.findMany({
+		where: { pathId: { in: pathIds } },
+		orderBy: { index: 'asc' }
+	}) : [];
+
+	// Construire la structure hiérarchique
+	const stepsMap = new Map();
+	steps.forEach(step => {
+		if (!stepsMap.has(step.pathId)) stepsMap.set(step.pathId, []);
+		stepsMap.get(step.pathId).push(step);
+	});
+
+	const pathsMap = new Map();
+	paths.forEach(path => {
+		if (!pathsMap.has(path.moduleId)) pathsMap.set(path.moduleId, []);
+		pathsMap.get(path.moduleId).push({
+			...path,
+			steps: stepsMap.get(path.id) || []
+		});
+	});
+
+	const modulesMap = new Map();
+	modules.forEach(module => {
+		if (!modulesMap.has(module.levelId)) modulesMap.set(module.levelId, []);
+		modulesMap.get(module.levelId).push({
+			...module,
+			paths: pathsMap.get(module.id) || []
+		});
+	});
+
+	// Assembler les niveaux avec leurs modules
+	return levels.map(level => ({
+		...level,
+		modules: modulesMap.get(level.id) || []
+	}));
 };
 
 exports.getLevelModules = async (languageId, levelId) => {
@@ -166,25 +203,58 @@ exports.getLevelModules = async (languageId, levelId) => {
 		return null;
 	}
 
-	// Récupérer tous les modules du niveau avec leurs parcours et étapes
+	// Récupérer tous les modules du niveau (1 requête)
 	const modules = await prisma.module.findMany({
 		where: { levelId: level.id },
-		orderBy: { index: 'asc' },
-		include: {
-			paths: {
-				orderBy: { index: 'asc' },
-				include: {
-					steps: {
-						orderBy: { index: 'asc' }
-					}
-				}
-			}
-		}
+		orderBy: { index: 'asc' }
 	});
+
+	if (modules.length === 0) {
+		return {
+			levelName: level.name,
+			modules: []
+		};
+	}
+
+	// Récupérer tous les parcours pour ces modules (1 requête)
+	const moduleIds = modules.map(m => m.id);
+	const paths = await prisma.path.findMany({
+		where: { moduleId: { in: moduleIds } },
+		orderBy: { index: 'asc' }
+	});
+
+	// Récupérer toutes les étapes pour ces parcours (1 requête)
+	const pathIds = paths.map(p => p.id);
+	const steps = pathIds.length > 0 ? await prisma.step.findMany({
+		where: { pathId: { in: pathIds } },
+		orderBy: { index: 'asc' }
+	}) : [];
+
+	// Construire la structure hiérarchique
+	const stepsMap = new Map();
+	steps.forEach(step => {
+		if (!stepsMap.has(step.pathId)) stepsMap.set(step.pathId, []);
+		stepsMap.get(step.pathId).push(step);
+	});
+
+	const pathsMap = new Map();
+	paths.forEach(path => {
+		if (!pathsMap.has(path.moduleId)) pathsMap.set(path.moduleId, []);
+		pathsMap.get(path.moduleId).push({
+			...path,
+			steps: stepsMap.get(path.id) || []
+		});
+	});
+
+	// Assembler les modules avec leurs parcours
+	const modulesWithPaths = modules.map(module => ({
+		...module,
+		paths: pathsMap.get(module.id) || []
+	}));
 
 	return {
 		levelName: level.name,
-		modules: modules
+		modules: modulesWithPaths
 	};
 };
 
@@ -219,20 +289,42 @@ exports.getModulePaths = async (languageId, levelId, moduleId) => {
 		return null;
 	}
 
-	// Récupérer tous les parcours du module avec leurs étapes
+	// Récupérer tous les parcours du module (1 requête)
 	const paths = await prisma.path.findMany({
 		where: { moduleId: module.id },
-		orderBy: { index: 'asc' },
-		include: {
-			steps: {
-				orderBy: { index: 'asc' }
-			}
-		}
+		orderBy: { index: 'asc' }
 	});
+
+	if (paths.length === 0) {
+		return {
+			moduleName: module.name,
+			paths: []
+		};
+	}
+
+	// Récupérer toutes les étapes pour ces parcours (1 requête)
+	const pathIds = paths.map(p => p.id);
+	const steps = await prisma.step.findMany({
+		where: { pathId: { in: pathIds } },
+		orderBy: { index: 'asc' }
+	});
+
+	// Construire la structure hiérarchique
+	const stepsMap = new Map();
+	steps.forEach(step => {
+		if (!stepsMap.has(step.pathId)) stepsMap.set(step.pathId, []);
+		stepsMap.get(step.pathId).push(step);
+	});
+
+	// Assembler les parcours avec leurs étapes
+	const pathsWithSteps = paths.map(path => ({
+		...path,
+		steps: stepsMap.get(path.id) || []
+	}));
 
 	return {
 		moduleName: module.name,
-		paths: paths
+		paths: pathsWithSteps
 	};
 };
 
