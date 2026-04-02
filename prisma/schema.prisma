@@ -451,20 +451,19 @@ model VerificationCode {
   userId       String?
   contactType  String
   contactValue String
-  codeHash     String   @db.VarChar(255)
   type         String
-  attempts     Int      @default(0)
   isUsed       Boolean  @default(false)
   expiresAt    DateTime
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  attempts     Int      @default(0)
+  codeHash     String   @db.VarChar(255)
   user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([type])
   @@map("verification_codes")
 }
-
 
 model LoginAttempt {
   id        String   @id @default(cuid())
