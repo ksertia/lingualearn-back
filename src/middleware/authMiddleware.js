@@ -13,8 +13,12 @@ const authMiddleware = async (req, res, next) => {
 
         const decoded = jwt.verify(token, appConfig.jwtSecret);
         
+        // Vérifier que c'est bien un access token (pas un refresh token)
+        if (decoded.tokenType !== 'access') {
+            throw new AppError(401, 'Invalid token type. Access token required.');
+        }
+        
         // Vérifier si l'utilisateur existe toujours
-
         const user = await prisma.user.findUnique({
             where: { id: decoded.userId },
             select: {
@@ -36,7 +40,19 @@ const authMiddleware = async (req, res, next) => {
         req.user = user;
         next();
     } catch (error) {
-        next(new AppError(401, 'Invali or expired token.'));
+        // Distinguer les erreurs JWT des autres erreurs
+        if (error.name === 'JsonWebTokenError') {
+            return next(new AppError(401, 'Invalid token.'));
+        }
+        if (error.name === 'TokenExpiredError') {
+            return next(new AppError(401, 'Token expired.'));
+        }
+        // Si c'est déjà une AppError, la propager
+        if (error instanceof AppError) {
+            return next(error);
+        }
+        // Pour toute autre erreur (DB, etc.), retourner une erreur générique
+        return next(new AppError(500, 'Authentication error.'));
     }
 };
 
