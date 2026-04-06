@@ -60,19 +60,6 @@ const { uploadCourseContent } = require('../../utils/uploadService');
  *     responses:
  *       200:
  *         description: Liste des langues
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Language'
- *                 message:
- *                   type: string
  */
 router.get('/languages', discoverController.getLanguages);
 
@@ -89,20 +76,6 @@ router.get('/languages', discoverController.getLanguages);
  *     responses:
  *       200:
  *         description: Session créée avec succès
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *                   properties:
- *                     sessionId:
- *                       type: string
- *                     message:
- *                       type: string
  */
 router.post('/session/create', discoverController.createSession);
 
@@ -120,19 +93,9 @@ router.post('/session/create', discoverController.createSession);
  *         required: true
  *         schema:
  *           type: string
- *         description: ID de la session temporaire
  *     responses:
  *       200:
  *         description: Score récupéré avec succès
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   $ref: '#/components/schemas/SessionScore'
  *       404:
  *         description: Session non trouvée
  */
@@ -147,86 +110,25 @@ router.get('/session/:sessionId/score', discoverController.getSessionScore);
  *     tags:
  *       - Discover
  *     summary: Récupérer une leçon complète
- *     description: Retourne toutes les sections d'une leçon audio video qcm dragdrop dans l'ordre
+ *     description: Retourne toutes les sections d'une leçon (audio, video, qcm, dragdrop) dans l'ordre
  *     parameters:
  *       - in: query
  *         name: languageCode
  *         required: true
  *         schema:
  *           type: string
- *         description: Code de la langue mossi dioula fon
+ *         description: Code de la langue (mossi, dioula, fulfulde)
  *     responses:
  *       200:
  *         description: Leçon récupérée avec succès
  *       400:
  *         description: Paramètre languageCode manquant
+ *       404:
+ *         description: Leçon non trouvée
  */
 router.get('/lesson', discoverController.getFullLesson);
 
-// ==================== EXERCICES PAR SECTION ====================
-
-/**
- * @swagger
- * /api/v1/discover/exercises/section:
- *   get:
- *     tags:
- *       - Discover
- *     summary: Récupérer les exercices par section
- *     description: Retourne les exercices d'un type spécifique audio video qcm dragdrop
- *     parameters:
- *       - in: query
- *         name: languageCode
- *         required: true
- *         schema:
- *           type: string
- *         description: Code de la langue
- *       - in: query
- *         name: section
- *         required: true
- *         schema:
- *           type: string
- *           enum: [audio, video, qcm, dragdrop]
- *         description: Type d'exercice à filtrer
- *     responses:
- *       200:
- *         description: Exercices récupérés avec succès
- *       400:
- *         description: Paramètres manquants
- */
-router.get('/exercises/section', discoverController.getExercisesBySection);
-
-// ==================== EXERCICE AVEC NAVIGATION ====================
-
-/**
- * @swagger
- * /api/v1/discover/exercises/navigate:
- *   get:
- *     tags:
- *       - Discover
- *     summary: Récupérer un exercice avec navigation Précédent Suivant
- *     description: Retourne un exercice spécifique avec les informations de navigation
- *     parameters:
- *       - in: query
- *         name: languageCode
- *         required: true
- *         schema:
- *           type: string
- *         description: Code de la langue
- *       - in: query
- *         name: currentIndex
- *         required: true
- *         schema:
- *           type: integer
- *         description: Index actuel dans la liste des exercices
- *     responses:
- *       200:
- *         description: Exercice récupéré avec succès
- *       404:
- *         description: Exercice non trouvé
- */
-router.get('/exercises/navigate', discoverController.getExerciseWithNavigation);
-
-// ==================== EXERCICES STANDARDS ====================
+// ==================== EXERCICES ====================
 
 /**
  * @swagger
@@ -235,70 +137,21 @@ router.get('/exercises/navigate', discoverController.getExerciseWithNavigation);
  *     tags:
  *       - Discover
  *     summary: Récupérer tous les exercices
- *     description: Retourne la liste des exercices pour une langue niveau intermédiaire
+ *     description: Retourne la liste des exercices pour une langue (format plat)
  *     parameters:
  *       - in: query
  *         name: languageCode
  *         required: true
  *         schema:
  *           type: string
- *         description: Code de la langue mossi dioula fon
+ *         description: Code de la langue (mossi, dioula, fulfulde)
  *     responses:
  *       200:
  *         description: Liste des exercices
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Exercise'
- *                 languageCode:
- *                   type: string
- *                 level:
- *                   type: string
- *                 total:
- *                   type: integer
  *       400:
  *         description: Paramètre languageCode manquant
  */
 router.get('/exercises', discoverController.getExercises);
-
-/**
- * @swagger
- * /api/v1/discover/exercises/{id}:
- *   get:
- *     tags:
- *       - Discover
- *     summary: Récupérer un exercice spécifique
- *     description: Retourne les détails d'un exercice par son ID
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: ID de l'exercice
- *     responses:
- *       200:
- *         description: Exercice trouvé
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   $ref: '#/components/schemas/Exercise'
- *       404:
- *         description: Exercice non trouvé
- */
-router.get('/exercises/:id', discoverController.getExerciseById);
 
 /**
  * @swagger
@@ -314,7 +167,6 @@ router.get('/exercises/:id', discoverController.getExerciseById);
  *         required: true
  *         schema:
  *           type: string
- *         description: ID de l'exercice
  *     requestBody:
  *       required: true
  *       content:
@@ -324,10 +176,8 @@ router.get('/exercises/:id', discoverController.getExerciseById);
  *             properties:
  *               sessionId:
  *                 type: string
- *                 description: ID de session temporaire optionnel
  *               answers:
  *                 type: object
- *                 description: Réponses selon le type d'exercice
  *     responses:
  *       200:
  *         description: Réponse soumise avec succès
@@ -337,7 +187,6 @@ router.get('/exercises/:id', discoverController.getExerciseById);
 router.post('/exercises/:id/submit', discoverController.submitExerciseAnswer);
 
 // ==================== LMS (ADMIN) - GESTION DES LEÇONS ====================
-// Ces routes sont pour l'interface d'administration (LMS)
 
 /**
  * @swagger
@@ -346,18 +195,15 @@ router.post('/exercises/:id/submit', discoverController.submitExerciseAnswer);
  *     tags:
  *       - Discover (Admin)
  *     summary: Récupérer toutes les leçons (Admin)
- *     description: Retourne la liste de toutes les leçons avec filtres optionnels
  *     parameters:
  *       - in: query
  *         name: languageCode
  *         schema:
  *           type: string
- *         description: Filtrer par code de langue
  *       - in: query
  *         name: isPublished
  *         schema:
  *           type: boolean
- *         description: Filtrer par statut de publication
  *     responses:
  *       200:
  *         description: Liste des leçons
@@ -371,7 +217,6 @@ router.get('/lessons', discoverController.getAllLessons);
  *     tags:
  *       - Discover (Admin)
  *     summary: Créer une nouvelle leçon (Admin)
- *     description: Crée une nouvelle leçon avec ses sections et exercices
  *     requestBody:
  *       required: true
  *       content:
@@ -381,7 +226,6 @@ router.get('/lessons', discoverController.getAllLessons);
  *             properties:
  *               lessonData:
  *                 type: string
- *                 description: Données JSON de la leçon
  *               thumbnail:
  *                 type: string
  *                 format: binary
@@ -421,7 +265,6 @@ router.post('/lesson/create',
  *     tags:
  *       - Discover (Admin)
  *     summary: Mettre à jour une leçon (Admin)
- *     description: Modifie une leçon existante
  *     parameters:
  *       - in: path
  *         name: id
@@ -463,7 +306,6 @@ router.put('/lesson/:id',
  *     tags:
  *       - Discover (Admin)
  *     summary: Supprimer une leçon (Admin)
- *     description: Supprime définitivement une leçon
  *     parameters:
  *       - in: path
  *         name: id
@@ -485,7 +327,6 @@ router.delete('/lesson/:id', discoverController.deleteLesson);
  *     tags:
  *       - Discover (Admin)
  *     summary: Publier/Dépublier une leçon (Admin)
- *     description: Change le statut de publication d'une leçon
  *     parameters:
  *       - in: path
  *         name: id
@@ -516,7 +357,6 @@ router.patch('/lesson/:id/publish', discoverController.publishLesson);
  *     tags:
  *       - Discover (Admin)
  *     summary: Uploader un fichier média (Admin)
- *     description: Upload un fichier audio, vidéo ou image
  *     requestBody:
  *       required: true
  *       content:
