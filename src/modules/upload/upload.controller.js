@@ -55,9 +55,11 @@ const uploadContent = async (req, res) => {
 			message: 'Contenu uploadé avec succès',
 		});
 	} catch (error) {
-		res.status(400).json({
+		console.error('Erreur upload content:', error);
+		res.status(500).json({
 			success: false,
 			message: error.message || 'Erreur lors de l\'upload du contenu',
+			error: process.env.NODE_ENV === 'development' ? error.stack : undefined
 		});
 	}
 };

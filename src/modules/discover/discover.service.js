@@ -34,20 +34,33 @@ exports.getLanguagesForDiscover = async () => {
 /**
  * Récupère une leçon complète depuis Prisma
  */
-exports.getFullLesson = async (languageCode) => {
+exports.getFullLesson = async (languageId) => {
   try {
-    // Récupérer la leçon publiée pour cette langue
+    // Récupérer la leçon via les relations Step -> Path -> Module -> Level -> Language
     const lesson = await prisma.lesson.findFirst({
       where: {
-        languageCode: languageCode,
-        level: 'intermediate',
-        isPublished: true
+        step: {
+          path: {
+            module: {
+              level: {
+                languageId: languageId
+              }
+            }
+          }
+        }
       },
       include: {
-        sections: {
-          orderBy: { order: 'asc' },
+        step: {
           include: {
-            exercises: true
+            path: {
+              include: {
+                module: {
+                  include: {
+                    level: true
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -57,44 +70,15 @@ exports.getFullLesson = async (languageCode) => {
       return null;
     }
 
-    // Organiser par type
-    const sections = {
-      audio: [],
-      video: [],
-      qcm: [],
-      dragdrop: []
-    };
-
-    for (const section of lesson.sections) {
-      sections[section.type] = section.exercises.map(ex => ({
-        id: ex.id,
-        title: ex.title,
-        mediaUrl: ex.mediaUrl,
-        text: ex.text,
-        translation: ex.translation,
-        duration: ex.duration,
-        thumbnailUrl: ex.thumbnailUrl,
-        description: ex.description,
-        question: ex.question,
-        choices: ex.choices,
-        correctAnswer: ex.correctAnswer,
-        imageUrl: ex.imageUrl,
-        imageAlt: ex.imageAlt,
-        dragItems: ex.dragItems,
-        dropZones: ex.dropZones,
-        hint: ex.hint
-      }));
-    }
-
+    // Retourner la leçon avec ses relations
     return {
-      lessonId: lesson.id,
+      id: lesson.id,
       title: lesson.title,
-      description: lesson.description,
-      languageCode: lesson.languageCode,
-      level: lesson.level,
-      thumbnailUrl: lesson.thumbnailUrl,
-      sections: sections,
-      totalExercises: lesson.sections.reduce((acc, s) => acc + s.exercises.length, 0)
+      content: lesson.content,
+      videoUrl: lesson.videoUrl,
+      attachments: lesson.attachments,
+      index: lesson.index,
+      step: lesson.step
     };
   } catch (error) {
     console.error('Error getting full lesson:', error);
