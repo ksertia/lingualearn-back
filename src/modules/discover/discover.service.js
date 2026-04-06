@@ -1,23 +1,325 @@
+// const languageService = require('../language/language.service');
+
+// exports.getLanguagesForDiscover = async () => {
+//   const allLanguages = await languageService.getAll();
+  
+//   const languagesWithOnlyIntermediate = allLanguages
+//     .filter(language => language.levels && language.levels.some(level => level.code === 'intermediate'))
+//     .map(language => ({
+//       ...language.toObject ? language.toObject() : language,
+//       levels: language.levels.filter(level => level.code === 'intermediate')
+//     }));
+  
+//   return languagesWithOnlyIntermediate;
+// };
+
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+const uploadService = require('../../utils/uploadService');
 const languageService = require('../language/language.service');
 
 exports.getLanguagesForDiscover = async () => {
-  // Récupère toutes les langues
   const allLanguages = await languageService.getAll();
   
-  // Pour chaque langue, ne garder que le niveau intermédiaire
   const languagesWithOnlyIntermediate = allLanguages
     .filter(language => language.levels && language.levels.some(level => level.code === 'intermediate'))
     .map(language => ({
-      ...language,
-      // Remplacer tous les niveaux par seulement le niveau intermédiaire
+      ...language.toObject ? language.toObject() : language,
       levels: language.levels.filter(level => level.code === 'intermediate')
     }));
   
   return languagesWithOnlyIntermediate;
 };
 
-// Placeholder pour ajouter d'autres fonctionnalités de découverte (exercices, etc.)
-exports.getExercisesForDiscover = async () => {
-  // À implémenter : retourner des exercices de découverte
-  return [];
+/**
+ * Récupère une leçon complète depuis Prisma
+ */
+exports.getFullLesson = async (languageCode) => {
+  try {
+    // Récupérer la leçon publiée pour cette langue
+    const lesson = await prisma.lesson.findFirst({
+      where: {
+        languageCode: languageCode,
+        level: 'intermediate',
+        isPublished: true
+      },
+      include: {
+        sections: {
+          orderBy: { order: 'asc' },
+          include: {
+            exercises: true
+          }
+        }
+      }
+    });
+
+    if (!lesson) {
+      return null;
+    }
+
+    // Organiser par type
+    const sections = {
+      audio: [],
+      video: [],
+      qcm: [],
+      dragdrop: []
+    };
+
+    for (const section of lesson.sections) {
+      sections[section.type] = section.exercises.map(ex => ({
+        id: ex.id,
+        title: ex.title,
+        mediaUrl: ex.mediaUrl,
+        text: ex.text,
+        translation: ex.translation,
+        duration: ex.duration,
+        thumbnailUrl: ex.thumbnailUrl,
+        description: ex.description,
+        question: ex.question,
+        choices: ex.choices,
+        correctAnswer: ex.correctAnswer,
+        imageUrl: ex.imageUrl,
+        imageAlt: ex.imageAlt,
+        dragItems: ex.dragItems,
+        dropZones: ex.dropZones,
+        hint: ex.hint
+      }));
+    }
+
+    return {
+      lessonId: lesson.id,
+      title: lesson.title,
+      description: lesson.description,
+      languageCode: lesson.languageCode,
+      level: lesson.level,
+      thumbnailUrl: lesson.thumbnailUrl,
+      sections: sections,
+      totalExercises: lesson.sections.reduce((acc, s) => acc + s.exercises.length, 0)
+    };
+  } catch (error) {
+    console.error('Error getting full lesson:', error);
+    return null;
+  }
+};
+
+/**
+ * Crée une nouvelle leçon (LMS)
+ */
+exports.createLesson = async (lessonData, files) => {
+  const {
+    title,
+    description,
+    languageCode,
+    level = 'intermediate',
+    sections
+  } = lessonData;
+
+  // Sauvegarder la thumbnail si présente
+  let thumbnailUrl = null;
+  if (files.thumbnail) {
+    thumbnailUrl = uploadService.getFileUrl(files.thumbnail[0].filename);
+  }
+
+  // Créer la leçon
+  const lesson = await prisma.lesson.create({
+    data: {
+      title,
+      description,
+      languageCode,
+      level,
+      thumbnailUrl,
+      isPublished: false,
+      sections: {
+        create: sections.map((section, idx) => ({
+          type: section.type,
+          order: idx + 1,
+          title: section.title,
+          exercises: {
+            create: section.exercises.map(exercise => ({
+              title: exercise.title,
+              mediaUrl: exercise.mediaUrl,
+              text: exercise.text,
+              translation: exercise.translation,
+              duration: exercise.duration,
+              thumbnailUrl: exercise.thumbnailUrl,
+              description: exercise.description,
+              question: exercise.question,
+              choices: exercise.choices,
+              correctAnswer: exercise.correctAnswer,
+              imageUrl: exercise.imageUrl,
+              imageAlt: exercise.imageAlt,
+              dragItems: exercise.dragItems,
+              dropZones: exercise.dropZones,
+              hint: exercise.hint
+            }))
+          }
+        }))
+      }
+    },
+    include: {
+      sections: {
+        include: { exercises: true }
+      }
+    }
+  });
+
+  return lesson;
+};
+
+/**
+ * Upload d'un fichier média (LMS)
+ */
+exports.uploadMedia = async (file, type) => {
+  // Le fichier est déjà sauvegardé par multer
+  // Il suffit de retourner l'URL
+  return {
+    url: uploadService.getFileUrl(file.filename),
+    filename: file.filename,
+    size: file.size,
+    mimetype: file.mimetype,
+    originalName: file.originalname
+  };
+};
+
+/**
+ * Récupère tous les exercices (version simple pour compatibilité)
+ */
+exports.getExercisesForDiscover = async (languageCode = null) => {
+  const lesson = await exports.getFullLesson(languageCode);
+  
+  if (!lesson) {
+    return [];
+  }
+
+  // Aplatir toutes les sections en un seul tableau
+  const allExercises = [
+    ...lesson.sections.audio,
+    ...lesson.sections.video,
+    ...lesson.sections.qcm,
+    ...lesson.sections.dragdrop
+  ];
+
+  return allExercises;
+};
+
+/**
+ * Récupère un exercice par son ID
+ */
+exports.getExerciseById = async (exerciseId) => {
+  const exercise = await prisma.exercise.findUnique({
+    where: { id: exerciseId },
+    include: { section: true }
+  });
+
+  if (!exercise) return null;
+
+  return {
+    id: exercise.id,
+    type: exercise.section.type,
+    title: exercise.title,
+    mediaUrl: exercise.mediaUrl,
+    text: exercise.text,
+    translation: exercise.translation,
+    duration: exercise.duration,
+    thumbnailUrl: exercise.thumbnailUrl,
+    description: exercise.description,
+    question: exercise.question,
+    choices: exercise.choices,
+    correctAnswer: exercise.correctAnswer,
+    imageUrl: exercise.imageUrl,
+    imageAlt: exercise.imageAlt,
+    dragItems: exercise.dragItems,
+    dropZones: exercise.dropZones,
+    hint: exercise.hint
+  };
+};
+
+/**
+ * Calcule le score
+ */
+exports.calculateScore = async (exerciseId, userAnswers) => {
+  const exercise = await exports.getExerciseById(exerciseId);
+  
+  if (!exercise) {
+    throw new Error('Exercise not found');
+  }
+  
+  let score = 0;
+  let maxScore = 0;
+  let feedback = {};
+  
+  switch (exercise.type) {
+    case 'audio':
+      maxScore = 0;
+      score = 0;
+      feedback = { 
+        message: 'Audio écouté avec succès 🎧',
+        listened: userAnswers.listened || false
+      };
+      break;
+      
+    case 'video':
+      maxScore = 0;
+      score = 0;
+      feedback = { 
+        message: 'Vidéo visionnée avec succès 📹',
+        watched: userAnswers.watched || false
+      };
+      break;
+      
+    case 'qcm':
+      maxScore = 1;
+      if (userAnswers.selectedChoice === exercise.correctAnswer) {
+        score = 1;
+        feedback = { correct: true, message: 'Bonne réponse ! ✓' };
+      } else {
+        feedback = { 
+          correct: false, 
+          message: `Incorrect. La bonne réponse était : ${exercise.correctAnswer}` 
+        };
+      }
+      break;
+      
+    case 'dragdrop':
+      maxScore = exercise.dropZones.length;
+      let correctCount = 0;
+      const zoneResults = [];
+      
+      for (const zone of exercise.dropZones) {
+        const userItem = userAnswers.assignments?.[zone.id];
+        const isCorrect = userItem === zone.expectedItem;
+        if (isCorrect) correctCount++;
+        zoneResults.push({
+          zoneId: zone.id,
+          label: zone.label,
+          expected: zone.expectedItem,
+          received: userItem || null,
+          isCorrect
+        });
+      }
+      score = correctCount;
+      feedback = {
+        correctCount,
+        totalZones: maxScore,
+        message: correctCount === maxScore ? 'Parfait ! 🎉' : `${correctCount}/${maxScore} bonnes associations`
+      };
+      break;
+  }
+  
+  return {
+    exerciseId,
+    exerciseType: exercise.type,
+    score,
+    maxScore,
+    percentage: maxScore > 0 ? (score / maxScore) * 100 : 0,
+    feedback,
+    completed: score === maxScore && maxScore > 0
+  };
+};
+
+// Garder les autres fonctions exports.getExercisesBySection, etc.
+exports.getExercisesBySection = async (languageCode, sectionType) => {
+  const lesson = await exports.getFullLesson(languageCode);
+  if (!lesson) return [];
+  return lesson.sections[sectionType] || [];
 };
