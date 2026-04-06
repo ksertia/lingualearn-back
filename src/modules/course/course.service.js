@@ -80,25 +80,20 @@ exports.completeCourseForUser = async (userId, courseId) => {
 };
 
 exports.createCourse = async (data) => {
-  // Générer lessonNumber automatiquement (dernier + 1 pour la step)
+  // Générer index automatiquement (dernier + 1 pour la step)
   const lastLesson = await prisma.lesson.findFirst({
     where: { stepId: data.stepId },
-    orderBy: { lessonNumber: 'desc' },
+    orderBy: { index: 'desc' },
   });
-  const lessonNumber = lastLesson ? lastLesson.lessonNumber + 1 : 1;
+  const lessonIndex = lastLesson ? lastLesson.index + 1 : 1;
 
   // Mapping des champs
   const mapped = {
     stepId: data.stepId,
     title: data.title,
-    lessonNumber,
-    contentType: data.contentType,
-    contentUrl: data.contentUrl,
-    contentText: data.description,
-    estimatedDurationMinutes: data.duration,
-    isFreePreview: data.isPublished,
-    sortOrder: data.order,
-    isActive: data.isActive
+    content: data.description || '',
+    videoUrl: data.contentUrl,
+    index: lessonIndex
   };
   return prisma.lesson.create({ data: mapped });
 };
