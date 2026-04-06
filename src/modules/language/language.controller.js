@@ -1,3 +1,4 @@
+const service = require('./language.service');
 
 // Progression endpoints
 exports.selectLanguage = async (req, res, next) => {
@@ -40,7 +41,7 @@ exports.getByUserId = async (req, res, next) => {
 		next(err);
 	}
 };
-const service = require('./language.service');
+
 
 exports.create = async (req, res, next) => {
 	try {
