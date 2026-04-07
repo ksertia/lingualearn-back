@@ -58,6 +58,19 @@ const completeLesson = async (req, res, next) => {
 	}
 };
 
+// Récupérer les lessons d'une étape avec progression utilisateur
+const getLessonsByStep = async (req, res, next) => {
+	try {
+		const { stepId } = req.params;
+		const { userId } = req.query;
+
+		const lessons = await courseService.getLessonsByStep(stepId, userId);
+		res.json({ success: true, data: lessons });
+	} catch (error) {
+		next(error);
+	}
+};
+
 // Get all courses with filters
 const getCourses = async (req, res) => {
 	try {
@@ -256,6 +269,7 @@ module.exports = {
 	startCourse,
 	completeCourse,
 	completeLesson,
+	getLessonsByStep,
 	getCourses,
 	getCourse,
 	createCourse,

@@ -331,6 +331,89 @@ router.get('/level/:levelId', controller.getCoursesByLevel);
 
 /**
  * @swagger
+ * /api/v1/courses/step/{stepId}/lessons:
+ *   get:
+ *     summary: Récupérer les lessons d'une étape avec progression utilisateur
+ *     tags: [Course]
+ *     parameters:
+ *       - in: path
+ *         name: stepId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de l'étape
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *         description: ID de l'utilisateur (optionnel, pour récupérer la progression)
+ *     responses:
+ *       200:
+ *         description: Lesson récupérée avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     title:
+ *                       type: string
+ *                     content:
+ *                       type: string
+ *                     videoUrl:
+ *                       type: string
+ *                       nullable: true
+ *                     attachments:
+ *                       type: object
+ *                       nullable: true
+ *                     index:
+ *                       type: integer
+ *                     stepId:
+ *                       type: string
+ *                     stepInfo:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         title:
+ *                           type: string
+ *                         description:
+ *                           type: string
+ *                         estimatedMinutes:
+ *                           type: integer
+ *                     userProgress:
+ *                       type: object
+ *                       nullable: true
+ *                       properties:
+ *                         status:
+ *                           type: string
+ *                           enum: [locked, started, completed]
+ *                         progress:
+ *                           type: integer
+ *                         score:
+ *                           type: integer
+ *                           nullable: true
+ *                         startedAt:
+ *                           type: string
+ *                           format: date-time
+ *                         completedAt:
+ *                           type: string
+ *                           format: date-time
+ *                           nullable: true
+ *       404:
+ *         description: Lesson non trouvée
+ */
+router.get('/step/:stepId/lessons', controller.getLessonsByStep);
+
+/**
+ * @swagger
  * components:
  *   schemas:
  *     Course:

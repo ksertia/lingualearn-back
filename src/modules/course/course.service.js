@@ -79,6 +79,51 @@ exports.completeCourseForUser = async (userId, courseId) => {
   });
 };
 
+// Récupérer les lessons d'une étape avec progression utilisateur
+exports.getLessonsByStep = async (stepId, userId = null) => {
+  // Récupérer la leçon de cette étape
+  const lesson = await prisma.lesson.findUnique({
+    where: { stepId },
+    include: {
+      step: {
+        include: {
+          userProgress: userId ? {
+            where: { userId }
+          } : false
+        }
+      }
+    }
+  });
+
+  if (!lesson) {
+    return null;
+  }
+
+  // Formater la réponse avec progression
+  return {
+    id: lesson.id,
+    title: lesson.title,
+    content: lesson.content,
+    videoUrl: lesson.videoUrl,
+    attachments: lesson.attachments,
+    index: lesson.index,
+    stepId: lesson.stepId,
+    stepInfo: {
+      id: lesson.step.id,
+      title: lesson.step.title,
+      description: lesson.step.description,
+      estimatedMinutes: lesson.step.estimatedMinutes
+    },
+    userProgress: userId && lesson.step.userProgress?.[0] ? {
+      status: lesson.step.userProgress[0].status,
+      progress: lesson.step.userProgress[0].progress,
+      score: lesson.step.userProgress[0].score,
+      startedAt: lesson.step.userProgress[0].startedAt,
+      completedAt: lesson.step.userProgress[0].completedAt
+    } : null
+  };
+};
+
 // Compléter une leçon pour un utilisateur
 exports.completeLessonForUser = async (lessonId, userId) => {
   // 1. Récupérer la leçon
