@@ -38,6 +38,26 @@ const completeCourse = async (req, res, next) => {
 	}
 };
 
+// Compléter une leçon (Lesson) pour un utilisateur
+const completeLesson = async (req, res, next) => {
+	try {
+		const { lessonId } = req.params;
+		const { userId } = req.body;
+		
+		if (!userId) {
+			return res.status(400).json({ 
+				success: false, 
+				error: 'userId est requis' 
+			});
+		}
+
+		const result = await courseService.completeLessonForUser(lessonId, userId);
+		res.json({ success: true, data: result });
+	} catch (error) {
+		next(error);
+	}
+};
+
 // Get all courses with filters
 const getCourses = async (req, res) => {
 	try {
@@ -235,6 +255,7 @@ module.exports = {
 	getCoursesByUserId,
 	startCourse,
 	completeCourse,
+	completeLesson,
 	getCourses,
 	getCourse,
 	createCourse,

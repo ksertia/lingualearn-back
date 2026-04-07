@@ -16,4 +16,136 @@ async function deleteExercise(id) {
 	return prisma.exercise.delete({ where: { id } });
 }
 
-module.exports = { createExercise, getExerciseById, updateExercise, deleteExercise };
+// Soumettre et valider les réponses d'un exercice
+async function submitExerciseAnswer(exerciseId, userId, userAnswers) {
+	// 1. Récupérer l'exercice avec les réponses correctes
+	const exercise = await prisma.exercise.findUnique({
+		where: { id: exerciseId },
+		include: {
+			step: true
+		}
+	});
+
+	if (!exercise) {
+		throw new Error('Exercice non trouvé');
+	}
+
+	// 2. Vérifier le nombre de tentatives
+	const attempts = await prisma.exerciseAttempt.count({
+		where: { exerciseId, userId }
+	});
+
+	if (attempts >= exercise.maxAttempts) {
+		throw new Error(`Nombre maximum de tentatives atteint (${exercise.maxAttempts})`);
+	}
+
+	// 3. Valider les réponses
+	const correctAnswers = exercise.correctAnswers || {};
+	let score = 0;
+	let totalQuestions = 0;
+	const feedback = {};
+
+	// Comparer les réponses utilisateur avec les réponses correctes
+	if (typeof correctAnswers === 'object') {
+		totalQuestions = Object.keys(correctAnswers).length;
+		
+		for (const [key, correctAnswer] of Object.entries(correctAnswers)) {
+			const userAnswer = userAnswers[key];
+			const isCorrect = JSON.stringify(userAnswer) === JSON.stringify(correctAnswer);
+			
+			if (isCorrect) {
+				score++;
+			}
+			
+			feedback[key] = {
+				correct: isCorrect,
+				userAnswer,
+				correctAnswer: isCorrect ? null : correctAnswer // Ne montrer la réponse correcte que si faux
+			};
+		}
+	}
+
+	const percentageScore = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
+	const passed = percentageScore >= 70; // 70% pour réussir
+
+	// 4. Enregistrer la tentative
+	const attempt = await prisma.exerciseAttempt.create({
+		data: {
+			exerciseId,
+			userId,
+			answers: userAnswers,
+			score: percentageScore,
+			passed,
+			completedAt: new Date()
+		}
+	});
+
+	// 5. Mettre à jour la progression de l'étape si réussi
+	if (passed) {
+		const stepProgress = await prisma.userStepProgress.findUnique({
+			where: {
+				userId_stepId: {
+					userId,
+					stepId: exercise.stepId
+				}
+			}
+		});
+
+		if (stepProgress) {
+			await prisma.userStepProgress.update({
+				where: {
+					userId_stepId: {
+						userId,
+						stepId: exercise.stepId
+					}
+				},
+				data: {
+					status: 'completed',
+					progress: 100,
+					score: percentageScore,
+					completedAt: new Date()
+				}
+			});
+		}
+	}
+
+	// 6. Calculer les récompenses
+	const earnedXp = passed ? exercise.xpReward : Math.floor(exercise.xpReward * (percentageScore / 100));
+	const earnedCoins = passed ? exercise.coinReward : Math.floor(exercise.coinReward * (percentageScore / 100));
+
+	// Mettre à jour les stats utilisateur
+	if (earnedXp > 0 || earnedCoins > 0) {
+		await prisma.userStats.upsert({
+			where: { userId },
+			create: {
+				userId,
+				totalXp: earnedXp,
+				totalCoins: earnedCoins,
+				totalExercisesCompleted: passed ? 1 : 0
+			},
+			update: {
+				totalXp: { increment: earnedXp },
+				totalCoins: { increment: earnedCoins },
+				totalExercisesCompleted: passed ? { increment: 1 } : undefined
+			}
+		});
+	}
+
+	return {
+		attemptId: attempt.id,
+		score: percentageScore,
+		passed,
+		correctAnswers: score,
+		totalQuestions,
+		feedback,
+		rewards: {
+			xp: earnedXp,
+			coins: earnedCoins
+		},
+		attemptsUsed: attempts + 1,
+		attemptsRemaining: exercise.maxAttempts - (attempts + 1),
+		explanation: exercise.explanation
+	};
+}
+
+module.exports = { createExercise, getExerciseById, updateExercise, deleteExercise, submitExerciseAnswer };

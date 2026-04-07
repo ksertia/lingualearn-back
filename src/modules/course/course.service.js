@@ -79,6 +79,80 @@ exports.completeCourseForUser = async (userId, courseId) => {
   });
 };
 
+// Compléter une leçon pour un utilisateur
+exports.completeLessonForUser = async (lessonId, userId) => {
+  // 1. Récupérer la leçon
+  const lesson = await prisma.lesson.findUnique({
+    where: { id: lessonId },
+    include: {
+      step: true
+    }
+  });
+
+  if (!lesson) {
+    throw new Error('Leçon non trouvée');
+  }
+
+  // 2. Vérifier si la progression existe
+  const stepProgress = await prisma.userStepProgress.findUnique({
+    where: {
+      userId_stepId: {
+        userId,
+        stepId: lesson.stepId
+      }
+    }
+  });
+
+  if (!stepProgress) {
+    throw new Error('Progression de l\'étape non trouvée. Veuillez d\'abord démarrer l\'étape.');
+  }
+
+  // 3. Mettre à jour la progression de l'étape
+  const updatedProgress = await prisma.userStepProgress.update({
+    where: {
+      userId_stepId: {
+        userId,
+        stepId: lesson.stepId
+      }
+    },
+    data: {
+      status: 'completed',
+      progress: 100,
+      completedAt: new Date()
+    }
+  });
+
+  // 4. Attribuer des récompenses (XP et coins pour avoir complété la leçon)
+  const earnedXp = 10; // XP pour compléter une leçon
+  const earnedCoins = 5; // Coins pour compléter une leçon
+
+  await prisma.userStats.upsert({
+    where: { userId },
+    create: {
+      userId,
+      totalXp: earnedXp,
+      totalCoins: earnedCoins,
+      totalLessonsCompleted: 1
+    },
+    update: {
+      totalXp: { increment: earnedXp },
+      totalCoins: { increment: earnedCoins },
+      totalLessonsCompleted: { increment: 1 }
+    }
+  });
+
+  return {
+    lessonId: lesson.id,
+    lessonTitle: lesson.title,
+    stepProgress: updatedProgress,
+    rewards: {
+      xp: earnedXp,
+      coins: earnedCoins
+    },
+    message: 'Leçon complétée avec succès !'
+  };
+};
+
 exports.createCourse = async (data) => {
   // Générer index automatiquement (dernier + 1 pour la step)
   const lastLesson = await prisma.lesson.findFirst({

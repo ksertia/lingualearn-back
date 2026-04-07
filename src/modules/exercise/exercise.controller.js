@@ -44,4 +44,24 @@ async function remove(req, res, next) {
 	}
 }
 
-module.exports = { create, getById, update, remove };
+// Soumettre et valider les réponses d'un exercice
+async function submitAnswer(req, res, next) {
+	try {
+		const { exerciseId } = req.params;
+		const { userId, answers } = req.body;
+		
+		if (!userId || !answers) {
+			return res.status(400).json({ 
+				success: false, 
+				error: 'userId et answers sont requis' 
+			});
+		}
+
+		const result = await service.submitExerciseAnswer(exerciseId, userId, answers);
+		res.json({ success: true, data: result });
+	} catch (err) {
+		next(err);
+	}
+}
+
+module.exports = { create, getById, update, remove, submitAnswer };

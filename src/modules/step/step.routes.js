@@ -287,4 +287,121 @@ router.post('/api/v1/users/:userId/steps/:stepId/complete', controller.completeS
  */
 router.get('/api/v1/users/:userId/paths/:pathId/steps', controller.getStepsByPathId);
 
+/**
+ * @swagger
+ * /api/v1/steps/{stepId}/content:
+ *   get:
+ *     summary: Récupérer le contenu complet d'une étape (Lesson/Exercise/Quiz)
+ *     description: Récupère le contenu détaillé d'une étape avec toutes les informations contextuelles (parcours, module, niveau, langue) et la progression utilisateur
+ *     tags: [Steps]
+ *     parameters:
+ *       - in: path
+ *         name: stepId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de l'étape
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *         description: ID de l'utilisateur (optionnel, pour récupérer la progression)
+ *     responses:
+ *       200:
+ *         description: Contenu de l'étape récupéré avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     step:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         title:
+ *                           type: string
+ *                         description:
+ *                           type: string
+ *                         stepType:
+ *                           type: string
+ *                           enum: [lesson, exercise, quiz]
+ *                         index:
+ *                           type: integer
+ *                         estimatedMinutes:
+ *                           type: integer
+ *                         isActive:
+ *                           type: boolean
+ *                     content:
+ *                       type: object
+ *                       description: Contenu selon le type (lesson/exercise/quiz)
+ *                     contentType:
+ *                       type: string
+ *                       enum: [lesson, exercise, quiz]
+ *                     path:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         title:
+ *                           type: string
+ *                         description:
+ *                           type: string
+ *                     module:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         title:
+ *                           type: string
+ *                     level:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         code:
+ *                           type: string
+ *                     language:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         code:
+ *                           type: string
+ *                     userProgress:
+ *                       type: object
+ *                       nullable: true
+ *                       properties:
+ *                         status:
+ *                           type: string
+ *                           enum: [locked, started, completed]
+ *                         progress:
+ *                           type: integer
+ *                         score:
+ *                           type: integer
+ *                           nullable: true
+ *                         attempts:
+ *                           type: integer
+ *                         startedAt:
+ *                           type: string
+ *                           format: date-time
+ *                         completedAt:
+ *                           type: string
+ *                           format: date-time
+ *                           nullable: true
+ *       404:
+ *         description: Étape non trouvée
+ */
+router.get('/:stepId/content', controller.getStepContent);
+
 module.exports = router;

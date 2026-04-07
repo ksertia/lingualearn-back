@@ -88,6 +88,87 @@ router.get('/:id', controller.getCourse);
 
 /**
  * @swagger
+ * /api/v1/courses/{lessonId}/complete:
+ *   post:
+ *     summary: Marquer une leçon comme complétée
+ *     description: Complète une leçon pour un utilisateur, met à jour la progression de l'étape et attribue des récompenses (XP, coins)
+ *     tags: [Course]
+ *     parameters:
+ *       - in: path
+ *         name: lessonId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la leçon
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 description: ID de l'utilisateur
+ *                 example: "user123"
+ *     responses:
+ *       200:
+ *         description: Leçon complétée avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     lessonId:
+ *                       type: string
+ *                       description: ID de la leçon
+ *                     lessonTitle:
+ *                       type: string
+ *                       description: Titre de la leçon
+ *                     stepProgress:
+ *                       type: object
+ *                       description: Progression de l'étape mise à jour
+ *                       properties:
+ *                         status:
+ *                           type: string
+ *                           example: "completed"
+ *                         progress:
+ *                           type: integer
+ *                           example: 100
+ *                         completedAt:
+ *                           type: string
+ *                           format: date-time
+ *                     rewards:
+ *                       type: object
+ *                       properties:
+ *                         xp:
+ *                           type: integer
+ *                           description: Points d'expérience gagnés
+ *                           example: 10
+ *                         coins:
+ *                           type: integer
+ *                           description: Pièces gagnées
+ *                           example: 5
+ *                     message:
+ *                       type: string
+ *                       example: "Leçon complétée avec succès !"
+ *       400:
+ *         description: Données invalides
+ *       404:
+ *         description: Leçon non trouvée
+ */
+router.post('/:lessonId/complete', controller.completeLesson);
+
+/**
+ * @swagger
  * /api/v1/courses:
  *   post:
  *     summary: Créer un cours

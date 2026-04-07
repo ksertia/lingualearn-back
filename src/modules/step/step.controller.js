@@ -42,6 +42,18 @@ exports.getStepsByPathId = async (req, res, next) => {
     next(err);
   }
 };
+
+// Récupérer le contenu complet d'une étape (Lesson/Exercise/Quiz)
+exports.getStepContent = async (req, res, next) => {
+  try {
+    const { stepId } = req.params;
+    const userId = req.params.userId || req.user?.id;
+    const content = await stepService.getStepContent(stepId, userId);
+    res.json({ success: true, data: content });
+  } catch (err) {
+    next(err);
+  }
+};
 const stepService = require('./step.service');
 const { createStepSchema, updateStepSchema } = require('./step.schema');
 const { asyncHandler } = require('../../middleware/asyncHandler');
