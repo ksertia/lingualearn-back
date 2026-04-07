@@ -81,6 +81,7 @@ async function submitExerciseAnswer(exerciseId, userId, userAnswers) {
 	});
 
 	// 5. Mettre à jour la progression de l'étape si réussi
+	let nextStepUnlocked = null;
 	if (passed) {
 		const stepProgress = await prisma.userStepProgress.findUnique({
 			where: {
@@ -106,6 +107,60 @@ async function submitExerciseAnswer(exerciseId, userId, userAnswers) {
 					completedAt: new Date()
 				}
 			});
+
+			// DÉBLOCAGE AUTOMATIQUE - Débloquer l'étape suivante
+			try {
+				const nextStep = await prisma.step.findFirst({
+					where: {
+						pathId: exercise.step.pathId,
+						index: { gt: exercise.step.index }
+					},
+					orderBy: { index: 'asc' }
+				});
+
+				if (nextStep) {
+					await prisma.userStepProgress.upsert({
+						where: {
+							userId_stepId: {
+								userId,
+								stepId: nextStep.id
+							}
+						},
+						update: {
+							status: 'unlocked',
+							unlockedAt: new Date()
+						},
+						create: {
+							userId,
+							stepId: nextStep.id,
+							status: 'unlocked',
+							unlockedAt: new Date()
+						}
+					});
+					
+					nextStepUnlocked = {
+						id: nextStep.id,
+						title: nextStep.title,
+						index: nextStep.index
+					};
+				} else {
+					// Toutes les étapes complétées, marquer le parcours comme complété
+					await prisma.userPathProgress.update({
+						where: {
+							userId_pathId: {
+								userId,
+								pathId: exercise.step.pathId
+							}
+						},
+						data: {
+							status: 'completed',
+							completedAt: new Date()
+						}
+					});
+				}
+			} catch (error) {
+				console.error('Erreur lors du déblocage de l\'étape suivante:', error);
+			}
 		}
 	}
 
@@ -144,7 +199,11 @@ async function submitExerciseAnswer(exerciseId, userId, userAnswers) {
 		},
 		attemptsUsed: attempts + 1,
 		attemptsRemaining: exercise.maxAttempts - (attempts + 1),
-		explanation: exercise.explanation
+		explanation: exercise.explanation,
+		nextStepUnlocked,
+		message: nextStepUnlocked 
+			? `Exercice réussi ! Étape suivante débloquée : ${nextStepUnlocked.title}` 
+			: passed ? 'Exercice réussi !' : 'Exercice échoué, réessayez !'
 	};
 }
 

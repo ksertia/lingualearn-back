@@ -126,11 +126,17 @@ exports.getLessonsByStep = async (stepId, userId = null) => {
 
 // Compléter une leçon pour un utilisateur
 exports.completeLessonForUser = async (lessonId, userId) => {
+  const progressionService = require('../progression/progression.service');
+  
   // 1. Récupérer la leçon
   const lesson = await prisma.lesson.findUnique({
     where: { id: lessonId },
     include: {
-      step: true
+      step: {
+        include: {
+          path: true
+        }
+      }
     }
   });
 
@@ -186,6 +192,62 @@ exports.completeLessonForUser = async (lessonId, userId) => {
     }
   });
 
+  // 5. DÉBLOCAGE AUTOMATIQUE - Débloquer l'étape suivante
+  let nextStepUnlocked = null;
+  try {
+    const nextStep = await prisma.step.findFirst({
+      where: {
+        pathId: lesson.step.pathId,
+        index: { gt: lesson.step.index }
+      },
+      orderBy: { index: 'asc' }
+    });
+
+    if (nextStep) {
+      // Créer ou mettre à jour la progression de l'étape suivante
+      await prisma.userStepProgress.upsert({
+        where: {
+          userId_stepId: {
+            userId,
+            stepId: nextStep.id
+          }
+        },
+        update: {
+          status: 'unlocked',
+          unlockedAt: new Date()
+        },
+        create: {
+          userId,
+          stepId: nextStep.id,
+          status: 'unlocked',
+          unlockedAt: new Date()
+        }
+      });
+      
+      nextStepUnlocked = {
+        id: nextStep.id,
+        title: nextStep.title,
+        index: nextStep.index
+      };
+    } else {
+      // Toutes les étapes complétées, marquer le parcours comme complété
+      await prisma.userPathProgress.update({
+        where: {
+          userId_pathId: {
+            userId,
+            pathId: lesson.step.pathId
+          }
+        },
+        data: {
+          status: 'completed',
+          completedAt: new Date()
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Erreur lors du déblocage de l\'étape suivante:', error);
+  }
+
   return {
     lessonId: lesson.id,
     lessonTitle: lesson.title,
@@ -194,7 +256,10 @@ exports.completeLessonForUser = async (lessonId, userId) => {
       xp: earnedXp,
       coins: earnedCoins
     },
-    message: 'Leçon complétée avec succès !'
+    nextStepUnlocked,
+    message: nextStepUnlocked 
+      ? `Leçon complétée ! Étape suivante débloquée : ${nextStepUnlocked.title}` 
+      : 'Leçon complétée avec succès !'
   };
 };
 

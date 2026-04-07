@@ -80,6 +80,7 @@ async function submitQuizAnswer(quizId, userId, userAnswers) {
 	});
 
 	// 5. Mettre à jour la progression de l'étape si réussi
+	let nextStepUnlocked = null;
 	if (passed) {
 		const stepProgress = await prisma.userStepProgress.findUnique({
 			where: {
@@ -105,6 +106,60 @@ async function submitQuizAnswer(quizId, userId, userAnswers) {
 					completedAt: new Date()
 				}
 			});
+
+			// DÉBLOCAGE AUTOMATIQUE - Débloquer l'étape suivante
+			try {
+				const nextStep = await prisma.step.findFirst({
+					where: {
+						pathId: quiz.step.pathId,
+						index: { gt: quiz.step.index }
+					},
+					orderBy: { index: 'asc' }
+				});
+
+				if (nextStep) {
+					await prisma.userStepProgress.upsert({
+						where: {
+							userId_stepId: {
+								userId,
+								stepId: nextStep.id
+							}
+						},
+						update: {
+							status: 'unlocked',
+							unlockedAt: new Date()
+						},
+						create: {
+							userId,
+							stepId: nextStep.id,
+							status: 'unlocked',
+							unlockedAt: new Date()
+						}
+					});
+					
+					nextStepUnlocked = {
+						id: nextStep.id,
+						title: nextStep.title,
+						index: nextStep.index
+					};
+				} else {
+					// Toutes les étapes complétées, marquer le parcours comme complété
+					await prisma.userPathProgress.update({
+						where: {
+							userId_pathId: {
+								userId,
+								pathId: quiz.step.pathId
+							}
+						},
+						data: {
+							status: 'completed',
+							completedAt: new Date()
+						}
+					});
+				}
+			} catch (error) {
+				console.error('Erreur lors du déblocage de l\'étape suivante:', error);
+			}
 		}
 	}
 
@@ -144,7 +199,11 @@ async function submitQuizAnswer(quizId, userId, userAnswers) {
 		},
 		attemptsUsed: attempts + 1,
 		attemptsRemaining: quiz.maxAttempts - (attempts + 1),
-		timeTaken: quiz.timeLimitMinutes ? `${quiz.timeLimitMinutes} minutes` : null
+		timeTaken: quiz.timeLimitMinutes ? `${quiz.timeLimitMinutes} minutes` : null,
+		nextStepUnlocked,
+		message: nextStepUnlocked 
+			? `Quiz réussi ! Étape suivante débloquée : ${nextStepUnlocked.title}` 
+			: passed ? 'Quiz réussi !' : 'Quiz échoué, réessayez !'
 	};
 }
 
