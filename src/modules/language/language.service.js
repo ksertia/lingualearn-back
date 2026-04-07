@@ -98,13 +98,11 @@ exports.create = async (data) => {
 	return await prisma.language.create({ data: { ...data, index } });
 };
 
-exports.getAll = async (includeInactive = false) => {
-	// const where = includeInactive ? {} : { isActive: true };
+exports.getAll = async () => {
 	return await prisma.language.findMany({
 		orderBy: { index: 'asc' },
 		include: {
 			levels: {
-				// where: { isActive: true },
 				orderBy: { index: 'asc' }
 			}
 		}
