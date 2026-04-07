@@ -11,6 +11,65 @@ const router = express.Router();
 
 /**
  * @swagger
+ * /api/v1/courses/user/{userId}:
+ *   get:
+ *     summary: Récupérer toutes les lessons d'un utilisateur avec progression
+ *     description: Retourne toutes les lessons du parcours actuel de l'utilisateur avec leur statut de progression
+ *     tags: [Course]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de l'utilisateur
+ *     responses:
+ *       200:
+ *         description: Liste des lessons de l'utilisateur
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       title:
+ *                         type: string
+ *                       content:
+ *                         type: string
+ *                       videoUrl:
+ *                         type: string
+ *                         nullable: true
+ *                       stepId:
+ *                         type: string
+ *                       stepTitle:
+ *                         type: string
+ *                       stepIndex:
+ *                         type: integer
+ *                       status:
+ *                         type: string
+ *                         enum: [locked, unlocked, started, completed]
+ *                       progressValue:
+ *                         type: integer
+ *                       completedAt:
+ *                         type: string
+ *                         format: date-time
+ *                         nullable: true
+ *       404:
+ *         description: Aucune lesson trouvée pour cet utilisateur
+ */
+router.get('/user/:userId', controller.getCoursesByUserId);
+
+/**
+ * @swagger
  * /api/v1/courses:
  *   get:
  *     summary: Liste paginée et filtrée des cours
@@ -50,7 +109,7 @@ const router = express.Router();
  *         name: sortBy
  *         schema:
  *           type: string
-*         description: "Champ de tri (ex: createdAt)"
+ *         description: "Champ de tri (ex: createdAt)"
  *       - in: query
  *         name: sortOrder
  *         schema:
