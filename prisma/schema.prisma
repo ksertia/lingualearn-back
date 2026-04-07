@@ -747,3 +747,5 @@ model discovery_sessions {
   expiresAt DateTime
   createdAt DateTime @default(now())
 }
+
+

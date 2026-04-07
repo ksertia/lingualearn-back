@@ -99,13 +99,13 @@ exports.create = async (data) => {
 };
 
 exports.getAll = async (includeInactive = false) => {
-	const where = includeInactive ? {} : { isActive: true };
+	// const where = includeInactive ? {} : { isActive: true };
 	return await prisma.language.findMany({
 		where,
 		orderBy: { index: 'asc' },
 		include: {
 			levels: {
-				where: { isActive: true },
+				// where: { isActive: true },
 				orderBy: { index: 'asc' }
 			}
 		}

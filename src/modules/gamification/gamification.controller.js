@@ -1,78 +1,196 @@
-const service = require('./gamification.service');
-const { createBadgeSchema, createUserBadgeSchema } = require('./gamification.schema');
+const gamificationService = require('./gamification.service');
 
-// Badges
-async function createBadge(req, res, next) {
+// ==================== STATS ====================
+
+/**
+ * Récupérer les stats complètes d'un utilisateur
+ */
+async function getUserStats(req, res, next) {
   try {
-    const { error, value } = createBadgeSchema.validate(req.body);
-    if (error) return res.status(400).json({ error: error.details[0].message });
-    const badge = await service.createBadge(value);
-    res.status(201).json(badge);
-  } catch (err) {
-    next(err);
+    const { userId } = req.params;
+    const stats = await gamificationService.getUserStats(userId);
+    
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    next(error);
   }
 }
+
+/**
+ * Ajouter des récompenses (XP et coins) à un utilisateur
+ */
+async function addRewards(req, res, next) {
+  try {
+    const { userId } = req.params;
+    const { xp = 0, coins = 0 } = req.body;
+    
+    await gamificationService.addRewards(userId, xp, coins);
+    const updatedStats = await gamificationService.getUserStats(userId);
+    
+    res.json({
+      success: true,
+      data: updatedStats,
+      message: `Récompenses ajoutées: ${xp} XP, ${coins} coins`
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// ==================== BADGES ====================
+
+/**
+ * Récupérer tous les badges disponibles
+ */
 async function getAllBadges(req, res, next) {
   try {
-    const badges = await service.getAllBadges();
-    res.json(badges);
-  } catch (err) {
-    next(err);
+    const badges = await gamificationService.getAllBadges();
+    
+    res.json({
+      success: true,
+      data: badges
+    });
+  } catch (error) {
+    next(error);
   }
 }
-async function getBadgeById(req, res, next) {
-  try {
-    const badge = await service.getBadgeById(req.params.id);
-    if (!badge) return res.status(404).json({ error: 'Badge not found' });
-    res.json(badge);
-  } catch (err) {
-    next(err);
-  }
-}
-async function updateBadge(req, res, next) {
-  try {
-    const { error, value } = createBadgeSchema.validate(req.body);
-    if (error) return res.status(400).json({ error: error.details[0].message });
-    const badge = await service.updateBadge(req.params.id, value);
-    res.json(badge);
-  } catch (err) {
-    next(err);
-  }
-}
-async function deleteBadge(req, res, next) {
-  try {
-    await service.deleteBadge(req.params.id);
-    res.status(204).send();
-  } catch (err) {
-    next(err);
-  }
-}
-// UserBadges
-async function awardBadgeToUser(req, res, next) {
-  try {
-    const { error, value } = createUserBadgeSchema.validate(req.body);
-    if (error) return res.status(400).json({ error: error.details[0].message });
-    const userBadge = await service.awardBadgeToUser(value);
-    res.status(201).json(userBadge);
-  } catch (err) {
-    next(err);
-  }
-}
+
+/**
+ * Récupérer les badges d'un utilisateur
+ */
 async function getUserBadges(req, res, next) {
   try {
-    const userBadges = await service.getUserBadges(req.params.userId);
-    res.json(userBadges);
-  } catch (err) {
-    next(err);
+    const { userId } = req.params;
+    const badges = await gamificationService.getUserBadges(userId);
+    
+    res.json({
+      success: true,
+      data: badges
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Vérifier et attribuer les badges débloqués
+ */
+async function checkBadges(req, res, next) {
+  try {
+    const { userId } = req.params;
+    const newBadges = await gamificationService.checkAndAwardBadges(userId);
+    
+    res.json({
+      success: true,
+      data: {
+        newBadges: newBadges.map(b => ({
+          id: b.id,
+          name: b.name,
+          description: b.description,
+          icon: b.icon
+        })),
+        count: newBadges.length
+      },
+      message: newBadges.length > 0 
+        ? `${newBadges.length} nouveau(x) badge(s) débloqué(s) !`
+        : 'Aucun nouveau badge'
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// ==================== STREAKS ====================
+
+/**
+ * Mettre à jour le streak quotidien
+ */
+async function updateStreak(req, res, next) {
+  try {
+    const { userId } = req.params;
+    const result = await gamificationService.updateDailyStreak(userId);
+    
+    if (!result) {
+      return res.json({
+        success: true,
+        message: 'Activité déjà enregistrée aujourd\'hui'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        currentStreak: result.newStreak,
+        streakBonus: result.streakBonus
+      },
+      message: result.streakBonus > 0 
+        ? `Streak maintenu ! Bonus: ${result.streakBonus} XP`
+        : 'Nouveau streak commencé !'
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// ==================== LEADERBOARD ====================
+
+/**
+ * Récupérer le classement global
+ */
+async function getLeaderboard(req, res, next) {
+  try {
+    const { limit = 10 } = req.query;
+    const leaderboard = await gamificationService.getLeaderboard(parseInt(limit));
+    
+    res.json({
+      success: true,
+      data: leaderboard
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Récupérer le rang d'un utilisateur
+ */
+async function getUserRank(req, res, next) {
+  try {
+    const { userId } = req.params;
+    const rank = await gamificationService.getUserRank(userId);
+    const stats = await gamificationService.getUserStats(userId);
+    
+    res.json({
+      success: true,
+      data: {
+        rank,
+        level: stats.level,
+        totalXp: stats.totalXp,
+        totalCoins: stats.totalCoins
+      }
+    });
+  } catch (error) {
+    next(error);
   }
 }
 
 module.exports = {
-  createBadge,
+  // Stats
+  getUserStats,
+  addRewards,
+  
+  // Badges
   getAllBadges,
-  getBadgeById,
-  updateBadge,
-  deleteBadge,
-  awardBadgeToUser,
-  getUserBadges
+  getUserBadges,
+  checkBadges,
+  
+  // Streaks
+  updateStreak,
+  
+  // Leaderboard
+  getLeaderboard,
+  getUserRank
 };
