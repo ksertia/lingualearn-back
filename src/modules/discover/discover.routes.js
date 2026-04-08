@@ -6,46 +6,246 @@ const { authMiddleware, allowRoles } = require('../../middleware/authMiddleware'
 
 /**
  * @swagger
+ * tags:
+ *   name: Discover
+ *   description: Module de découverte des langues (sessions temporaires pour utilisateurs non connectés)
+ * 
  * components:
+ *   securitySchemes:
+ *     BearerAuth:
+ *       type: http
+ *       scheme: bearer
+ *       bearerFormat: JWT
+ *   
  *   schemas:
- *     Language:
+ *     DiscoverLanguage:
  *       type: object
  *       properties:
  *         id:
  *           type: string
- *         name:
- *           type: string
+ *           example: "lang_mo166_123"
  *         code:
  *           type: string
+ *           example: "mo166"
+ *         name:
+ *           type: string
+ *           example: "Mooré"
+ *         description:
+ *           type: string
+ *           example: "Langue parlée au Burkina Faso"
+ *         iconUrl:
+ *           type: string
+ *           nullable: true
  *         levels:
  *           type: array
  *           items:
  *             type: object
- *     Exercise:
+ *             properties:
+ *               code:
+ *                 type: string
+ *                 example: "intermediate"
+ * 
+ *     DiscoverExercise:
  *       type: object
  *       properties:
  *         id:
  *           type: string
+ *           example: "ex_123"
+ *         title:
+ *           type: string
+ *           example: "Salutation en Mooré"
  *         type:
  *           type: string
  *           enum: [audio, video, qcm, dragdrop]
+ *           example: "audio"
+ *         mediaUrl:
+ *           type: string
+ *           nullable: true
+ *         text:
+ *           type: string
+ *           nullable: true
+ *         translation:
+ *           type: string
+ *           nullable: true
+ *         duration:
+ *           type: integer
+ *           nullable: true
+ *         question:
+ *           type: string
+ *           nullable: true
+ *         choices:
+ *           type: array
+ *           nullable: true
+ *         correctAnswer:
+ *           type: string
+ *           nullable: true
+ *         description:
+ *           type: string
+ *           nullable: true
+ * 
+ *     DiscoverLesson:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           example: "lesson_mo166_int_1"
  *         title:
  *           type: string
+ *           example: "Découvrir le Mooré"
+ *         description:
+ *           type: string
+ *           example: "Une introduction au Mooré"
  *         languageCode:
  *           type: string
+ *           example: "mo166"
  *         level:
  *           type: string
- *     SessionScore:
+ *           example: "intermediate"
+ *         thumbnailUrl:
+ *           type: string
+ *           nullable: true
+ *         isPublished:
+ *           type: boolean
+ *           example: true
+ *         totalExercises:
+ *           type: integer
+ *           example: 20
+ *         sections:
+ *           type: object
+ *           properties:
+ *             audio:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/DiscoverExercise'
+ *             video:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/DiscoverExercise'
+ *             qcm:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/DiscoverExercise'
+ *             dragdrop:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/DiscoverExercise'
+ * 
+ *     DiscoverSession:
  *       type: object
  *       properties:
  *         sessionId:
  *           type: string
+ *           example: "temp_1712680000_abc123xyz"
  *         totalScore:
  *           type: integer
+ *           example: 15
  *         totalMaxScore:
+ *           type: integer
+ *           example: 20
+ *         percentage:
+ *           type: number
+ *           format: float
+ *           example: 75.5
+ *         exercisesCompleted:
+ *           type: integer
+ *           example: 8
+ *         startedAt:
+ *           type: string
+ *           format: date-time
+ *         lastActivity:
+ *           type: string
+ *           format: date-time
+ * 
+ *     ExerciseResult:
+ *       type: object
+ *       properties:
+ *         exerciseId:
+ *           type: string
+ *         exerciseType:
+ *           type: string
+ *           enum: [audio, video, qcm, dragdrop]
+ *         score:
+ *           type: integer
+ *         maxScore:
  *           type: integer
  *         percentage:
  *           type: number
+ *         feedback:
+ *           type: object
+ *         completed:
+ *           type: boolean
+ * 
+ *     CreateLessonRequest:
+ *       type: object
+ *       required:
+ *         - title
+ *         - languageCode
+ *         - sections
+ *       properties:
+ *         title:
+ *           type: string
+ *           example: "Apprendre le Mooré"
+ *         description:
+ *           type: string
+ *           example: "Un module complet pour découvrir le Mooré"
+ *         languageCode:
+ *           type: string
+ *           example: "mo166"
+ *         level:
+ *           type: string
+ *           default: "intermediate"
+ *           example: "intermediate"
+ *         sections:
+ *           type: array
+ *           items:
+ *             type: object
+ *             properties:
+ *               type:
+ *                 type: string
+ *                 enum: [audio, video, qcm, dragdrop]
+ *               title:
+ *                 type: string
+ *               exercises:
+ *                 type: array
+ * 
+ *     SuccessResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: true
+ *         data:
+ *           type: object
+ *         message:
+ *           type: string
+ *         pagination:
+ *           type: object
+ *           nullable: true
+ *           properties:
+ *             page:
+ *               type: integer
+ *             limit:
+ *               type: integer
+ *             total:
+ *               type: integer
+ *             totalPages:
+ *               type: integer
+ *             hasNext:
+ *               type: boolean
+ *             hasPrevious:
+ *               type: boolean
+ * 
+ *     ErrorResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: false
+ *         message:
+ *           type: string
+ *         error:
+ *           type: string
+ *           nullable: true
  */
 
 // ==================== LANGUES ====================
@@ -54,13 +254,23 @@ const { authMiddleware, allowRoles } = require('../../middleware/authMiddleware'
  * @swagger
  * /api/v1/discover/languages:
  *   get:
- *     tags:
- *       - Discover
- *     summary: Récupérer les langues pour la découverte
- *     description: Retourne la liste des langues disponibles niveau intermédiaire uniquement
+ *     tags: [Discover]
+ *     summary: Récupérer les langues disponibles
+ *     description: Retourne la liste des langues avec le niveau intermédiaire
  *     responses:
  *       200:
  *         description: Liste des langues
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/DiscoverLanguage'
  */
 router.get('/languages', discoverController.getLanguages);
 
@@ -70,13 +280,24 @@ router.get('/languages', discoverController.getLanguages);
  * @swagger
  * /api/v1/discover/session/create:
  *   post:
- *     tags:
- *       - Discover
+ *     tags: [Discover]
  *     summary: Créer une session temporaire
  *     description: Crée une session pour stocker les scores sans authentification
  *     responses:
  *       200:
  *         description: Session créée avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         sessionId:
+ *                           type: string
  */
 router.post('/session/create', discoverController.createSession);
 
@@ -84,8 +305,7 @@ router.post('/session/create', discoverController.createSession);
  * @swagger
  * /api/v1/discover/session/{sessionId}/score:
  *   get:
- *     tags:
- *       - Discover
+ *     tags: [Discover]
  *     summary: Récupérer le score d'une session
  *     description: Retourne le score total et les détails des exercices complétés
  *     parameters:
@@ -94,36 +314,63 @@ router.post('/session/create', discoverController.createSession);
  *         required: true
  *         schema:
  *           type: string
+ *         example: "temp_1712680000_abc123xyz"
  *     responses:
  *       200:
  *         description: Score récupéré avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/DiscoverSession'
  *       404:
  *         description: Session non trouvée
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/session/:sessionId/score', discoverController.getSessionScore);
 
-// ==================== LEÇON COMPLÈTE ====================
+// ==================== LEÇON DÉCOUVERTE ====================
 
 /**
  * @swagger
  * /api/v1/discover/lesson:
  *   get:
- *     tags:
- *       - Discover
+ *     tags: [Discover]
  *     summary: Récupérer une leçon complète
- *     description: Retourne toutes les sections d'une leçon (audio, video, qcm, dragdrop) dans l'ordre
+ *     description: Retourne toutes les sections d'une leçon (audio, video, qcm, dragdrop)
  *     parameters:
  *       - in: query
  *         name: languageCode
  *         required: true
  *         schema:
  *           type: string
- *         description: Code de la langue (mossi, dioula, fulfulde)
+ *         example: "mo166"
+ *         description: Code de la langue
  *     responses:
  *       200:
  *         description: Leçon récupérée avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/DiscoverLesson'
  *       400:
  *         description: Paramètre languageCode manquant
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
  *         description: Leçon non trouvée
  */
@@ -135,20 +382,40 @@ router.get('/lesson', discoverController.getFullLesson);
  * @swagger
  * /api/v1/discover/exercises:
  *   get:
- *     tags:
- *       - Discover
- *     summary: Récupérer tous les exercices
- *     description: Retourne la liste des exercices pour une langue (format plat)
+ *     tags: [Discover]
+ *     summary: Récupérer les exercices avec pagination
+ *     description: Retourne les exercices pour une langue
  *     parameters:
  *       - in: query
  *         name: languageCode
  *         required: true
  *         schema:
  *           type: string
- *         description: Code de la langue (mossi, dioula, fulfulde)
+ *         example: "mo166"
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
  *     responses:
  *       200:
- *         description: Liste des exercices
+ *         description: Exercices récupérés avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/DiscoverExercise'
  *       400:
  *         description: Paramètre languageCode manquant
  */
@@ -158,10 +425,9 @@ router.get('/exercises', discoverController.getExercises);
  * @swagger
  * /api/v1/discover/exercises/{id}/submit:
  *   post:
- *     tags:
- *       - Discover
+ *     tags: [Discover]
  *     summary: Soumettre une réponse à un exercice
- *     description: Calcule le score et le sauvegarde dans la session temporaire
+ *     description: Calcule le score et le sauvegarde dans la session
  *     parameters:
  *       - in: path
  *         name: id
@@ -174,30 +440,47 @@ router.get('/exercises', discoverController.getExercises);
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - answers
  *             properties:
  *               sessionId:
  *                 type: string
+ *                 example: "temp_1712680000_abc123xyz"
  *               answers:
  *                 type: object
+ *                 example: { "selectedChoice": "option2" }
  *     responses:
  *       200:
  *         description: Réponse soumise avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         exerciseResult:
+ *                           $ref: '#/components/schemas/ExerciseResult'
+ *                         session:
+ *                           $ref: '#/components/schemas/DiscoverSession'
  *       404:
  *         description: Exercice non trouvé
  */
 router.post('/exercises/:id/submit', discoverController.submitExerciseAnswer);
 
-// ==================== LMS (ADMIN) - GESTION DES LEÇONS ====================
+// ==================== ADMIN - GESTION DES LEÇONS ====================
 
 /**
  * @swagger
  * /api/v1/discover/admin/lessons:
  *   get:
- *     tags:
- *       - Discover (Admin)
+ *     tags: [Discover (Admin)]
  *     security:
  *       - BearerAuth: []
- *     summary: Récupérer toutes les leçons (Admin)
+ *     summary: Lister toutes les leçons (Admin)
  *     parameters:
  *       - in: query
  *         name: languageCode
@@ -210,20 +493,31 @@ router.post('/exercises/:id/submit', discoverController.submitExerciseAnswer);
  *       - in: query
  *         name: page
  *         schema:
- *           type: number
+ *           type: integer
  *           default: 1
  *       - in: query
  *         name: limit
  *         schema:
- *           type: number
+ *           type: integer
  *           default: 10
  *     responses:
  *       200:
  *         description: Liste des leçons
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/DiscoverLesson'
  *       401:
  *         description: Non authentifié
  *       403:
- *         description: Accès refusé (droits admin requis)
+ *         description: Accès refusé
  */
 router.get('/admin/lessons', 
   authMiddleware, 
@@ -235,77 +529,34 @@ router.get('/admin/lessons',
  * @swagger
  * /api/v1/discover/admin/lesson/create:
  *   post:
- *     tags:
- *       - Discover (Admin)
+ *     tags: [Discover (Admin)]
  *     security:
  *       - BearerAuth: []
- *     summary: Créer une nouvelle leçon (Admin)
- *     description: Crée une leçon avec ses sections et exercices
+ *     summary: Créer une nouvelle leçon
  *     requestBody:
  *       required: true
  *       content:
  *         multipart/form-data:
  *           schema:
- *             type: object
- *             required:
- *               - title
- *               - languageCode
- *               - sections
- *             properties:
- *               title:
- *                 type: string
- *                 description: Titre de la leçon
- *                 example: "Apprendre le Mooré - Niveau Intermédiaire"
- *               description:
- *                 type: string
- *                 description: Description de la leçon
- *                 example: "Découvrez les bases de la langue Mooré"
- *               languageCode:
- *                 type: string
- *                 description: Code de la langue (mo166, Dl, fu768, fr211)
- *                 example: "mo166"
- *               level:
- *                 type: string
- *                 description: Niveau de difficulté
- *                 default: "intermediate"
- *                 example: "intermediate"
- *               sections:
- *                 type: string
- *                 description: JSON des sections et exercices
- *                 example: '[{"type":"audio","title":"Répète après moi","exercises":[{"title":"Salutation","text":"Ne yibeogo","translation":"Bonjour"}]}]'
- *               thumbnail:
- *                 type: string
- *                 format: binary
- *                 description: Image miniature de la leçon
- *               audioFiles:
- *                 type: array
- *                 items:
- *                   type: string
- *                   format: binary
- *                 description: Fichiers audio
- *               videoFiles:
- *                 type: array
- *                 items:
- *                   type: string
- *                   format: binary
- *                 description: Fichiers vidéo
- *               imageFiles:
- *                 type: array
- *                 items:
- *                   type: string
- *                   format: binary
- *                 description: Images pour dragdrop
+ *             $ref: '#/components/schemas/CreateLessonRequest'
  *     responses:
  *       200:
  *         description: Leçon créée avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/DiscoverLesson'
  *       400:
- *         description: Paramètres manquants ou invalides
+ *         description: Paramètres invalides
  *       401:
  *         description: Non authentifié
  *       403:
- *         description: Accès refusé (droits admin requis)
- *       500:
- *         description: Erreur serveur
+ *         description: Accès refusé
  */
 router.post('/admin/lesson/create', 
   authMiddleware, 
@@ -323,11 +574,10 @@ router.post('/admin/lesson/create',
  * @swagger
  * /api/v1/discover/admin/lesson/{id}:
  *   put:
- *     tags:
- *       - Discover (Admin)
+ *     tags: [Discover (Admin)]
  *     security:
  *       - BearerAuth: []
- *     summary: Mettre à jour une leçon (Admin)
+ *     summary: Mettre à jour une leçon
  *     parameters:
  *       - in: path
  *         name: id
@@ -341,20 +591,22 @@ router.post('/admin/lesson/create',
  *           schema:
  *             type: object
  *             properties:
- *               lessonData:
+ *               title:
+ *                 type: string
+ *               description:
  *                 type: string
  *               thumbnail:
  *                 type: string
  *                 format: binary
  *     responses:
  *       200:
- *         description: Leçon mise à jour avec succès
+ *         description: Leçon mise à jour
  *       404:
  *         description: Leçon non trouvée
  *       401:
  *         description: Non authentifié
  *       403:
- *         description: Accès refusé (droits admin requis)
+ *         description: Accès refusé
  */
 router.put('/admin/lesson/:id',
   authMiddleware, 
@@ -372,11 +624,10 @@ router.put('/admin/lesson/:id',
  * @swagger
  * /api/v1/discover/admin/lesson/{id}:
  *   delete:
- *     tags:
- *       - Discover (Admin)
+ *     tags: [Discover (Admin)]
  *     security:
  *       - BearerAuth: []
- *     summary: Supprimer une leçon (Admin)
+ *     summary: Supprimer une leçon
  *     parameters:
  *       - in: path
  *         name: id
@@ -385,13 +636,13 @@ router.put('/admin/lesson/:id',
  *           type: string
  *     responses:
  *       200:
- *         description: Leçon supprimée avec succès
+ *         description: Leçon supprimée
  *       404:
  *         description: Leçon non trouvée
  *       401:
  *         description: Non authentifié
  *       403:
- *         description: Accès refusé (droits admin requis)
+ *         description: Accès refusé
  */
 router.delete('/admin/lesson/:id', 
   authMiddleware, 
@@ -403,11 +654,10 @@ router.delete('/admin/lesson/:id',
  * @swagger
  * /api/v1/discover/admin/lesson/{id}/publish:
  *   patch:
- *     tags:
- *       - Discover (Admin)
+ *     tags: [Discover (Admin)]
  *     security:
  *       - BearerAuth: []
- *     summary: Publier/Dépublier une leçon (Admin)
+ *     summary: Publier/Dépublier une leçon
  *     parameters:
  *       - in: path
  *         name: id
@@ -420,18 +670,21 @@ router.delete('/admin/lesson/:id',
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - isPublished
  *             properties:
  *               isPublished:
  *                 type: boolean
+ *                 example: true
  *     responses:
  *       200:
- *         description: Statut modifié avec succès
+ *         description: Statut modifié
  *       404:
  *         description: Leçon non trouvée
  *       401:
  *         description: Non authentifié
  *       403:
- *         description: Accès refusé (droits admin requis)
+ *         description: Accès refusé
  */
 router.patch('/admin/lesson/:id/publish', 
   authMiddleware, 
@@ -443,17 +696,18 @@ router.patch('/admin/lesson/:id/publish',
  * @swagger
  * /api/v1/discover/admin/upload/media:
  *   post:
- *     tags:
- *       - Discover (Admin)
+ *     tags: [Discover (Admin)]
  *     security:
  *       - BearerAuth: []
- *     summary: Uploader un fichier média (Admin)
+ *     summary: Uploader un fichier média
  *     requestBody:
  *       required: true
  *       content:
  *         multipart/form-data:
  *           schema:
  *             type: object
+ *             required:
+ *               - file
  *             properties:
  *               file:
  *                 type: string
@@ -463,11 +717,11 @@ router.patch('/admin/lesson/:id/publish',
  *                 enum: [audio, video, image]
  *     responses:
  *       200:
- *         description: Fichier uploadé avec succès
+ *         description: Fichier uploadé
  *       401:
  *         description: Non authentifié
  *       403:
- *         description: Accès refusé (droits admin requis)
+ *         description: Accès refusé
  */
 router.post('/admin/upload/media', 
   authMiddleware, 
