@@ -79,6 +79,190 @@ exports.completeCourseForUser = async (userId, courseId) => {
   });
 };
 
+// Récupérer les lessons d'une étape avec progression utilisateur
+exports.getLessonsByStep = async (stepId, userId = null) => {
+  // Récupérer la leçon de cette étape
+  const lesson = await prisma.lesson.findUnique({
+    where: { stepId },
+    include: {
+      step: {
+        include: {
+          userProgress: userId ? {
+            where: { userId }
+          } : false
+        }
+      }
+    }
+  });
+
+  if (!lesson) {
+    return null;
+  }
+
+  // Formater la réponse avec progression
+  return {
+    id: lesson.id,
+    title: lesson.title,
+    content: lesson.content,
+    videoUrl: lesson.videoUrl,
+    attachments: lesson.attachments,
+    index: lesson.index,
+    stepId: lesson.stepId,
+    stepInfo: {
+      id: lesson.step.id,
+      title: lesson.step.title,
+      description: lesson.step.description,
+      estimatedMinutes: lesson.step.estimatedMinutes
+    },
+    userProgress: userId && lesson.step.userProgress?.[0] ? {
+      status: lesson.step.userProgress[0].status,
+      progress: lesson.step.userProgress[0].progress,
+      score: lesson.step.userProgress[0].score,
+      startedAt: lesson.step.userProgress[0].startedAt,
+      completedAt: lesson.step.userProgress[0].completedAt
+    } : null
+  };
+};
+
+// Compléter une leçon pour un utilisateur
+exports.completeLessonForUser = async (lessonId, userId) => {
+  const progressionService = require('../progression/progression.service');
+  
+  // 1. Récupérer la leçon
+  const lesson = await prisma.lesson.findUnique({
+    where: { id: lessonId },
+    include: {
+      step: {
+        include: {
+          path: true
+        }
+      }
+    }
+  });
+
+  if (!lesson) {
+    throw new Error('Leçon non trouvée');
+  }
+
+  // 2. Vérifier si la progression existe
+  const stepProgress = await prisma.userStepProgress.findUnique({
+    where: {
+      userId_stepId: {
+        userId,
+        stepId: lesson.stepId
+      }
+    }
+  });
+
+  if (!stepProgress) {
+    throw new Error('Progression de l\'étape non trouvée. Veuillez d\'abord démarrer l\'étape.');
+  }
+
+  // 3. Mettre à jour la progression de l'étape
+  const updatedProgress = await prisma.userStepProgress.update({
+    where: {
+      userId_stepId: {
+        userId,
+        stepId: lesson.stepId
+      }
+    },
+    data: {
+      status: 'completed',
+      progress: 100,
+      completedAt: new Date()
+    }
+  });
+
+  // 4. Attribuer des récompenses (XP et coins pour avoir complété la leçon)
+  const earnedXp = 10; // XP pour compléter une leçon
+  const earnedCoins = 5; // Coins pour compléter une leçon
+
+  await prisma.userStats.upsert({
+    where: { userId },
+    create: {
+      userId,
+      totalXp: earnedXp,
+      totalCoins: earnedCoins,
+      totalLessonsCompleted: 1
+    },
+    update: {
+      totalXp: { increment: earnedXp },
+      totalCoins: { increment: earnedCoins },
+      totalLessonsCompleted: { increment: 1 }
+    }
+  });
+
+  // 5. DÉBLOCAGE AUTOMATIQUE - Débloquer l'étape suivante
+  let nextStepUnlocked = null;
+  try {
+    const nextStep = await prisma.step.findFirst({
+      where: {
+        pathId: lesson.step.pathId,
+        index: { gt: lesson.step.index }
+      },
+      orderBy: { index: 'asc' }
+    });
+
+    if (nextStep) {
+      // Créer ou mettre à jour la progression de l'étape suivante
+      await prisma.userStepProgress.upsert({
+        where: {
+          userId_stepId: {
+            userId,
+            stepId: nextStep.id
+          }
+        },
+        update: {
+          status: 'unlocked',
+          unlockedAt: new Date()
+        },
+        create: {
+          userId,
+          stepId: nextStep.id,
+          status: 'unlocked',
+          unlockedAt: new Date()
+        }
+      });
+      
+      nextStepUnlocked = {
+        id: nextStep.id,
+        title: nextStep.title,
+        index: nextStep.index
+      };
+    } else {
+      // Toutes les étapes complétées, marquer le parcours comme complété
+      await prisma.userPathProgress.update({
+        where: {
+          userId_pathId: {
+            userId,
+            pathId: lesson.step.pathId
+          }
+        },
+        data: {
+          status: 'completed',
+          completedAt: new Date()
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Erreur lors du déblocage de l\'étape suivante:', error);
+  }
+
+  return {
+    lessonId: lesson.id,
+    lessonTitle: lesson.title,
+    stepProgress: updatedProgress,
+    rewards: {
+      xp: earnedXp,
+      coins: earnedCoins
+    },
+    nextStepUnlocked,
+    message: nextStepUnlocked 
+      ? `Leçon complétée ! Étape suivante débloquée : ${nextStepUnlocked.title}` 
+      : 'Leçon complétée avec succès !'
+  };
+};
+
 exports.createCourse = async (data) => {
   // Générer index automatiquement (dernier + 1 pour la step)
   const lastLesson = await prisma.lesson.findFirst({

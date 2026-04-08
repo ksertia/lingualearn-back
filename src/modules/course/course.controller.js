@@ -38,6 +38,39 @@ const completeCourse = async (req, res, next) => {
 	}
 };
 
+// Compléter une leçon (Lesson) pour un utilisateur
+const completeLesson = async (req, res, next) => {
+	try {
+		const { lessonId } = req.params;
+		const { userId } = req.body;
+		
+		if (!userId) {
+			return res.status(400).json({ 
+				success: false, 
+				error: 'userId est requis' 
+			});
+		}
+
+		const result = await courseService.completeLessonForUser(lessonId, userId);
+		res.json({ success: true, data: result });
+	} catch (error) {
+		next(error);
+	}
+};
+
+// Récupérer les lessons d'une étape avec progression utilisateur
+const getLessonsByStep = async (req, res, next) => {
+	try {
+		const { stepId } = req.params;
+		const { userId } = req.query;
+
+		const lessons = await courseService.getLessonsByStep(stepId, userId);
+		res.json({ success: true, data: lessons });
+	} catch (error) {
+		next(error);
+	}
+};
+
 // Get all courses with filters
 const getCourses = async (req, res) => {
 	try {
@@ -235,6 +268,8 @@ module.exports = {
 	getCoursesByUserId,
 	startCourse,
 	completeCourse,
+	completeLesson,
+	getLessonsByStep,
 	getCourses,
 	getCourse,
 	createCourse,

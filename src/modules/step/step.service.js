@@ -81,6 +81,120 @@ exports.getStepsByUserId = async (userId, pathId) => {
   }));
 };
 
+// Récupérer le contenu complet d'une étape (Lesson/Exercise/Quiz) pour l'app mobile
+exports.getStepContent = async (stepId, userId = null) => {
+  const step = await prisma.step.findUnique({
+    where: { id: stepId },
+    include: {
+      path: {
+        include: {
+          module: {
+            include: {
+              level: {
+                include: {
+                  language: true
+                }
+              }
+            }
+          }
+        }
+      },
+      lesson: true,
+      exercise: true,
+      quiz: true,
+      userProgress: userId ? {
+        where: { userId }
+      } : false
+    }
+  });
+
+  if (!step) {
+    throw new Error('Étape non trouvée');
+  }
+
+  // Déterminer le type de contenu et le formater
+  let content = null;
+  let contentType = step.stepType;
+
+  if (step.stepType === 'lesson' && step.lesson) {
+    content = {
+      id: step.lesson.id,
+      title: step.lesson.title,
+      content: step.lesson.content,
+      videoUrl: step.lesson.videoUrl,
+      attachments: step.lesson.attachments,
+      index: step.lesson.index
+    };
+  } else if (step.stepType === 'exercise' && step.exercise) {
+    content = {
+      id: step.exercise.id,
+      title: step.exercise.title,
+      instructions: step.exercise.instructions,
+      content: step.exercise.content,
+      hints: step.exercise.hints,
+      explanation: step.exercise.explanation,
+      maxAttempts: step.exercise.maxAttempts,
+      points: step.exercise.points,
+      xpReward: step.exercise.xpReward,
+      coinReward: step.exercise.coinReward,
+      // Ne pas envoyer les réponses correctes au client
+      hasCorrectAnswers: !!step.exercise.correctAnswers
+    };
+  } else if (step.stepType === 'quiz' && step.quiz) {
+    content = {
+      id: step.quiz.id,
+      title: step.quiz.title,
+      questions: step.quiz.questions,
+      passingScore: step.quiz.passingScore,
+      maxAttempts: step.quiz.maxAttempts,
+      timeLimitMinutes: step.quiz.timeLimitMinutes,
+      xpReward: step.quiz.xpReward,
+      coinReward: step.quiz.coinReward
+    };
+  }
+
+  return {
+    step: {
+      id: step.id,
+      title: step.title,
+      description: step.description,
+      stepType: step.stepType,
+      index: step.index,
+      estimatedMinutes: step.estimatedMinutes,
+      isActive: step.isActive
+    },
+    content,
+    contentType,
+    path: {
+      id: step.path.id,
+      title: step.path.title,
+      description: step.path.description
+    },
+    module: {
+      id: step.path.module.id,
+      title: step.path.module.title
+    },
+    level: {
+      id: step.path.module.level.id,
+      name: step.path.module.level.name,
+      code: step.path.module.level.code
+    },
+    language: {
+      id: step.path.module.level.language.id,
+      name: step.path.module.level.language.name,
+      code: step.path.module.level.language.code
+    },
+    userProgress: userId && step.userProgress?.[0] ? {
+      status: step.userProgress[0].status,
+      progress: step.userProgress[0].progress,
+      score: step.userProgress[0].score,
+      attempts: step.userProgress[0].attempts,
+      startedAt: step.userProgress[0].startedAt,
+      completedAt: step.userProgress[0].completedAt
+    } : null
+  };
+};
+
 // Récupérer toutes les étapes d'un parcours spécifique pour un utilisateur
 exports.getStepsByPathId = async (userId, pathId) => {
   // Récupérer TOUTES les étapes du parcours avec leur progression
