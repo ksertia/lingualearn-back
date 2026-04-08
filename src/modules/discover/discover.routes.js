@@ -423,6 +423,145 @@ router.get('/exercises', discoverController.getExercises);
 
 /**
  * @swagger
+ * /api/v1/discover/exercises/by-section:
+ *   get:
+ *     tags: [Discover]
+ *     summary: Récupérer les exercices par section
+ *     description: Retourne les exercices d'une section spécifique (audio, video, qcm, dragdrop)
+ *     parameters:
+ *       - in: query
+ *         name: languageCode
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "mo166"
+ *       - in: query
+ *         name: section
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [audio, video, qcm, dragdrop]
+ *         example: "audio"
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Exercices de la section récupérés
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/DiscoverExercise'
+ *       400:
+ *         description: Paramètres manquants ou invalides
+ */
+router.get('/exercises/by-section', discoverController.getExercisesBySection);
+
+/**
+ * @swagger
+ * /api/v1/discover/exercises/{id}:
+ *   get:
+ *     tags: [Discover]
+ *     summary: Récupérer un exercice par ID
+ *     description: Retourne les détails d'un exercice spécifique
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "ex_123"
+ *     responses:
+ *       200:
+ *         description: Exercice récupéré
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/DiscoverExercise'
+ *       404:
+ *         description: Exercice non trouvé
+ */
+router.get('/exercises/:id', discoverController.getExerciseById);
+
+/**
+ * @swagger
+ * /api/v1/discover/exercises/with-navigation:
+ *   get:
+ *     tags: [Discover]
+ *     summary: Récupérer un exercice avec navigation
+ *     description: Retourne un exercice avec les infos de navigation (précédent/suivant)
+ *     parameters:
+ *       - in: query
+ *         name: languageCode
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "mo166"
+ *       - in: query
+ *         name: currentIndex
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         example: 5
+ *         description: Index de l'exercice courant
+ *     responses:
+ *       200:
+ *         description: Exercice avec navigation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         exercise:
+ *                           $ref: '#/components/schemas/DiscoverExercise'
+ *                         navigation:
+ *                           type: object
+ *                           properties:
+ *                             currentIndex:
+ *                               type: integer
+ *                             total:
+ *                               type: integer
+ *                             hasPrevious:
+ *                               type: boolean
+ *                             hasNext:
+ *                               type: boolean
+ *                             previousExerciseId:
+ *                               type: string
+ *                               nullable: true
+ *                             nextExerciseId:
+ *                               type: string
+ *                               nullable: true
+ *       404:
+ *         description: Exercice non trouvé
+ */
+router.get('/exercises/with-navigation', discoverController.getExerciseWithNavigation);
+
+/**
+ * @swagger
  * /api/v1/discover/exercises/{id}/submit:
  *   post:
  *     tags: [Discover]
