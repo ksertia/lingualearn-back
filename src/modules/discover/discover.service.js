@@ -19,59 +19,179 @@ exports.getLanguagesForDiscover = async () => {
 
 // ==================== LEÇON DÉCOUVERTE ====================
 /**
- * Récupère une leçon découverte complète avec ses 4 sections
- * Utilise les modèles DiscoverLesson, DiscoverSection, DiscoverExercise
+ * Récupère une leçon découverte publiée pour une langue spécifique
+ * Optimisé pour éviter le N+1
  */
-exports.getFullLesson = async (languageCode) => {
+exports.getLessonByLanguageCode = async (languageCode) => {
   try {
-    // Récupérer la leçon découverte publiée pour cette langue
-    const discoverLesson = await prisma.discoverLesson.findFirst({
+    const lesson = await prisma.discoverLesson.findFirst({
       where: {
-        languageCode: languageCode,
+        languageCode,
         level: 'intermediate',
         isPublished: true
       },
-      include: {
-        sections: {
-          orderBy: { order: 'asc' },
-          include: {
-            exercises: true
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        languageCode: true,
+        level: true,
+        thumbnailUrl: true,
+        isPublished: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    return lesson;
+  } catch (error) {
+    console.error('Error getting lesson by language code:', error);
+    return null;
+  }
+};
+
+/**
+ * Récupère les sections d'une leçon avec leurs exercices
+ */
+exports.getLessonSections = async (lessonId, withExercises = true) => {
+  try {
+    const sections = await prisma.discoverSection.findMany({
+      where: { lessonId },
+      orderBy: { order: 'asc' },
+      select: {
+        id: true,
+        lessonId: true,
+        type: true,
+        order: true,
+        title: true,
+        createdAt: true,
+        ...(withExercises && {
+          exercises: {
+            select: {
+              id: true,
+              sectionId: true,
+              title: true,
+              mediaUrl: true,
+              text: true,
+              translation: true,
+              duration: true,
+              thumbnailUrl: true,
+              description: true,
+              question: true,
+              choices: true,
+              correctAnswer: true,
+              imageUrl: true,
+              imageAlt: true,
+              dragItems: true,
+              dropZones: true,
+              hint: true,
+              createdAt: true
+            }
+          }
+        })
+      }
+    });
+
+    return sections;
+  } catch (error) {
+    console.error('Error getting lesson sections:', error);
+    return [];
+  }
+};
+
+/**
+ * Récupère une section complète avec tous ses exercices
+ */
+exports.getSectionWithExercises = async (sectionId) => {
+  try {
+    const section = await prisma.discoverSection.findUnique({
+      where: { id: sectionId },
+      select: {
+        id: true,
+        lessonId: true,
+        type: true,
+        order: true,
+        title: true,
+        createdAt: true,
+        updatedAt: true,
+        exercises: {
+          select: {
+            id: true,
+            sectionId: true,
+            title: true,
+            mediaUrl: true,
+            text: true,
+            translation: true,
+            duration: true,
+            thumbnailUrl: true,
+            description: true,
+            question: true,
+            choices: true,
+            correctAnswer: true,
+            imageUrl: true,
+            imageAlt: true,
+            dragItems: true,
+            dropZones: true,
+            hint: true,
+            createdAt: true
+          },
+          orderBy: { createdAt: 'asc' }
+        },
+        lesson: {
+          select: {
+            id: true,
+            title: true,
+            languageCode: true,
+            level: true
           }
         }
       }
     });
 
+    if (!section) return null;
+
+    return {
+      ...section,
+      exerciseCount: section.exercises.length
+    };
+  } catch (error) {
+    console.error('Error getting section with exercises:', error);
+    return null;
+  }
+};
+
+/**
+ * Récupère une leçon découverte complète avec ses 4 sections
+ * Utilise les modèles DiscoverLesson, DiscoverSection, DiscoverExercise
+ */
+exports.getFullLesson = async (languageCode) => {
+  try {
+    // Récupérer la leçon
+    const discoverLesson = await exports.getLessonByLanguageCode(languageCode);
+    
     if (!discoverLesson) {
       return null;
     }
 
+    // Récupérer les sections avec exercices
+    const sections = await exports.getLessonSections(discoverLesson.id, true);
+
+    if (!sections || sections.length === 0) {
+      return null;
+    }
+
     // Organiser les exercices par type (audio, video, qcm, dragdrop)
-    const sections = {
+    const organizedSections = {
       audio: [],
       video: [],
       qcm: [],
       dragdrop: []
     };
 
-    for (const section of discoverLesson.sections) {
-      sections[section.type] = section.exercises.map(ex => ({
-        id: ex.id,
-        title: ex.title,
-        mediaUrl: ex.mediaUrl,
-        text: ex.text,
-        translation: ex.translation,
-        duration: ex.duration,
-        thumbnailUrl: ex.thumbnailUrl,
-        description: ex.description,
-        question: ex.question,
-        choices: ex.choices,
-        correctAnswer: ex.correctAnswer,
-        imageUrl: ex.imageUrl,
-        imageAlt: ex.imageAlt,
-        dragItems: ex.dragItems,
-        dropZones: ex.dropZones,
-        hint: ex.hint
-      }));
+    for (const section of sections) {
+      if (organizedSections[section.type]) {
+        organizedSections[section.type] = section.exercises || [];
+      }
     }
 
     return {
@@ -82,8 +202,10 @@ exports.getFullLesson = async (languageCode) => {
       level: discoverLesson.level,
       thumbnailUrl: discoverLesson.thumbnailUrl,
       isPublished: discoverLesson.isPublished,
-      sections: sections,
-      totalExercises: discoverLesson.sections.reduce((acc, s) => acc + s.exercises.length, 0)
+      sections: organizedSections,
+      totalExercises: sections.reduce((acc, s) => acc + (s.exercises?.length || 0), 0),
+      createdAt: discoverLesson.createdAt,
+      updatedAt: discoverLesson.updatedAt
     };
   } catch (error) {
     console.error('Error getting full lesson:', error);
@@ -98,27 +220,46 @@ exports.getFullLesson = async (languageCode) => {
  */
 exports.getExercisesForDiscoverPaginated = async (languageCode, page = 1, limit = 10) => {
   try {
-    // Récupérer le compte total des exercices pour cette langue
-    const discoverLesson = await prisma.discoverLesson.findFirst({
-      where: {
-        languageCode: languageCode,
-        level: 'intermediate',
-        isPublished: true
-      },
-      select: { id: true }
-    });
-
-    if (!discoverLesson) {
+    // Récupérer la leçon
+    const lesson = await exports.getLessonByLanguageCode(languageCode);
+    if (!lesson) {
       return { exercises: [], total: 0 };
     }
 
-    // Récupérer les sections avec exercices paginés
+    // Récupérer les sections avec count
     const sections = await prisma.discoverSection.findMany({
-      where: { lessonId: discoverLesson.id },
+      where: { lessonId: lesson.id },
       orderBy: { order: 'asc' },
       select: {
+        id: true,
         type: true,
-        exercises: {
+        _count: {
+          select: { exercises: true }
+        }
+      }
+    });
+
+    // Calculer le total d'exercices
+    const totalExercises = sections.reduce((sum, s) => sum + s._count.exercises, 0);
+
+    // Calculer quelle section et quel offset dans cette section
+    let remainingSkip = (page - 1) * limit;
+    let exercises = [];
+    
+    for (const section of sections) {
+      if (exercises.length >= limit) break;
+
+      const sectionExerciseCount = section._count.exercises;
+      
+      if (remainingSkip >= sectionExerciseCount) {
+        // Sauter toute cette section
+        remainingSkip -= sectionExerciseCount;
+      } else {
+        // Prendre des exercices de cette section
+        const takeCount = Math.min(limit - exercises.length, sectionExerciseCount - remainingSkip);
+        
+        const sectionExercises = await prisma.discoverExercise.findMany({
+          where: { sectionId: section.id },
           select: {
             id: true,
             title: true,
@@ -136,27 +277,24 @@ exports.getExercisesForDiscoverPaginated = async (languageCode, page = 1, limit 
             dragItems: true,
             dropZones: true,
             hint: true
-          }
-        }
-      }
-    });
+          },
+          skip: remainingSkip,
+          take: takeCount
+        });
 
-    // Aplatir et paginer
-    let allExercises = [];
-    const exerciseOrder = ['audio', 'video', 'qcm', 'dragdrop'];
-    
-    for (const type of exerciseOrder) {
-      const section = sections.find(s => s.type === type);
-      if (section) {
-        allExercises.push(...section.exercises);
+        exercises.push(...sectionExercises.map(ex => ({
+          ...ex,
+          type: section.type
+        })));
+        
+        remainingSkip = 0;
       }
     }
 
-    const total = allExercises.length;
-    const startIndex = (page - 1) * limit;
-    const exercises = allExercises.slice(startIndex, startIndex + limit);
-
-    return { exercises, total };
+    return { 
+      exercises, 
+      total: totalExercises 
+    };
   } catch (error) {
     console.error('Error getting paginated exercises:', error);
     return { exercises: [], total: 0 };
@@ -188,41 +326,25 @@ exports.getExercisesForDiscover = async (languageCode) => {
  */
 exports.getExercisesBySection = async (languageCode, sectionType, page = 1, limit = 10) => {
   try {
-    // Trouver la leçon et la section
+    // Récupérer la leçon
+    const lesson = await exports.getLessonByLanguageCode(languageCode);
+    if (!lesson) {
+      return { exercises: [], total: 0 };
+    }
+
+    // Récupérer la section spécifique
     const section = await prisma.discoverSection.findFirst({
       where: {
-        lesson: {
-          languageCode: languageCode,
-          level: 'intermediate',
-          isPublished: true
-        },
+        lessonId: lesson.id,
         type: sectionType
       },
       select: {
         id: true,
         type: true,
         title: true,
-        exercises: {
-          select: {
-            id: true,
-            title: true,
-            mediaUrl: true,
-            text: true,
-            translation: true,
-            duration: true,
-            thumbnailUrl: true,
-            description: true,
-            question: true,
-            choices: true,
-            correctAnswer: true,
-            imageUrl: true,
-            imageAlt: true,
-            dragItems: true,
-            dropZones: true,
-            hint: true
-          },
-          skip: (page - 1) * limit,
-          take: limit
+        order: true,
+        _count: {
+          select: { exercises: true }
         }
       }
     });
@@ -231,16 +353,41 @@ exports.getExercisesBySection = async (languageCode, sectionType, page = 1, limi
       return { exercises: [], total: 0 };
     }
 
-    // Récupérer le total des exercices pour cette section
-    const sectionFull = await prisma.discoverSection.findUnique({
-      where: { id: section.id },
-      select: { _count: { select: { exercises: true } } }
+    // Récupérer les exercices paginés
+    const exercises = await prisma.discoverExercise.findMany({
+      where: { sectionId: section.id },
+      select: {
+        id: true,
+        sectionId: true,
+        title: true,
+        mediaUrl: true,
+        text: true,
+        translation: true,
+        duration: true,
+        thumbnailUrl: true,
+        description: true,
+        question: true,
+        choices: true,
+        correctAnswer: true,
+        imageUrl: true,
+        imageAlt: true,
+        dragItems: true,
+        dropZones: true,
+        hint: true,
+        createdAt: true
+      },
+      skip: (page - 1) * limit,
+      take: limit
     });
 
     return { 
-      exercises: section.exercises, 
-      total: sectionFull._count.exercises,
-      section: section.type
+      exercises,
+      total: section._count.exercises,
+      section: {
+        id: section.id,
+        type: section.type,
+        title: section.title
+      }
     };
   } catch (error) {
     console.error('Error getting exercises by section:', error);
@@ -249,35 +396,51 @@ exports.getExercisesBySection = async (languageCode, sectionType, page = 1, limi
 };
 
 /**
- * Récupère un exercice par son ID
+ * Récupère un exercice complet par son ID
  */
 exports.getExerciseById = async (exerciseId) => {
-  const exercise = await prisma.discoverExercise.findUnique({
-    where: { id: exerciseId },
-    include: { section: true }
-  });
+  try {
+    const exercise = await prisma.discoverExercise.findUnique({
+      where: { id: exerciseId },
+      select: {
+        id: true,
+        sectionId: true,
+        title: true,
+        mediaUrl: true,
+        text: true,
+        translation: true,
+        duration: true,
+        thumbnailUrl: true,
+        description: true,
+        question: true,
+        choices: true,
+        correctAnswer: true,
+        imageUrl: true,
+        imageAlt: true,
+        dragItems: true,
+        dropZones: true,
+        hint: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
 
-  if (!exercise) return null;
+    if (!exercise) return null;
 
-  return {
-    id: exercise.id,
-    type: exercise.section.type,
-    title: exercise.title,
-    mediaUrl: exercise.mediaUrl,
-    text: exercise.text,
-    translation: exercise.translation,
-    duration: exercise.duration,
-    thumbnailUrl: exercise.thumbnailUrl,
-    description: exercise.description,
-    question: exercise.question,
-    choices: exercise.choices,
-    correctAnswer: exercise.correctAnswer,
-    imageUrl: exercise.imageUrl,
-    imageAlt: exercise.imageAlt,
-    dragItems: exercise.dragItems,
-    dropZones: exercise.dropZones,
-    hint: exercise.hint
-  };
+    // Récupérer la section pour avoir le type
+    const section = await prisma.discoverSection.findUnique({
+      where: { id: exercise.sectionId },
+      select: { type: true }
+    });
+
+    return {
+      ...exercise,
+      type: section?.type || 'unknown'
+    };
+  } catch (error) {
+    console.error('Error getting exercise by ID:', error);
+    return null;
+  }
 };
 
 // ==================== SCORE ====================
