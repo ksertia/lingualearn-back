@@ -90,6 +90,7 @@ model Language {
   certificates Certificate[]
   levels       Level[]
   userProgress UserLanguageProgress[]
+  discoverLessons DiscoverLesson[]
 
   @@index([index])
   @@map("languages")
@@ -746,4 +747,78 @@ model discovery_sessions {
   id        String   @id @db.VarChar(50)
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+// ==================== DÉCOUVERTE (DISCOVER) ====================
+
+model DiscoverLesson {
+  id           String   @id @default(cuid())
+  title        String
+  description  String?
+  languageCode String
+  level        String   @default("intermediate")
+  thumbnailUrl String?
+  isPublished  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  language Language         @relation(fields: [languageCode], references: [code])
+  sections DiscoverSection[]
+
+  @@unique([languageCode, level])
+  @@map("discover_lessons")
+}
+
+model DiscoverSection {
+  id        String   @id @default(cuid())
+  lessonId  String
+  type      String   // audio, video, qcm, dragdrop
+  order     Int      // 1,2,3,4
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  lesson    DiscoverLesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  exercises DiscoverExercise[]
+
+  @@unique([lessonId, order])
+  @@map("discover_sections")
+}
+
+model DiscoverExercise {
+  id        String   @id @default(cuid())
+  sectionId String
+  
+  // Champs communs
+  title     String?
+  
+  // Audio / Video
+  mediaUrl     String?
+  text         String?   // texte original pour audio
+  translation  String?   // traduction pour audio
+  duration     Int?      // durée en secondes
+  thumbnailUrl String?   // miniature pour vidéo
+  description  String?   // description pour vidéo
+  
+  // QCM
+  question      String?
+  choices       Json?     // stocker ["choix1", "choix2", ...]
+  correctAnswer String?
+  
+  // Drag & Drop
+  imageUrl   String?
+  imageAlt   String?
+  dragItems  Json?     // stocker ["item1", "item2", ...]
+  dropZones  Json?     // stocker [{id, label, expectedItem}]
+  hint       String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  section DiscoverSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@map("discover_exercises")
 }

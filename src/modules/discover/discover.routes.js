@@ -217,36 +217,68 @@ router.get('/lessons', discoverController.getAllLessons);
  *     tags:
  *       - Discover (Admin)
  *     summary: Créer une nouvelle leçon (Admin)
+ *     description: Crée une leçon avec ses sections et exercices
  *     requestBody:
  *       required: true
  *       content:
  *         multipart/form-data:
  *           schema:
  *             type: object
+ *             required:
+ *               - title
+ *               - languageCode
+ *               - sections
  *             properties:
- *               lessonData:
+ *               title:
  *                 type: string
+ *                 description: Titre de la leçon
+ *                 example: "Apprendre le Mooré - Niveau Intermédiaire"
+ *               description:
+ *                 type: string
+ *                 description: Description de la leçon
+ *                 example: "Découvrez les bases de la langue Mooré"
+ *               languageCode:
+ *                 type: string
+ *                 description: Code de la langue (mo166, Dl, fu768, fr211)
+ *                 example: "mo166"
+ *               level:
+ *                 type: string
+ *                 description: Niveau de difficulté
+ *                 default: "intermediate"
+ *                 example: "intermediate"
+ *               sections:
+ *                 type: string
+ *                 description: JSON des sections et exercices
+ *                 example: '[{"type":"audio","title":"Répète après moi","exercises":[{"title":"Salutation","text":"Ne yibeogo","translation":"Bonjour"}]}]'
  *               thumbnail:
  *                 type: string
  *                 format: binary
+ *                 description: Image miniature de la leçon
  *               audioFiles:
  *                 type: array
  *                 items:
  *                   type: string
  *                   format: binary
+ *                 description: Fichiers audio
  *               videoFiles:
  *                 type: array
  *                 items:
  *                   type: string
  *                   format: binary
+ *                 description: Fichiers vidéo
  *               imageFiles:
  *                 type: array
  *                 items:
  *                   type: string
  *                   format: binary
+ *                 description: Images pour dragdrop
  *     responses:
  *       200:
  *         description: Leçon créée avec succès
+ *       400:
+ *         description: Paramètres manquants ou invalides
+ *       500:
+ *         description: Erreur serveur
  */
 router.post('/lesson/create', 
   uploadCourseContent.fields([

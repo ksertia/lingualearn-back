@@ -229,8 +229,48 @@ exports.getSessionScore = async (req, res, next) => {
  */
 exports.createLesson = async (req, res, next) => {
   try {
-    const lessonData = JSON.parse(req.body.lessonData);
+    console.log('req.body:', req.body);
+    console.log('req.files:', req.files);
+    
+    // Récupérer les champs
+    let { title, description, languageCode, level, sections } = req.body;
     const files = req.files;
+    
+    // Vérifier les champs requis
+    if (!title || !languageCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Les champs title et languageCode sont requis'
+      });
+    }
+    
+    // Si sections n'existe pas, créer une section par défaut
+    if (!sections) {
+      sections = [];
+    }
+    
+    // Parser sections si c'est une string
+    let parsedSections = sections;
+    if (typeof sections === 'string') {
+      try {
+        parsedSections = JSON.parse(sections);
+      } catch (e) {
+        console.error('JSON parse error:', e);
+        return res.status(400).json({
+          success: false,
+          message: 'Le champ sections doit être un JSON valide',
+          error: e.message
+        });
+      }
+    }
+    
+    const lessonData = {
+      title,
+      description: description || '',
+      languageCode,
+      level: level || 'intermediate',
+      sections: parsedSections
+    };
     
     const lesson = await discoverService.createLesson(lessonData, files);
     
