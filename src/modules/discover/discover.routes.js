@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const discoverController = require('./discover.controller');
 const { uploadCourseContent } = require('../../utils/uploadService');
+const { authMiddleware, allowRoles } = require('../../middleware/authMiddleware');
 
 /**
  * @swagger
@@ -190,10 +191,12 @@ router.post('/exercises/:id/submit', discoverController.submitExerciseAnswer);
 
 /**
  * @swagger
- * /api/v1/discover/lessons:
+ * /api/v1/discover/admin/lessons:
  *   get:
  *     tags:
  *       - Discover (Admin)
+ *     security:
+ *       - BearerAuth: []
  *     summary: Récupérer toutes les leçons (Admin)
  *     parameters:
  *       - in: query
@@ -204,18 +207,38 @@ router.post('/exercises/:id/submit', discoverController.submitExerciseAnswer);
  *         name: isPublished
  *         schema:
  *           type: boolean
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: number
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: number
+ *           default: 10
  *     responses:
  *       200:
  *         description: Liste des leçons
+ *       401:
+ *         description: Non authentifié
+ *       403:
+ *         description: Accès refusé (droits admin requis)
  */
-router.get('/lessons', discoverController.getAllLessons);
+router.get('/admin/lessons', 
+  authMiddleware, 
+  allowRoles('admin', 'plateform_manager'), 
+  discoverController.getAllLessons
+);
 
 /**
  * @swagger
- * /api/v1/discover/lesson/create:
+ * /api/v1/discover/admin/lesson/create:
  *   post:
  *     tags:
  *       - Discover (Admin)
+ *     security:
+ *       - BearerAuth: []
  *     summary: Créer une nouvelle leçon (Admin)
  *     description: Crée une leçon avec ses sections et exercices
  *     requestBody:
@@ -277,10 +300,16 @@ router.get('/lessons', discoverController.getAllLessons);
  *         description: Leçon créée avec succès
  *       400:
  *         description: Paramètres manquants ou invalides
+ *       401:
+ *         description: Non authentifié
+ *       403:
+ *         description: Accès refusé (droits admin requis)
  *       500:
  *         description: Erreur serveur
  */
-router.post('/lesson/create', 
+router.post('/admin/lesson/create', 
+  authMiddleware, 
+  allowRoles('admin', 'plateform_manager'),
   uploadCourseContent.fields([
     { name: 'thumbnail', maxCount: 1 },
     { name: 'audioFiles', maxCount: 20 },
@@ -292,10 +321,12 @@ router.post('/lesson/create',
 
 /**
  * @swagger
- * /api/v1/discover/lesson/{id}:
+ * /api/v1/discover/admin/lesson/{id}:
  *   put:
  *     tags:
  *       - Discover (Admin)
+ *     security:
+ *       - BearerAuth: []
  *     summary: Mettre à jour une leçon (Admin)
  *     parameters:
  *       - in: path
@@ -320,8 +351,14 @@ router.post('/lesson/create',
  *         description: Leçon mise à jour avec succès
  *       404:
  *         description: Leçon non trouvée
+ *       401:
+ *         description: Non authentifié
+ *       403:
+ *         description: Accès refusé (droits admin requis)
  */
-router.put('/lesson/:id',
+router.put('/admin/lesson/:id',
+  authMiddleware, 
+  allowRoles('admin', 'plateform_manager'),
   uploadCourseContent.fields([
     { name: 'thumbnail', maxCount: 1 },
     { name: 'audioFiles', maxCount: 20 },
@@ -333,10 +370,12 @@ router.put('/lesson/:id',
 
 /**
  * @swagger
- * /api/v1/discover/lesson/{id}:
+ * /api/v1/discover/admin/lesson/{id}:
  *   delete:
  *     tags:
  *       - Discover (Admin)
+ *     security:
+ *       - BearerAuth: []
  *     summary: Supprimer une leçon (Admin)
  *     parameters:
  *       - in: path
@@ -349,15 +388,25 @@ router.put('/lesson/:id',
  *         description: Leçon supprimée avec succès
  *       404:
  *         description: Leçon non trouvée
+ *       401:
+ *         description: Non authentifié
+ *       403:
+ *         description: Accès refusé (droits admin requis)
  */
-router.delete('/lesson/:id', discoverController.deleteLesson);
+router.delete('/admin/lesson/:id', 
+  authMiddleware, 
+  allowRoles('admin', 'plateform_manager'), 
+  discoverController.deleteLesson
+);
 
 /**
  * @swagger
- * /api/v1/discover/lesson/{id}/publish:
+ * /api/v1/discover/admin/lesson/{id}/publish:
  *   patch:
  *     tags:
  *       - Discover (Admin)
+ *     security:
+ *       - BearerAuth: []
  *     summary: Publier/Dépublier une leçon (Admin)
  *     parameters:
  *       - in: path
@@ -379,15 +428,25 @@ router.delete('/lesson/:id', discoverController.deleteLesson);
  *         description: Statut modifié avec succès
  *       404:
  *         description: Leçon non trouvée
+ *       401:
+ *         description: Non authentifié
+ *       403:
+ *         description: Accès refusé (droits admin requis)
  */
-router.patch('/lesson/:id/publish', discoverController.publishLesson);
+router.patch('/admin/lesson/:id/publish', 
+  authMiddleware, 
+  allowRoles('admin', 'plateform_manager'), 
+  discoverController.publishLesson
+);
 
 /**
  * @swagger
- * /api/v1/discover/upload/media:
+ * /api/v1/discover/admin/upload/media:
  *   post:
  *     tags:
  *       - Discover (Admin)
+ *     security:
+ *       - BearerAuth: []
  *     summary: Uploader un fichier média (Admin)
  *     requestBody:
  *       required: true
@@ -405,8 +464,14 @@ router.patch('/lesson/:id/publish', discoverController.publishLesson);
  *     responses:
  *       200:
  *         description: Fichier uploadé avec succès
+ *       401:
+ *         description: Non authentifié
+ *       403:
+ *         description: Accès refusé (droits admin requis)
  */
-router.post('/upload/media', 
+router.post('/admin/upload/media', 
+  authMiddleware, 
+  allowRoles('admin', 'plateform_manager'),
   uploadCourseContent.single('file'),
   discoverController.uploadMedia
 );

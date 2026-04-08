@@ -822,3 +822,39 @@ model DiscoverExercise {
 
   @@map("discover_exercises")
 }
+
+// ==================== SESSIONS DE DÉCOUVERTE ====================
+
+model DiscoverSession {
+  id            String                   @id // Format: temp_timestamp_random
+  totalScore    Int                      @default(0)
+  startedAt     DateTime                 @default(now())
+  lastActivity  DateTime                 @updatedAt
+  createdAt     DateTime                 @default(now())
+  
+  // Relations
+  exercises     DiscoverSessionExercise[]
+  
+  @@index([createdAt])
+  @@index([lastActivity])
+  @@map("discover_sessions")
+}
+
+model DiscoverSessionExercise {
+  id            String   @id @default(cuid())
+  sessionId     String
+  exerciseId    String
+  score         Int      @default(0)
+  maxScore      Int      @default(0)
+  percentage    Float    @default(0)
+  completedAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  session       DiscoverSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  @@unique([sessionId, exerciseId])
+  @@index([sessionId])
+  @@map("discover_session_exercises")
+}

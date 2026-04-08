@@ -93,6 +93,77 @@ exports.getFullLesson = async (languageCode) => {
 
 // ==================== EXERCICES ====================
 /**
+ * Récupère tous les exercices (format plat) - version paginée directement BD
+ * Optimisé pour éviter charger toute la leçon
+ */
+exports.getExercisesForDiscoverPaginated = async (languageCode, page = 1, limit = 10) => {
+  try {
+    // Récupérer le compte total des exercices pour cette langue
+    const discoverLesson = await prisma.discoverLesson.findFirst({
+      where: {
+        languageCode: languageCode,
+        level: 'intermediate',
+        isPublished: true
+      },
+      select: { id: true }
+    });
+
+    if (!discoverLesson) {
+      return { exercises: [], total: 0 };
+    }
+
+    // Récupérer les sections avec exercices paginés
+    const sections = await prisma.discoverSection.findMany({
+      where: { lessonId: discoverLesson.id },
+      orderBy: { order: 'asc' },
+      select: {
+        type: true,
+        exercises: {
+          select: {
+            id: true,
+            title: true,
+            mediaUrl: true,
+            text: true,
+            translation: true,
+            duration: true,
+            thumbnailUrl: true,
+            description: true,
+            question: true,
+            choices: true,
+            correctAnswer: true,
+            imageUrl: true,
+            imageAlt: true,
+            dragItems: true,
+            dropZones: true,
+            hint: true
+          }
+        }
+      }
+    });
+
+    // Aplatir et paginer
+    let allExercises = [];
+    const exerciseOrder = ['audio', 'video', 'qcm', 'dragdrop'];
+    
+    for (const type of exerciseOrder) {
+      const section = sections.find(s => s.type === type);
+      if (section) {
+        allExercises.push(...section.exercises);
+      }
+    }
+
+    const total = allExercises.length;
+    const startIndex = (page - 1) * limit;
+    const exercises = allExercises.slice(startIndex, startIndex + limit);
+
+    return { exercises, total };
+  } catch (error) {
+    console.error('Error getting paginated exercises:', error);
+    return { exercises: [], total: 0 };
+  }
+};
+
+/**
  * Récupère tous les exercices (format plat)
  */
 exports.getExercisesForDiscover = async (languageCode) => {
@@ -112,12 +183,69 @@ exports.getExercisesForDiscover = async (languageCode) => {
 };
 
 /**
- * Récupère les exercices par section
+ * Récupère les exercices par section - avec pagination
+ * Optimisé pour requête BD directe
  */
-exports.getExercisesBySection = async (languageCode, sectionType) => {
-  const lesson = await exports.getFullLesson(languageCode);
-  if (!lesson) return [];
-  return lesson.sections[sectionType] || [];
+exports.getExercisesBySection = async (languageCode, sectionType, page = 1, limit = 10) => {
+  try {
+    // Trouver la leçon et la section
+    const section = await prisma.discoverSection.findFirst({
+      where: {
+        lesson: {
+          languageCode: languageCode,
+          level: 'intermediate',
+          isPublished: true
+        },
+        type: sectionType
+      },
+      select: {
+        id: true,
+        type: true,
+        title: true,
+        exercises: {
+          select: {
+            id: true,
+            title: true,
+            mediaUrl: true,
+            text: true,
+            translation: true,
+            duration: true,
+            thumbnailUrl: true,
+            description: true,
+            question: true,
+            choices: true,
+            correctAnswer: true,
+            imageUrl: true,
+            imageAlt: true,
+            dragItems: true,
+            dropZones: true,
+            hint: true
+          },
+          skip: (page - 1) * limit,
+          take: limit
+        }
+      }
+    });
+
+    if (!section) {
+      return { exercises: [], total: 0 };
+    }
+
+    // Récupérer le total des exercices pour cette section
+    const sectionFull = await prisma.discoverSection.findUnique({
+      where: { id: section.id },
+      select: { _count: { select: { exercises: true } } }
+    });
+
+    return { 
+      exercises: section.exercises, 
+      total: sectionFull._count.exercises,
+      section: section.type
+    };
+  } catch (error) {
+    console.error('Error getting exercises by section:', error);
+    return { exercises: [], total: 0 };
+  }
 };
 
 /**
@@ -302,24 +430,62 @@ exports.createLesson = async (lessonData, files) => {
 };
 
 /**
- * Récupère toutes les leçons découverte (pour admin)
+ * Récupère toutes les leçons découverte (pour admin) - avec pagination
+ * Optimisé pour éviter N+1 queries
  */
-exports.getAllLessons = async (filters = {}) => {
-  const { languageCode, isPublished } = filters;
-  
-  const where = {};
-  if (languageCode) where.languageCode = languageCode;
-  if (isPublished !== undefined) where.isPublished = isPublished === 'true';
-  
-  return await prisma.discoverLesson.findMany({
-    where,
-    include: {
-      sections: {
-        include: { exercises: true }
-      }
-    },
-    orderBy: { createdAt: 'desc' }
-  });
+exports.getAllLessons = async (filters = {}, page = 1, limit = 10) => {
+  try {
+    const { languageCode, isPublished } = filters;
+    
+    const where = {};
+    if (languageCode) where.languageCode = languageCode;
+    if (isPublished !== undefined) where.isPublished = isPublished === 'true' || isPublished === true;
+    
+    // Récupérer le total
+    const total = await prisma.discoverLesson.count({ where });
+    
+    // Récupérer les leçons paginées avec sections et un compte des exercices
+    const lessons = await prisma.discoverLesson.findMany({
+      where,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        languageCode: true,
+        level: true,
+        thumbnailUrl: true,
+        isPublished: true,
+        createdAt: true,
+        updatedAt: true,
+        sections: {
+          select: {
+            id: true,
+            type: true,
+            title: true,
+            order: true,
+            _count: {
+              select: { exercises: true }
+            }
+          },
+          orderBy: { order: 'asc' }
+        }
+      },
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Enrichir avec le count d'exercices total
+    const enrichedLessons = lessons.map(lesson => ({
+      ...lesson,
+      totalExercises: lesson.sections.reduce((acc, s) => acc + s._count.exercises, 0)
+    }));
+
+    return { lessons: enrichedLessons, total };
+  } catch (error) {
+    console.error('Error getting all lessons:', error);
+    return { lessons: [], total: 0 };
+  }
 };
 
 /**

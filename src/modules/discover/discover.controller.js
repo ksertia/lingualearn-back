@@ -16,7 +16,7 @@ exports.getLanguages = async (req, res, next) => {
 
 exports.getExercises = async (req, res, next) => {
   try {
-    const { languageCode } = req.query;
+    const { languageCode, page = 1, limit = 10 } = req.query;
     
     if (!languageCode) {
       return res.status(400).json({
@@ -25,14 +25,28 @@ exports.getExercises = async (req, res, next) => {
       });
     }
     
-    const exercises = await discoverService.getExercisesForDiscover(languageCode);
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 10));
+    
+    const result = await discoverService.getExercisesForDiscoverPaginated(
+      languageCode, 
+      pageNum, 
+      limitNum
+    );
     
     res.json({
       success: true,
-      data: exercises,
+      data: result.exercises,
       languageCode,
       level: 'intermediate',
-      total: exercises.length,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: result.total,
+        totalPages: Math.ceil(result.total / limitNum),
+        hasNext: pageNum < Math.ceil(result.total / limitNum),
+        hasPrevious: pageNum > 1
+      },
       message: `Exercices pour ${languageCode} récupérés avec succès`
     });
   } catch (err) {
@@ -65,7 +79,7 @@ exports.getFullLesson = async (req, res, next) => {
 
 exports.getExercisesBySection = async (req, res, next) => {
   try {
-    const { languageCode, section } = req.query;
+    const { languageCode, section, page = 1, limit = 10 } = req.query;
     
     if (!languageCode || !section) {
       return res.status(400).json({
@@ -74,14 +88,24 @@ exports.getExercisesBySection = async (req, res, next) => {
       });
     }
     
-    const exercises = await discoverService.getExercisesBySection(languageCode, section);
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 10));
+    
+    const result = await discoverService.getExercisesBySection(languageCode, section, pageNum, limitNum);
     
     res.json({
       success: true,
-      data: exercises,
+      data: result.exercises,
       section,
       languageCode,
-      total: exercises.length,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: result.total,
+        totalPages: Math.ceil(result.total / limitNum),
+        hasNext: pageNum < Math.ceil(result.total / limitNum),
+        hasPrevious: pageNum > 1
+      },
       message: `Exercices de type ${section} récupérés`
     });
   } catch (err) {
@@ -151,20 +175,27 @@ exports.submitExerciseAnswer = async (req, res, next) => {
     const { id } = req.params;
     const { sessionId, answers } = req.body;
     
+    if (!answers) {
+      return res.status(400).json({
+        success: false,
+        message: 'Le champ answers est requis'
+      });
+    }
+    
     let currentSessionId = sessionId;
     if (!currentSessionId) {
-      currentSessionId = sessionService.initSession();
+      currentSessionId = await sessionService.initSession();
     } else {
-      sessionService.initSession(currentSessionId);
+      await sessionService.initSession(currentSessionId);
     }
     
     const scoreResult = await discoverService.calculateScore(id, answers);
     
     if (scoreResult.maxScore > 0) {
-      sessionService.saveExerciseScore(currentSessionId, id, scoreResult.score, scoreResult.maxScore);
+      await sessionService.saveExerciseScore(currentSessionId, id, scoreResult.score, scoreResult.maxScore);
     }
     
-    const totalScore = sessionService.getSessionScore(currentSessionId);
+    const totalScore = await sessionService.getSessionScore(currentSessionId);
     
     res.json({
       success: true,
@@ -174,7 +205,8 @@ exports.submitExerciseAnswer = async (req, res, next) => {
           sessionId: currentSessionId,
           currentScore: totalScore?.totalScore || 0,
           totalPossibleScore: totalScore?.totalMaxScore || 0,
-          completionPercentage: totalScore?.percentage || 0
+          completionPercentage: totalScore?.percentage || 0,
+          exercisesCompleted: totalScore?.exercisesCompleted || 0
         }
       },
       message: 'Réponse soumise avec succès'
@@ -186,13 +218,13 @@ exports.submitExerciseAnswer = async (req, res, next) => {
 
 exports.createSession = async (req, res, next) => {
   try {
-    const sessionId = sessionService.initSession();
+    const sessionId = await sessionService.initSession();
     res.json({
       success: true,
       data: {
-        sessionId,
-        message: 'Session créée avec succès'
-      }
+        sessionId
+      },
+      message: 'Session créée avec succès'
     });
   } catch (err) {
     next(err);
@@ -202,7 +234,7 @@ exports.createSession = async (req, res, next) => {
 exports.getSessionScore = async (req, res, next) => {
   try {
     const { sessionId } = req.params;
-    const score = sessionService.getSessionScore(sessionId);
+    const score = await sessionService.getSessionScore(sessionId);
     
     if (!score) {
       return res.status(404).json({
@@ -355,19 +387,33 @@ exports.deleteLesson = async (req, res, next) => {
 };
 
 /**
- * Récupérer toutes les leçons (LMS - pour l'administration)
- * GET /api/v1/discover/lessons
+ * Récupérer toutes les leçons (LMS - pour l'administration) - avec pagination
+ * GET /api/v1/discover/admin/lessons
  */
 exports.getAllLessons = async (req, res, next) => {
   try {
-    const { languageCode, isPublished } = req.query;
+    const { languageCode, isPublished, page = 1, limit = 10 } = req.query;
     
-    const lessons = await discoverService.getAllLessons({ languageCode, isPublished });
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 10));
+    
+    const result = await discoverService.getAllLessons(
+      { languageCode, isPublished }, 
+      pageNum, 
+      limitNum
+    );
     
     res.json({
       success: true,
-      data: lessons,
-      total: lessons.length,
+      data: result.lessons,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: result.total,
+        totalPages: Math.ceil(result.total / limitNum),
+        hasNext: pageNum < Math.ceil(result.total / limitNum),
+        hasPrevious: pageNum > 1
+      },
       message: 'Leçons récupérées avec succès'
     });
   } catch (err) {
