@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { prisma } = require('../../config/prisma');
 const uploadService = require('../../utils/uploadService');
 const languageService = require('../language/language.service');
 
