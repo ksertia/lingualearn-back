@@ -555,12 +555,12 @@ exports.createLesson = async (lessonData, files) => {
       thumbnailUrl,
       isPublished: false,
       sections: {
-        create: sections.map((section, idx) => ({
+        create: (sections || []).map((section, idx) => ({
           type: section.type,
           order: idx + 1,
           title: section.title,
           exercises: {
-            create: section.exercises.map(exercise => ({
+            create: (section.exercises || []).map(exercise => ({
               title: exercise.title,
               mediaUrl: exercise.mediaUrl,
               text: exercise.text,
