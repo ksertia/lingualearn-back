@@ -749,6 +749,7 @@ model DiscoverSection {
   title     String   @db.VarChar(200)
   type      String   @db.VarChar(20)  // lesson | exercise
   language  String   @db.VarChar(100) // texte libre : "Français", "Wolof", etc.
+  order     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

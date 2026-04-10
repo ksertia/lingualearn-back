@@ -28,8 +28,9 @@ async function getSectionById(id) {
 
 async function createSection(data) {
   const { title, type, language } = data;
+  const count = await prisma.discoverSection.count();
   return prisma.discoverSection.create({
-    data: { title, type, language },
+    data: { title, type, language, order: count + 1 },
   });
 }
 
