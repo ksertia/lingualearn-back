@@ -87,10 +87,9 @@ model Language {
   createdAt    DateTime               @default(now())
   updatedAt    DateTime               @updatedAt
   flagUrl      String?                @db.VarChar(500)
-  certificates Certificate[]
-  levels       Level[]
-  userProgress UserLanguageProgress[]
-  discoverLessons DiscoverLesson[]
+  certificates     Certificate[]
+  levels           Level[]
+  userProgress     UserLanguageProgress[]
 
   @@index([index])
   @@map("languages")
@@ -743,118 +742,54 @@ model Transaction {
   @@map("transactions")
 }
 
-model discovery_sessions {
-  id        String   @id @db.VarChar(50)
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-}
-
-// ==================== DÉCOUVERTE (DISCOVER) ====================
-
-model DiscoverLesson {
-  id           String   @id @default(cuid())
-  title        String
-  description  String?
-  languageCode String
-  level        String   @default("intermediate")
-  thumbnailUrl String?
-  isPublished  Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
-  language Language         @relation(fields: [languageCode], references: [code])
-  sections DiscoverSection[]
-
-  @@unique([languageCode, level])
-  @@map("discover_lessons")
-}
+// ==================== DISCOVER ====================
 
 model DiscoverSection {
   id        String   @id @default(cuid())
-  lessonId  String
-  type      String   // audio, video, qcm, dragdrop
-  order     Int      // 1,2,3,4
-  title     String
+  title     String   @db.VarChar(200)
+  type      String   @db.VarChar(20)  // lesson | exercise
+  language  String   @db.VarChar(100) // texte libre : "Français", "Wolof", etc.
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
-  lesson    DiscoverLesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  exercises DiscoverExercise[]
+  contents DiscoverContent[]
 
-  @@unique([lessonId, order])
   @@map("discover_sections")
 }
 
-model DiscoverExercise {
-  id        String   @id @default(cuid())
+model DiscoverContent {
+  id        String @id @default(cuid())
   sectionId String
-  
-  // Champs communs
-  title     String?
-  
-  // Audio / Video
-  mediaUrl     String?
-  text         String?   // texte original pour audio
-  translation  String?   // traduction pour audio
-  duration     Int?      // durée en secondes
-  thumbnailUrl String?   // miniature pour vidéo
-  description  String?   // description pour vidéo
-  
-  // QCM
-  question      String?
-  choices       Json?     // stocker ["choix1", "choix2", ...]
-  correctAnswer String?
-  
-  // Drag & Drop
-  imageUrl   String?
-  imageAlt   String?
-  dragItems  Json?     // stocker ["item1", "item2", ...]
-  dropZones  Json?     // stocker [{id, label, expectedItem}]
-  hint       String?
-  
+  order     Int    @default(0)
+
+  // Question
+  questionType  String  @db.VarChar(20) // text | audio | image | video | file
+  questionValue String  @db.Text
+
+  // Answer — pour les sections de type lesson
+  answerType  String? @db.VarChar(20)
+  answerValue String? @db.Text
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
-  section DiscoverSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  section DiscoverSection  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  options DiscoverOption[]
 
-  @@map("discover_exercises")
+  @@index([sectionId])
+  @@map("discover_contents")
 }
 
-// ==================== SESSIONS DE DÉCOUVERTE ====================
+model DiscoverOption {
+  id        String  @id @default(cuid())
+  contentId String
+  value     String  @db.VarChar(500)
+  isCorrect Boolean @default(false)
+  order     Int     @default(0)
 
-model DiscoverSession {
-  id            String                   @id // Format: temp_timestamp_random
-  totalScore    Int                      @default(0)
-  startedAt     DateTime                 @default(now())
-  lastActivity  DateTime                 @updatedAt
-  createdAt     DateTime                 @default(now())
-  
-  // Relations
-  exercises     DiscoverSessionExercise[]
-  
-  @@index([createdAt])
-  @@index([lastActivity])
-  @@map("discover_sessions")
+  content DiscoverContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@index([contentId])
+  @@map("discover_options")
 }
 
-model DiscoverSessionExercise {
-  id            String   @id @default(cuid())
-  sessionId     String
-  exerciseId    String
-  score         Int      @default(0)
-  maxScore      Int      @default(0)
-  percentage    Float    @default(0)
-  completedAt   DateTime @default(now())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  // Relations
-  session       DiscoverSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  
-  @@unique([sessionId, exerciseId])
-  @@index([sessionId])
-  @@map("discover_session_exercises")
-}
