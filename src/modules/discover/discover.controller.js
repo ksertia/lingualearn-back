@@ -1,5 +1,10 @@
 const service = require('./discover.service');
 
+async function listLanguages(req, res) {
+  const languages = await service.getLanguages();
+  res.json({ success: true, data: languages });
+}
+
 // ── SECTIONS ─────────────────────────────────────────────────────────────────
 
 async function listSections(req, res) {
@@ -46,6 +51,7 @@ async function deleteContent(req, res) {
 }
 
 module.exports = {
+  listLanguages,
   listSections,
   getSection,
   createSection,

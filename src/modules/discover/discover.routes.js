@@ -10,6 +10,30 @@ const { asyncHandler } = require('../../middleware/asyncHandler');
  *   description: Section découverte — gestion des sections et contenus par l'admin
  */
 
+/**
+ * @swagger
+ * /api/v1/discover/languages:
+ *   get:
+ *     summary: Get all distinct languages from discover sections
+ *     tags: [Discover]
+ *     responses:
+ *       200:
+ *         description: List of unique languages
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   example: ["Français", "Wolof", "Arabe"]
+ */
+router.get('/languages', asyncHandler(ctrl.listLanguages));
+
 // ── SECTIONS ─────────────────────────────────────────────────────────────────
 
 /**

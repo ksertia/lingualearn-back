@@ -2,6 +2,15 @@ const { prisma } = require('../../config/prisma');
 
 // ── SECTIONS ─────────────────────────────────────────────────────────────────
 
+async function getLanguages() {
+  const sections = await prisma.discoverSection.findMany({
+    select: { language: true },
+    distinct: ['language'],
+    orderBy: { language: 'asc' },
+  });
+  return sections.map((s) => s.language);
+}
+
 async function getSections() {
   return prisma.discoverSection.findMany({
     orderBy: { order: 'asc' },
@@ -110,6 +119,7 @@ async function deleteContent(id) {
 }
 
 module.exports = {
+  getLanguages,
   getSections,
   getSectionById,
   createSection,
