@@ -11,6 +11,32 @@ async function getLanguages() {
   return sections.map((s) => s.language);
 }
 
+async function getSectionsByLanguage(language) {
+  const [lessons, exercises] = await Promise.all([
+    prisma.discoverSection.findMany({
+      where: { language, type: 'lesson' },
+      orderBy: { order: 'asc' },
+      include: {
+        contents: {
+          orderBy: { order: 'asc' },
+          include: { options: { orderBy: { order: 'asc' } } },
+        },
+      },
+    }),
+    prisma.discoverSection.findMany({
+      where: { language, type: 'exercise' },
+      orderBy: { order: 'asc' },
+      include: {
+        contents: {
+          orderBy: { order: 'asc' },
+          include: { options: { orderBy: { order: 'asc' } } },
+        },
+      },
+    }),
+  ]);
+  return { lessons, exercises };
+}
+
 async function getSectionsByLanguageAndType(language, type) {
   return prisma.discoverSection.findMany({
     where: { language, type },
@@ -134,6 +160,7 @@ async function deleteContent(id) {
 module.exports = {
   getLanguages,
   getSections,
+  getSectionsByLanguage,
   getSectionsByLanguageAndType,
   getSectionById,
   createSection,

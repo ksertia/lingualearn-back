@@ -51,6 +51,25 @@ router.get('/languages', asyncHandler(ctrl.listLanguages));
  *       200:
  *         description: List of lesson sections
  */
+/**
+ * @swagger
+ * /api/v1/discover/languages/{language}:
+ *   get:
+ *     summary: Get all lessons and exercises for a given language
+ *     tags: [Discover]
+ *     parameters:
+ *       - in: path
+ *         name: language
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "Wolof"
+ *     responses:
+ *       200:
+ *         description: Lessons and exercises grouped by type
+ */
+router.get('/languages/:language', asyncHandler(ctrl.listByLanguage));
+
 router.get('/languages/:language/lessons', asyncHandler(ctrl.listLessons));
 
 /**
