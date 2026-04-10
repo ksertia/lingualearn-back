@@ -34,6 +34,44 @@ const { asyncHandler } = require('../../middleware/asyncHandler');
  */
 router.get('/languages', asyncHandler(ctrl.listLanguages));
 
+/**
+ * @swagger
+ * /api/v1/discover/languages/{language}/lessons:
+ *   get:
+ *     summary: Get all lesson sections for a given language
+ *     tags: [Discover]
+ *     parameters:
+ *       - in: path
+ *         name: language
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "Wolof"
+ *     responses:
+ *       200:
+ *         description: List of lesson sections
+ */
+router.get('/languages/:language/lessons', asyncHandler(ctrl.listLessons));
+
+/**
+ * @swagger
+ * /api/v1/discover/languages/{language}/exercises:
+ *   get:
+ *     summary: Get all exercise sections for a given language
+ *     tags: [Discover]
+ *     parameters:
+ *       - in: path
+ *         name: language
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "Wolof"
+ *     responses:
+ *       200:
+ *         description: List of exercise sections
+ */
+router.get('/languages/:language/exercises', asyncHandler(ctrl.listExercises));
+
 // ── SECTIONS ─────────────────────────────────────────────────────────────────
 
 /**

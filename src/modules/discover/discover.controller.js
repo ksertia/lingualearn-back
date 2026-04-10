@@ -5,6 +5,16 @@ async function listLanguages(req, res) {
   res.json({ success: true, data: languages });
 }
 
+async function listLessons(req, res) {
+  const sections = await service.getSectionsByLanguageAndType(req.params.language, 'lesson');
+  res.json({ success: true, data: sections });
+}
+
+async function listExercises(req, res) {
+  const sections = await service.getSectionsByLanguageAndType(req.params.language, 'exercise');
+  res.json({ success: true, data: sections });
+}
+
 // ── SECTIONS ─────────────────────────────────────────────────────────────────
 
 async function listSections(req, res) {
@@ -52,6 +62,8 @@ async function deleteContent(req, res) {
 
 module.exports = {
   listLanguages,
+  listLessons,
+  listExercises,
   listSections,
   getSection,
   createSection,

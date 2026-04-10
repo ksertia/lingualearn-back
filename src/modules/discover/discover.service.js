@@ -11,6 +11,19 @@ async function getLanguages() {
   return sections.map((s) => s.language);
 }
 
+async function getSectionsByLanguageAndType(language, type) {
+  return prisma.discoverSection.findMany({
+    where: { language, type },
+    orderBy: { order: 'asc' },
+    include: {
+      contents: {
+        orderBy: { order: 'asc' },
+        include: { options: { orderBy: { order: 'asc' } } },
+      },
+    },
+  });
+}
+
 async function getSections() {
   return prisma.discoverSection.findMany({
     orderBy: { order: 'asc' },
@@ -121,6 +134,7 @@ async function deleteContent(id) {
 module.exports = {
   getLanguages,
   getSections,
+  getSectionsByLanguageAndType,
   getSectionById,
   createSection,
   updateSection,
