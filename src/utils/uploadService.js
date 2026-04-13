@@ -87,7 +87,7 @@ const uploadImage = multer({
 
 // Générer l'URL du fichier uploadé
 const getFileUrl = (filename) => {
-  return `/uploads/${filename.includes('-') && filename.includes('.') ? filename : filename}`;
+  return `/uploads/images/${filename.includes('-') && filename.includes('.') ? filename : filename}`;
 };
 
 // Obtenir le chemin relatif du fichier uploadé
