@@ -1,19 +1,21 @@
 const { prisma } = require('../../config/prisma');
 
 async function createStepQuiz(data) {
-	return prisma.stepQuiz.create({ data });
+	// Filtrer les champs non présents dans le modèle Quiz
+	const { description, isActive, ...quizData } = data;
+	return prisma.quiz.create({ data: quizData });
 }
 
 async function getStepQuizById(id) {
-	return prisma.stepQuiz.findUnique({ where: { id } });
+	return prisma.quiz.findUnique({ where: { id } });
 }
 
 async function updateStepQuiz(id, data) {
-	return prisma.stepQuiz.update({ where: { id }, data });
+	return prisma.quiz.update({ where: { id }, data });
 }
 
 async function deleteStepQuiz(id) {
-	return prisma.stepQuiz.delete({ where: { id } });
+	return prisma.quiz.delete({ where: { id } });
 }
 
 // Soumettre et valider les réponses d'un quiz
