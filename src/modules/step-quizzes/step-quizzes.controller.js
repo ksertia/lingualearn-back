@@ -48,7 +48,8 @@ async function remove(req, res, next) {
 async function submitQuiz(req, res, next) {
 	try {
 		const { quizId } = req.params;
-		const { userId, answers } = req.body;
+		const userId = req.user?.userId || req.body.userId;
+		const { answers } = req.body;
 		
 		if (!userId || !answers) {
 			return res.status(400).json({ 
