@@ -85,9 +85,10 @@ const uploadImage = multer({
   }
 });
 
-// Générer l'URL du fichier uploadé
+// Générer l'URL absolue du fichier uploadé
 const getFileUrl = (filename) => {
-  return `/uploads/images/${filename.includes('-') && filename.includes('.') ? filename : filename}`;
+  const subPath = /\.(jpg|jpeg|png|gif|webp)$/i.test(filename) ? 'images' : 'courses';
+  return `https://213.32.120.11:4000/uploads/${subPath}/${filename}`;
 };
 
 // Obtenir le chemin relatif du fichier uploadé
