@@ -72,9 +72,13 @@ async function submitQuizAnswer(quizId, userId, userAnswers) {
 		data: {
 			quizId,
 			userId,
+			quizType: 'step',
+			attemptNumber: attempts + 1,
 			answers: userAnswers,
 			score: percentageScore,
 			passed,
+			timeSpentSeconds: 0,
+			status: passed ? 'passed' : 'failed',
 			completedAt: new Date()
 		}
 	});
@@ -175,12 +179,12 @@ async function submitQuizAnswer(quizId, userId, userAnswers) {
 				userId,
 				totalXp: earnedXp,
 				totalCoins: earnedCoins,
-				totalQuizzesCompleted: passed ? 1 : 0
+				totalStepsCompleted: passed ? 1 : 0
 			},
 			update: {
 				totalXp: { increment: earnedXp },
 				totalCoins: { increment: earnedCoins },
-				totalQuizzesCompleted: passed ? { increment: 1 } : undefined
+				...(passed ? { totalStepsCompleted: { increment: 1 } } : {})
 			}
 		});
 	}
