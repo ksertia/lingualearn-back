@@ -91,7 +91,7 @@ router.post('/image', uploadImage.single('image'), handleMulterError, controller
  *       400:
  *         description: Erreur d'upload
  */
-router.post('/video', uploadCourseContent.single('content'), handleMulterError, controller.uploadVideo);
+router.post('/video', uploadCourseContent.single('video'), handleMulterError, controller.uploadVideo);
 
 /**
  * @swagger
@@ -116,7 +116,7 @@ router.post('/video', uploadCourseContent.single('content'), handleMulterError, 
  *       400:
  *         description: Erreur d'upload
  */
-router.post('/audio', uploadCourseContent.single('content'), handleMulterError, controller.uploadAudio);
+router.post('/audio', uploadCourseContent.single('audio'), handleMulterError, controller.uploadAudio);
 
 /**
  * @swagger
@@ -141,7 +141,7 @@ router.post('/audio', uploadCourseContent.single('content'), handleMulterError, 
  *       400:
  *         description: Erreur d'upload
  */
-router.post('/pdf', uploadCourseContent.single('content'), handleMulterError, controller.uploadPdf);
+router.post('/pdf', uploadCourseContent.single('pdf'), handleMulterError, controller.uploadPdf);
 
 /**
  * @swagger
