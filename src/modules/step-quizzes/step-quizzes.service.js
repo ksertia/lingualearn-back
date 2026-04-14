@@ -39,7 +39,7 @@ async function submitQuizAnswer(quizId, userId, userAnswers) {
 
 	// 2. Vérifier le nombre de tentatives
 	const attempts = await prisma.quizAttempt.count({
-		where: { quizId, userId }
+		where: { quizId: quiz.id, userId }
 	});
 
 	if (attempts >= quiz.maxAttempts) {
@@ -77,7 +77,7 @@ async function submitQuizAnswer(quizId, userId, userAnswers) {
 	// 4. Enregistrer la tentative
 	const attempt = await prisma.quizAttempt.create({
 		data: {
-			quizId,
+			quizId: quiz.id,
 			userId,
 			quizType: 'step',
 			attemptNumber: attempts + 1,
