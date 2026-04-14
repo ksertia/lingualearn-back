@@ -1,5 +1,6 @@
 const express = require('express');
 const controller = require('./step-quizzes.controller');
+const { authMiddleware } = require('../../middleware/authMiddleware');
 const router = express.Router();
 
 /**
@@ -239,6 +240,6 @@ router.post('/', controller.create);
  *       404:
  *         description: Quiz non trouvé
  */
-router.post('/:quizId/submit', controller.submitQuiz);
+router.post('/:quizId/submit', authMiddleware, controller.submitQuiz);
 
 module.exports = router;
