@@ -2,8 +2,16 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const cloudinary = require('cloudinary').v2;
 
-// Créer les dossiers d'upload s'ils n'existent pas
+// Configuration Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Créer les dossiers d'upload temporaires
 const uploadsDir = path.join(__dirname, '../../uploads');
 const coursesDir = path.join(uploadsDir, 'courses');
 const imagesDir = path.join(uploadsDir, 'images');
@@ -85,10 +93,25 @@ const uploadImage = multer({
   }
 });
 
-// Générer l'URL absolue du fichier uploadé
-const getFileUrl = (filename) => {
-  const subPath = /\.(jpg|jpeg|png|gif|webp)$/i.test(filename) ? 'images' : 'courses';
-  return `https://213.32.120.11:4000/uploads/${subPath}/${filename}`;
+// Upload vers Cloudinary
+const uploadToCloudinary = (filePath, options = {}) => {
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader.upload(filePath, {
+      folder: options.folder || 'lingualearn',
+      resource_type: options.resource_type || 'auto',
+      ...options
+    }, (error, result) => {
+      // Supprimer le fichier temporaire local
+      fs.unlink(filePath, () => {});
+      if (error) return reject(error);
+      resolve(result);
+    });
+  });
+};
+
+// Générer l'URL du fichier (maintenant via Cloudinary)
+const getFileUrl = (cloudinaryUrl) => {
+  return cloudinaryUrl;
 };
 
 // Obtenir le chemin relatif du fichier uploadé
@@ -103,6 +126,7 @@ const getUploadedFile = (filename) => {
 module.exports = {
   uploadCourseContent,
   uploadImage,
+  uploadToCloudinary,
   getFileUrl,
   getUploadedFile
 };

@@ -1,4 +1,4 @@
-const { getFileUrl } = require('../../utils/uploadService');
+const { uploadToCloudinary } = require('../../utils/uploadService');
 
 // Upload image handler
 const uploadImage = async (req, res) => {
@@ -10,13 +10,17 @@ const uploadImage = async (req, res) => {
 			});
 		}
 
-		const imageUrl = getFileUrl(req.file.filename);
+		const result = await uploadToCloudinary(req.file.path, {
+			folder: 'lingualearn/images',
+			resource_type: 'image'
+		});
 
 		res.status(200).json({
 			success: true,
 			data: {
 				filename: req.file.filename,
-				url: imageUrl,
+				url: result.secure_url,
+				publicId: result.public_id,
 				originalName: req.file.originalname,
 				size: req.file.size,
 				mimetype: req.file.mimetype,
@@ -41,13 +45,21 @@ const uploadContent = async (req, res) => {
 			});
 		}
 
-		const contentUrl = getFileUrl(req.file.filename);
+		const resourceType = req.file.mimetype.startsWith('video/') ? 'video'
+			: req.file.mimetype.startsWith('audio/') ? 'video'
+			: 'raw';
+
+		const result = await uploadToCloudinary(req.file.path, {
+			folder: 'lingualearn/content',
+			resource_type: resourceType
+		});
 
 		res.status(200).json({
 			success: true,
 			data: {
 				filename: req.file.filename,
-				url: contentUrl,
+				url: result.secure_url,
+				publicId: result.public_id,
 				originalName: req.file.originalname,
 				size: req.file.size,
 				mimetype: req.file.mimetype,
@@ -74,13 +86,17 @@ const uploadVideo = async (req, res) => {
 			});
 		}
 
-		const videoUrl = getFileUrl(req.file.filename);
+		const result = await uploadToCloudinary(req.file.path, {
+			folder: 'lingualearn/videos',
+			resource_type: 'video'
+		});
 
 		res.status(200).json({
 			success: true,
 			data: {
 				filename: req.file.filename,
-				url: videoUrl,
+				url: result.secure_url,
+				publicId: result.public_id,
 				originalName: req.file.originalname,
 				size: req.file.size,
 				mimetype: req.file.mimetype,
@@ -105,13 +121,17 @@ const uploadAudio = async (req, res) => {
 			});
 		}
 
-		const audioUrl = getFileUrl(req.file.filename);
+		const result = await uploadToCloudinary(req.file.path, {
+			folder: 'lingualearn/audios',
+			resource_type: 'video'
+		});
 
 		res.status(200).json({
 			success: true,
 			data: {
 				filename: req.file.filename,
-				url: audioUrl,
+				url: result.secure_url,
+				publicId: result.public_id,
 				originalName: req.file.originalname,
 				size: req.file.size,
 				mimetype: req.file.mimetype,
@@ -136,13 +156,17 @@ const uploadPdf = async (req, res) => {
 			});
 		}
 
-		const pdfUrl = getFileUrl(req.file.filename);
+		const result = await uploadToCloudinary(req.file.path, {
+			folder: 'lingualearn/pdfs',
+			resource_type: 'raw'
+		});
 
 		res.status(200).json({
 			success: true,
 			data: {
 				filename: req.file.filename,
-				url: pdfUrl,
+				url: result.secure_url,
+				publicId: result.public_id,
 				originalName: req.file.originalname,
 				size: req.file.size,
 				mimetype: req.file.mimetype,
