@@ -18,13 +18,18 @@ async function deleteStepQuiz(id) {
 
 // Soumettre et valider les réponses d'un quiz
 async function submitQuizAnswer(quizId, userId, userAnswers) {
-	// 1. Récupérer le quiz
-	const quiz = await prisma.quiz.findUnique({
+	// 1. Récupérer le quiz (par son id ou par stepId)
+	let quiz = await prisma.quiz.findUnique({
 		where: { id: quizId },
-		include: {
-			step: true
-		}
+		include: { step: true }
 	});
+
+	if (!quiz) {
+		quiz = await prisma.quiz.findUnique({
+			where: { stepId: quizId },
+			include: { step: true }
+		});
+	}
 
 	if (!quiz) {
 		throw new Error('Quiz non trouvé');
