@@ -137,27 +137,28 @@ async unlockStepWithContent(userId, stepId) {
     })
   ]);
 
-  // Débloquer le premier élément de chaque type trouvé
-  const unlockPromises = [];
-  
-  // Pour une leçon (il n'y en a qu'une par étape d'après votre schéma)
+  // Débloquer le premier élément de chaque type trouvé (avec gestion d'erreurs)
   if (lesson) {
-    // Si vous avez un modèle pour la progression des leçons, débloquez-le
-    // Sinon, vous pouvez ignorer car les leçons n'ont pas de progression
     console.log(`Leçon trouvée pour l'étape ${stepId}: ${lesson.title}`);
   }
   
   // Débloquer le premier exercice
   if (exercises.length > 0) {
-    unlockPromises.push(this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.EXERCISE, exercises[0].id));
+    try {
+      await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.EXERCISE, exercises[0].id);
+    } catch (err) {
+      console.warn(`Impossible de débloquer l'exercice ${exercises[0].id}: ${err.message}`);
+    }
   }
   
   // Débloquer le premier quiz
   if (quiz) {
-    unlockPromises.push(this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.QUIZ, quiz.id));
+    try {
+      await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.QUIZ, quiz.id);
+    } catch (err) {
+      console.warn(`Impossible de débloquer le quiz ${quiz.id}: ${err.message}`);
+    }
   }
-
-  await Promise.all(unlockPromises);
 
   return await this.getUserProgress(userId, ProgressionUnlockService.ELEMENT_TYPES.STEP, stepId);
 }
@@ -566,33 +567,39 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
         }
         break;
       case ProgressionUnlockService.ELEMENT_TYPES.COURSE:
-        progress = await this.prisma.userCourseProgress.findUnique({
-          where: { userId_courseId: { userId, courseId: elementId } }
-        });
-        if (!progress) {
-          progress = await this.prisma.userCourseProgress.create({
-            data: { userId, courseId: elementId, status: ProgressionUnlockService.STATUS.LOCKED }
+        if (this.prisma.userCourseProgress) {
+          progress = await this.prisma.userCourseProgress.findUnique({
+            where: { userId_courseId: { userId, courseId: elementId } }
           });
+          if (!progress) {
+            progress = await this.prisma.userCourseProgress.create({
+              data: { userId, courseId: elementId, status: ProgressionUnlockService.STATUS.LOCKED }
+            });
+          }
         }
         break;
       case ProgressionUnlockService.ELEMENT_TYPES.EXERCISE:
-        progress = await this.prisma.userExerciseProgress.findUnique({
-          where: { userId_exerciseId: { userId, exerciseId: elementId } }
-        });
-        if (!progress) {
-          progress = await this.prisma.userExerciseProgress.create({
-            data: { userId, exerciseId: elementId, status: ProgressionUnlockService.STATUS.LOCKED }
+        if (this.prisma.userExerciseProgress) {
+          progress = await this.prisma.userExerciseProgress.findUnique({
+            where: { userId_exerciseId: { userId, exerciseId: elementId } }
           });
+          if (!progress) {
+            progress = await this.prisma.userExerciseProgress.create({
+              data: { userId, exerciseId: elementId, status: ProgressionUnlockService.STATUS.LOCKED }
+            });
+          }
         }
         break;
       case ProgressionUnlockService.ELEMENT_TYPES.QUIZ:
-        progress = await this.prisma.userQuizProgress.findUnique({
-          where: { userId_quizId: { userId, quizId: elementId } }
-        });
-        if (!progress) {
-          progress = await this.prisma.userQuizProgress.create({
-            data: { userId, quizId: elementId, status: ProgressionUnlockService.STATUS.LOCKED }
+        if (this.prisma.userQuizProgress) {
+          progress = await this.prisma.userQuizProgress.findUnique({
+            where: { userId_quizId: { userId, quizId: elementId } }
           });
+          if (!progress) {
+            progress = await this.prisma.userQuizProgress.create({
+              data: { userId, quizId: elementId, status: ProgressionUnlockService.STATUS.LOCKED }
+            });
+          }
         }
         break;
     }
@@ -629,23 +636,32 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
           create: { userId, stepId: elementId, ...updateData }
         });
       case ProgressionUnlockService.ELEMENT_TYPES.COURSE:
-        return await this.prisma.userCourseProgress.upsert({
-          where: { userId_courseId: { userId, courseId: elementId } },
-          update: updateData,
-          create: { userId, courseId: elementId, ...updateData }
-        });
+        if (this.prisma.userCourseProgress) {
+          return await this.prisma.userCourseProgress.upsert({
+            where: { userId_courseId: { userId, courseId: elementId } },
+            update: updateData,
+            create: { userId, courseId: elementId, ...updateData }
+          });
+        }
+        break;
       case ProgressionUnlockService.ELEMENT_TYPES.EXERCISE:
-        return await this.prisma.userExerciseProgress.upsert({
-          where: { userId_exerciseId: { userId, exerciseId: elementId } },
-          update: updateData,
-          create: { userId, exerciseId: elementId, ...updateData }
-        });
+        if (this.prisma.userExerciseProgress) {
+          return await this.prisma.userExerciseProgress.upsert({
+            where: { userId_exerciseId: { userId, exerciseId: elementId } },
+            update: updateData,
+            create: { userId, exerciseId: elementId, ...updateData }
+          });
+        }
+        break;
       case ProgressionUnlockService.ELEMENT_TYPES.QUIZ:
-        return await this.prisma.userQuizProgress.upsert({
-          where: { userId_quizId: { userId, quizId: elementId } },
-          update: updateData,
-          create: { userId, quizId: elementId, ...updateData }
-        });
+        if (this.prisma.userQuizProgress) {
+          return await this.prisma.userQuizProgress.upsert({
+            where: { userId_quizId: { userId, quizId: elementId } },
+            update: updateData,
+            create: { userId, quizId: elementId, ...updateData }
+          });
+        }
+        break;
     }
   }
 
