@@ -47,6 +47,8 @@ model User {
   pathProgress        UserPathProgress[]
   stats               UserStats?
   stepProgress        UserStepProgress[]
+  exerciseProgress    UserExerciseProgress[]
+  quizProgress        UserQuizProgress[]
   createdByUser       User?                  @relation("CreatedBy", fields: [createdBy], references: [id])
   createdUsers        User[]                 @relation("CreatedBy")
   parentUser          User?                  @relation("ParentToSubAccounts", fields: [parentId], references: [id])
@@ -208,6 +210,7 @@ model Exercise {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
   attempts       ExerciseAttempt[]
+  userProgress   UserExerciseProgress[]
   step           Step              @relation(fields: [stepId], references: [id], onDelete: Cascade)
 
   @@map("exercises")
@@ -227,6 +230,7 @@ model Quiz {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   attempts         QuizAttempt[]
+  userProgress     UserQuizProgress[]
   step             Step          @relation(fields: [stepId], references: [id], onDelete: Cascade)
 
   @@map("quizzes")
@@ -779,6 +783,46 @@ model DiscoverContent {
 
   @@index([sectionId])
   @@map("discover_contents")
+}
+
+model UserExerciseProgress {
+  id                 String    @id @default(cuid())
+  userId             String
+  exerciseId         String
+  status             String    @default("not_started") @db.VarChar(20)
+  progressPercentage Decimal   @default(0.00) @db.Decimal(5, 2)
+  score              Decimal?  @db.Decimal(5, 2)
+  completedAt        DateTime?
+  unlockedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  exercise           Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, exerciseId])
+  @@index([exerciseId, status])
+  @@index([userId, status])
+  @@map("user_exercise_progress")
+}
+
+model UserQuizProgress {
+  id                 String    @id @default(cuid())
+  userId             String
+  quizId             String
+  status             String    @default("not_started") @db.VarChar(20)
+  progressPercentage Decimal   @default(0.00) @db.Decimal(5, 2)
+  score              Decimal?  @db.Decimal(5, 2)
+  completedAt        DateTime?
+  unlockedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  quiz               Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, quizId])
+  @@index([quizId, status])
+  @@index([userId, status])
+  @@map("user_quiz_progress")
 }
 
 model DiscoverOption {
