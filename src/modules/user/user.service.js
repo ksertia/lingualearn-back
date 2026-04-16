@@ -151,9 +151,9 @@ class UserService {
         
         if (search) {
             where.OR = [
-                { email: { contains: search, mode: 'insensitive' } },
-                { phone: { contains: search, mode: 'insensitive' } },
-                { username: { contains: search, mode: 'insensitive' } }
+                { email: { contains: search } },
+                { phone: { contains: search } },
+                { username: { contains: search } }
             ];
         }
 
@@ -250,9 +250,9 @@ class UserService {
 
         // Filtres Profile avec optimisation
         const profileFilters = {};
-        if (filters.firstName) profileFilters.firstName = { contains: filters.firstName, mode: 'insensitive' };
-        if (filters.lastName) profileFilters.lastName = { contains: filters.lastName, mode: 'insensitive' };
-        if (filters.displayName) profileFilters.displayName = { contains: filters.displayName, mode: 'insensitive' };
+        if (filters.firstName) profileFilters.firstName = { contains: filters.firstName };
+        if (filters.lastName) profileFilters.lastName = { contains: filters.lastName };
+        if (filters.displayName) profileFilters.displayName = { contains: filters.displayName };
         if (filters.preferredLanguage) profileFilters.preferredLanguage = filters.preferredLanguage;
         if (filters.timezone) profileFilters.timezone = filters.timezone;
 
@@ -263,9 +263,9 @@ class UserService {
         // Search global optimisé
         if (filters.search) {
             const searchConditions = [
-                { email: { contains: filters.search, mode: 'insensitive' } },
-                { phone: { contains: filters.search, mode: 'insensitive' } },
-                { username: { contains: filters.search, mode: 'insensitive' } }
+                { email: { contains: filters.search } },
+                { phone: { contains: filters.search } },
+                { username: { contains: filters.search } }
             ];
 
             // Ajouter conditions profile seulement si nécessaire
@@ -273,7 +273,7 @@ class UserService {
                 const profileConditions = ['displayName', 'firstName', 'lastName'];
                 profileConditions.forEach(field => {
                     searchConditions.push({
-                        profile: { is: { [field]: { contains: filters.search, mode: 'insensitive' } } }
+                        profile: { is: { [field]: { contains: filters.search } } }
                     });
                 });
             }

@@ -300,8 +300,8 @@ exports.getCourses = async (filters = {}) => {
   if (typeof isActive === 'boolean') where.isActive = isActive;
   if (search) {
     where.OR = [
-      { title: { contains: search, mode: 'insensitive' } },
-      { contentText: { contains: search, mode: 'insensitive' } }
+      { title: { contains: search } },
+      { contentText: { contains: search } }
     ];
   }
 
@@ -335,13 +335,27 @@ exports.getCourse = async (id) => {
 exports.updateCourse = async (id, data) => {
   const lesson = await prisma.lesson.findUnique({ where: { id } });
   if (!lesson) throw new Error('Cours non trouvé');
-  return prisma.lesson.update({ where: { id }, data });
+  const { title, content, videoUrl, attachments, index } = data;
+  const validData = {};
+  if (title !== undefined) validData.title = title;
+  if (content !== undefined) validData.content = content;
+  if (videoUrl !== undefined) validData.videoUrl = videoUrl;
+  if (attachments !== undefined) validData.attachments = attachments;
+  if (index !== undefined) validData.index = index;
+  return prisma.lesson.update({ where: { id }, data: validData });
 };
 
 exports.patchCourse = async (id, data) => {
   const lesson = await prisma.lesson.findUnique({ where: { id } });
   if (!lesson) throw new Error('Cours non trouvé');
-  return prisma.lesson.update({ where: { id }, data });
+  const { title, content, videoUrl, attachments, index } = data;
+  const validData = {};
+  if (title !== undefined) validData.title = title;
+  if (content !== undefined) validData.content = content;
+  if (videoUrl !== undefined) validData.videoUrl = videoUrl;
+  if (attachments !== undefined) validData.attachments = attachments;
+  if (index !== undefined) validData.index = index;
+  return prisma.lesson.update({ where: { id }, data: validData });
 };
 
 exports.deleteCourse = async (id) => {
