@@ -32,7 +32,7 @@ async function update(req, res, next) {
 	} catch (err) {
 		next(err);
 	}
-}
+};
 
 async function remove(req, res, next) {
 	try {

@@ -53,10 +53,17 @@ exports.getModulesByUserId = async (userId) => {
 };
 
 exports.startModuleForUser = async (userId, moduleId) => {
-  const progress = await prisma.userModuleProgress.update({
+  const progress = await prisma.userModuleProgress.upsert({
     where: { userId_moduleId: { userId, moduleId } },
-    data: { 
+    update: { 
       status: 'started', 
+      startedAt: new Date(),
+      lastAccessedAt: new Date()
+    },
+    create: {
+      userId,
+      moduleId,
+      status: 'started',
       startedAt: new Date(),
       lastAccessedAt: new Date()
     }

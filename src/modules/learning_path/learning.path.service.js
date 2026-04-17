@@ -99,10 +99,17 @@ async function getPathsByModuleId(userId, moduleId) {
 }
 
 async function startPathForUser(userId, pathId) {
-	const progress = await prisma.userPathProgress.update({
+	const progress = await prisma.userPathProgress.upsert({
 		where: { userId_pathId: { userId, pathId } },
-		data: { 
+		update: { 
 			status: 'started', 
+			startedAt: new Date(),
+			lastAccessedAt: new Date()
+		},
+		create: {
+			userId,
+			pathId,
+			status: 'started',
 			startedAt: new Date(),
 			lastAccessedAt: new Date()
 		}
