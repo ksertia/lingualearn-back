@@ -903,7 +903,7 @@ class UserService {
                 userId,
                 step: { pathId: currentPath.pathId }
             },
-            orderBy: { lastAccessedAt: 'desc' },
+            orderBy: { updatedAt: 'desc' },
             include: {
                 step: {
                     select: {
