@@ -576,6 +576,29 @@ router.get('/children/:childId/languages', authMiddleware, allowRoles('learner')
 
 /**
  * @swagger
+ * /api/v1/languages/children/{childId}/progress:
+ *   get:
+ *     summary: Progression complète d'un enfant (parent uniquement)
+ *     description: Retourne langue → niveau → module → parcours → étape avec taux de complétion calculé à chaque niveau
+ *     tags: [Languages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: childId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Progression complète retournée
+ *       404:
+ *         description: Enfant introuvable
+ */
+router.get('/children/:childId/progress', authMiddleware, allowRoles('learner'), controller.getChildFullProgress);
+
+/**
+ * @swagger
  * /api/v1/languages/children/{childId}/languages/{languageId}/assign:
  *   post:
  *     summary: Assigner une langue à un compte enfant (parent uniquement)

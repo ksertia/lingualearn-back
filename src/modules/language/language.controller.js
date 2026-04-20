@@ -1,6 +1,17 @@
 const service = require('./language.service');
 
 // Progression endpoints
+// Progression complète d'un enfant (parent)
+exports.getChildFullProgress = async (req, res, next) => {
+    try {
+        const { childId } = req.params;
+        const result = await service.getChildFullProgress(req.user.id, childId);
+        res.json(result);
+    } catch (err) {
+        next(err);
+    }
+};
+
 // Assigner une langue à un compte enfant (parent connecté)
 exports.assignLanguageToChild = async (req, res, next) => {
     try {

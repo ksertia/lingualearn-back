@@ -112,6 +112,127 @@ exports.getChildLanguages = async (parentId, childId) => {
     };
 };
 
+// Progression actuelle d'un enfant (vue parent) : élément en cours à chaque niveau + taux
+exports.getChildFullProgress = async (parentId, childId) => {
+    const { AppError } = require('../../middleware/errorHandler');
+
+    const child = await prisma.user.findFirst({
+        where: { id: childId, parentId, accountType: 'sub_account_learner' },
+        select: { id: true, username: true, email: true }
+    });
+    if (!child) throw new AppError(404, 'Child account not found or does not belong to you');
+
+    const pct = (val) => Math.round(Number(val ?? 0));
+
+    // Langue actuelle = dernière accédée
+    const currentLang = await prisma.userLanguageProgress.findFirst({
+        where: { userId: childId },
+        orderBy: { lastAccessedAt: 'desc' },
+        include: { language: { select: { id: true, name: true, code: true, flagUrl: true } } }
+    });
+    if (!currentLang) return { success: true, child, data: null };
+
+    // Niveau actuel = dernier en cours
+    const currentLevel = await prisma.userLevelProgress.findFirst({
+        where: { userId: childId, status: { in: ['started', 'unlocked'] } },
+        orderBy: { lastAccessedAt: 'desc' },
+        include: { level: { select: { id: true, name: true, code: true } } }
+    });
+    let levelRate = 0, totalModules = 0, completedModules = 0;
+    if (currentLevel) {
+        totalModules = await prisma.module.count({ where: { levelId: currentLevel.levelId } });
+        completedModules = await prisma.userModuleProgress.count({
+            where: { userId: childId, module: { levelId: currentLevel.levelId }, status: 'completed' }
+        });
+        levelRate = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
+    }
+
+    // Module actuel
+    const currentModule = await prisma.userModuleProgress.findFirst({
+        where: { userId: childId, status: { in: ['started', 'unlocked'] } },
+        orderBy: { lastAccessedAt: 'desc' },
+        include: { module: { select: { id: true, title: true } } }
+    });
+    let moduleRate = 0, totalPaths = 0, completedPaths = 0;
+    if (currentModule) {
+        totalPaths = await prisma.path.count({ where: { moduleId: currentModule.moduleId } });
+        completedPaths = await prisma.userPathProgress.count({
+            where: { userId: childId, path: { moduleId: currentModule.moduleId }, status: 'completed' }
+        });
+        moduleRate = totalPaths > 0 ? Math.round((completedPaths / totalPaths) * 100) : 0;
+    }
+
+    // Parcours actuel
+    const currentPath = await prisma.userPathProgress.findFirst({
+        where: { userId: childId, status: { in: ['started', 'unlocked'] } },
+        orderBy: { lastAccessedAt: 'desc' },
+        include: { path: { select: { id: true, title: true } } }
+    });
+    let pathRate = 0, totalSteps = 0, completedSteps = 0;
+    if (currentPath) {
+        totalSteps = await prisma.step.count({ where: { pathId: currentPath.pathId } });
+        completedSteps = await prisma.userStepProgress.count({
+            where: { userId: childId, step: { pathId: currentPath.pathId }, status: 'completed' }
+        });
+        pathRate = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
+    }
+
+    // Étape actuelle
+    const currentStep = await prisma.userStepProgress.findFirst({
+        where: { userId: childId, status: { notIn: ['completed'] } },
+        orderBy: { updatedAt: 'desc' },
+        include: { step: { select: { id: true, title: true, stepType: true } } }
+    });
+
+    return {
+        success: true,
+        child,
+        data: {
+            language: {
+                id: currentLang.language.id,
+                name: currentLang.language.name,
+                code: currentLang.language.code,
+                flagUrl: currentLang.language.flagUrl,
+                status: currentLang.status,
+                progressPercentage: pct(currentLang.overallProgress),
+            },
+            level: currentLevel ? {
+                id: currentLevel.level.id,
+                name: currentLevel.level.name,
+                code: currentLevel.level.code,
+                status: currentLevel.status,
+                totalModules,
+                completedModules,
+                progressPercentage: levelRate,
+            } : null,
+            module: currentModule ? {
+                id: currentModule.module.id,
+                title: currentModule.module.title,
+                status: currentModule.status,
+                totalPaths,
+                completedPaths,
+                progressPercentage: moduleRate,
+            } : null,
+            path: currentPath ? {
+                id: currentPath.path.id,
+                title: currentPath.path.title,
+                status: currentPath.status,
+                totalSteps,
+                completedSteps,
+                progressPercentage: pathRate,
+            } : null,
+            step: currentStep ? {
+                id: currentStep.step.id,
+                title: currentStep.step.title,
+                stepType: currentStep.step.stepType,
+                status: currentStep.status,
+                progressPercentage: pct(currentStep.progressPercentage),
+                score: currentStep.score != null ? pct(currentStep.score) : null,
+            } : null,
+        }
+    };
+};
+
 // Récupérer les niveaux d'une langue (vue parent pour choisir pour l'enfant)
 exports.getChildLanguageLevels = async (parentId, childId, languageId) => {
     const { AppError } = require('../../middleware/errorHandler');
