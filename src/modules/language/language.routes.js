@@ -551,6 +551,97 @@ router.get('/active', controller.getActiveLanguages);
 
 /**
  * @swagger
+ * /api/v1/languages/children/{childId}/languages:
+ *   get:
+ *     summary: Voir les langues d'un compte enfant (parent uniquement)
+ *     tags: [Languages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: childId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du compte enfant
+ *     responses:
+ *       200:
+ *         description: Langues de l'enfant récupérées
+ *       403:
+ *         description: Accès refusé
+ *       404:
+ *         description: Enfant introuvable
+ */
+router.get('/children/:childId/languages', authMiddleware, allowRoles('learner'), controller.getChildLanguages);
+
+/**
+ * @swagger
+ * /api/v1/languages/children/{childId}/languages/{languageId}/assign:
+ *   post:
+ *     summary: Assigner une langue à un compte enfant (parent uniquement)
+ *     tags: [Languages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: childId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du compte enfant
+ *       - in: path
+ *         name: languageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la langue à assigner
+ *     responses:
+ *       201:
+ *         description: Langue assignée avec succès
+ *       403:
+ *         description: Accès refusé
+ *       404:
+ *         description: Enfant ou langue introuvable
+ */
+router.post('/children/:childId/languages/:languageId/assign', authMiddleware, allowRoles('learner'), controller.assignLanguageToChild);
+
+
+/**
+ * @swagger
+ * /api/v1/languages/children/{childId}/languages/{languageId}/levels/{levelId}/assign:
+ *   post:
+ *     summary: Assigner un niveau à un enfant (parent uniquement)
+ *     tags: [Languages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: childId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: languageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: levelId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       201:
+ *         description: Niveau assigné avec succès
+ *       400:
+ *         description: Langue pas encore assignée à l'enfant
+ *       404:
+ *         description: Enfant ou niveau introuvable
+ */
+router.post('/children/:childId/languages/:languageId/levels/:levelId/assign', authMiddleware, allowRoles('learner'), controller.assignLevelToChild);
+
+/**
+ * @swagger
  * /api/v1/languages/{id}/activate:
  *   patch:
  *     summary: Activer une langue

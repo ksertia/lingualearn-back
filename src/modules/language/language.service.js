@@ -34,6 +34,146 @@ exports.getLanguagesByUserId = async (userId) => {
 	}));
 };
 
+// Assignation d'une langue à un enfant par son parent
+exports.assignLanguageToChild = async (parentId, childId, languageId) => {
+    const { AppError } = require('../../middleware/errorHandler');
+
+    // Vérifier que l'enfant appartient bien à ce parent
+    const child = await prisma.user.findFirst({
+        where: { id: childId, parentId, accountType: 'sub_account_learner' }
+    });
+    if (!child) {
+        throw new AppError(404, 'Child account not found or does not belong to you');
+    }
+
+    // Vérifier que la langue existe et est active
+    const language = await prisma.language.findFirst({
+        where: { id: languageId, isActive: true },
+        select: { id: true, name: true, code: true, flagUrl: true }
+    });
+    if (!language) {
+        throw new AppError(404, 'Language not found or not active');
+    }
+
+    // Créer ou mettre à jour la progression
+    const progress = await prisma.userLanguageProgress.upsert({
+        where: { userId_languageId: { userId: childId, languageId } },
+        create: {
+            userId: childId,
+            languageId,
+            status: 'started',
+            startedAt: new Date(),
+            lastAccessedAt: new Date()
+        },
+        update: {
+            lastAccessedAt: new Date()
+        }
+    });
+
+    return {
+        success: true,
+        message: `Language "${language.name}" assigned to ${child.username}`,
+        data: { language, progress }
+    };
+};
+
+// Récupérer les langues assignées à un enfant (vue parent)
+exports.getChildLanguages = async (parentId, childId) => {
+    const { AppError } = require('../../middleware/errorHandler');
+
+    const child = await prisma.user.findFirst({
+        where: { id: childId, parentId, accountType: 'sub_account_learner' }
+    });
+    if (!child) {
+        throw new AppError(404, 'Child account not found or does not belong to you');
+    }
+
+    const languages = await prisma.language.findMany({
+        where: { isActive: true },
+        orderBy: { createdAt: 'asc' },
+        include: {
+            userProgress: { where: { userId: childId } }
+        }
+    });
+
+    return {
+        success: true,
+        child: { id: child.id, username: child.username },
+        data: languages.map(lang => ({
+            id: lang.id,
+            name: lang.name,
+            code: lang.code,
+            flagUrl: lang.flagUrl,
+            status: lang.userProgress[0]?.status || 'not_started',
+            overallProgress: lang.userProgress[0]?.overallProgress || 0,
+            totalXp: lang.userProgress[0]?.totalXp || 0,
+            assignedAt: lang.userProgress[0]?.startedAt || null,
+        }))
+    };
+};
+
+// Récupérer les niveaux d'une langue (vue parent pour choisir pour l'enfant)
+exports.getChildLanguageLevels = async (parentId, childId, languageId) => {
+    const { AppError } = require('../../middleware/errorHandler');
+
+    const child = await prisma.user.findFirst({
+        where: { id: childId, parentId, accountType: 'sub_account_learner' }
+    });
+    if (!child) throw new AppError(404, 'Child account not found or does not belong to you');
+
+    const levels = await prisma.level.findMany({
+        where: { languageId, isActive: true },
+        orderBy: { index: 'asc' },
+        select: { id: true, code: true, name: true, description: true, index: true }
+    });
+
+    if (!levels.length) throw new AppError(404, 'No levels found for this language');
+
+    return { success: true, data: levels };
+};
+
+// Assigner un niveau à un enfant (parent)
+exports.assignLevelToChild = async (parentId, childId, languageId, levelId) => {
+    const { AppError } = require('../../middleware/errorHandler');
+
+    const child = await prisma.user.findFirst({
+        where: { id: childId, parentId, accountType: 'sub_account_learner' }
+    });
+    if (!child) throw new AppError(404, 'Child account not found or does not belong to you');
+
+    // Vérifier que la langue est assignée à l'enfant
+    const langProgress = await prisma.userLanguageProgress.findUnique({
+        where: { userId_languageId: { userId: childId, languageId } }
+    });
+    if (!langProgress) throw new AppError(400, 'Assign the language to this child before assigning a level');
+
+    // Vérifier que le niveau appartient à cette langue
+    const level = await prisma.level.findFirst({
+        where: { id: levelId, languageId, isActive: true },
+        select: { id: true, name: true, code: true }
+    });
+    if (!level) throw new AppError(404, 'Level not found for this language');
+
+    const progress = await prisma.userLevelProgress.upsert({
+        where: { userId_levelId: { userId: childId, levelId } },
+        create: {
+            userId: childId,
+            levelId,
+            status: 'unlocked',
+            unlockedAt: new Date(),
+            startedAt: new Date(),
+            lastAccessedAt: new Date()
+        },
+        update: { lastAccessedAt: new Date() }
+    });
+
+    return {
+        success: true,
+        message: `Level "${level.name}" assigned to ${child.username}`,
+        data: { level, progress }
+    };
+};
+
 // Progression utilisateur pour Language
 exports.selectLanguageForUser = async (userId, languageId) => {
 	let progress = await prisma.userLanguageProgress.findUnique({ where: { userId_languageId: { userId, languageId } } });

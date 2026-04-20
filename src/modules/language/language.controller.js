@@ -1,6 +1,50 @@
 const service = require('./language.service');
 
 // Progression endpoints
+// Assigner une langue à un compte enfant (parent connecté)
+exports.assignLanguageToChild = async (req, res, next) => {
+    try {
+        const { childId, languageId } = req.params;
+        const result = await service.assignLanguageToChild(req.user.id, childId, languageId);
+        res.status(201).json(result);
+    } catch (err) {
+        next(err);
+    }
+};
+
+// Récupérer les langues d'un enfant (vue parent)
+exports.getChildLanguages = async (req, res, next) => {
+    try {
+        const { childId } = req.params;
+        const result = await service.getChildLanguages(req.user.id, childId);
+        res.json(result);
+    } catch (err) {
+        next(err);
+    }
+};
+
+// Voir les niveaux d'une langue pour un enfant (parent)
+exports.getChildLanguageLevels = async (req, res, next) => {
+    try {
+        const { childId, languageId } = req.params;
+        const result = await service.getChildLanguageLevels(req.user.id, childId, languageId);
+        res.json(result);
+    } catch (err) {
+        next(err);
+    }
+};
+
+// Assigner un niveau à un enfant (parent)
+exports.assignLevelToChild = async (req, res, next) => {
+    try {
+        const { childId, languageId, levelId } = req.params;
+        const result = await service.assignLevelToChild(req.user.id, childId, languageId, levelId);
+        res.status(201).json(result);
+    } catch (err) {
+        next(err);
+    }
+};
+
 exports.selectLanguage = async (req, res, next) => {
        try {
 	       const { userId, languageId } = req.params;
