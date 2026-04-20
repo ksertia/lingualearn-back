@@ -77,6 +77,30 @@ exports.assignLanguageToChild = async (parentId, childId, languageId) => {
     };
 };
 
+// Désassigner une langue d'un enfant (supprime toute la progression liée)
+exports.unassignLanguageFromChild = async (parentId, childId, languageId) => {
+    const { AppError } = require('../../middleware/errorHandler');
+
+    const child = await prisma.user.findFirst({
+        where: { id: childId, parentId, accountType: 'sub_account_learner' }
+    });
+    if (!child) throw new AppError(404, 'Child account not found or does not belong to you');
+
+    const existing = await prisma.userLanguageProgress.findUnique({
+        where: { userId_languageId: { userId: childId, languageId } }
+    });
+    if (!existing) throw new AppError(404, 'This language is not assigned to this child');
+
+    // Supprimer en cascade : étape → parcours → module → niveau → langue
+    await prisma.userStepProgress.deleteMany({ where: { userId: childId, step: { path: { module: { level: { languageId } } } } } });
+    await prisma.userPathProgress.deleteMany({ where: { userId: childId, path: { module: { level: { languageId } } } } });
+    await prisma.userModuleProgress.deleteMany({ where: { userId: childId, module: { level: { languageId } } } });
+    await prisma.userLevelProgress.deleteMany({ where: { userId: childId, level: { languageId } } });
+    await prisma.userLanguageProgress.delete({ where: { userId_languageId: { userId: childId, languageId } } });
+
+    return { success: true, message: 'Language unassigned and all related progress deleted' };
+};
+
 // Récupérer les langues assignées à un enfant (vue parent)
 exports.getChildLanguages = async (parentId, childId) => {
     const { AppError } = require('../../middleware/errorHandler');

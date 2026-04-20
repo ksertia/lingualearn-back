@@ -630,6 +630,7 @@ router.get('/children/:childId/progress', authMiddleware, allowRoles('learner'),
  *         description: Enfant ou langue introuvable
  */
 router.post('/children/:childId/languages/:languageId/assign', authMiddleware, allowRoles('learner'), controller.assignLanguageToChild);
+router.delete('/children/:childId/languages/:languageId/unassign', authMiddleware, allowRoles('learner'), controller.unassignLanguageFromChild);
 
 
 /**
