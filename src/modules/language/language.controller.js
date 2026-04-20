@@ -1,7 +1,17 @@
 const service = require('./language.service');
 
 // Progression endpoints
-// Progression complète d'un enfant (parent)
+// Progression actuelle de l'enfant connecté (vue enfant)
+exports.getMyProgress = async (req, res, next) => {
+    try {
+        const result = await service.getMyProgress(req.user.id);
+        res.json(result);
+    } catch (err) {
+        next(err);
+    }
+};
+
+// Progression actuelle d'un enfant (vue parent)
 exports.getChildFullProgress = async (req, res, next) => {
     try {
         const { childId } = req.params;

@@ -122,6 +122,13 @@ const userController = {
     getMyChildren: asyncHandler(async (req, res) => {
         const result = await userService.getMyChildren(req.user.id);
         res.json(result);
+    }),
+
+    // Progression actuelle de l'enfant connecté
+    getMyProgress: asyncHandler(async (req, res) => {
+        const langService = require('../language/language.service');
+        const result = await langService.getMyProgress(req.user.id);
+        res.json(result);
     })
 };
 

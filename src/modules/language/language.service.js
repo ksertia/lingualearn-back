@@ -112,29 +112,20 @@ exports.getChildLanguages = async (parentId, childId) => {
     };
 };
 
-// Progression actuelle d'un enfant (vue parent) : élément en cours à chaque niveau + taux
-exports.getChildFullProgress = async (parentId, childId) => {
-    const { AppError } = require('../../middleware/errorHandler');
-
-    const child = await prisma.user.findFirst({
-        where: { id: childId, parentId, accountType: 'sub_account_learner' },
-        select: { id: true, username: true, email: true }
-    });
-    if (!child) throw new AppError(404, 'Child account not found or does not belong to you');
-
+// Calcul de la progression actuelle (langue/niveau/module/parcours/étape en cours + taux)
+// Utilisé par le parent (pour son enfant) ET par l'enfant lui-même
+async function computeCurrentProgress(userId) {
     const pct = (val) => Math.round(Number(val ?? 0));
 
-    // Langue actuelle = dernière accédée
     const currentLang = await prisma.userLanguageProgress.findFirst({
-        where: { userId: childId },
+        where: { userId },
         orderBy: { lastAccessedAt: 'desc' },
         include: { language: { select: { id: true, name: true, code: true, flagUrl: true } } }
     });
-    if (!currentLang) return { success: true, child, data: null };
+    if (!currentLang) return null;
 
-    // Niveau actuel = dernier en cours
     const currentLevel = await prisma.userLevelProgress.findFirst({
-        where: { userId: childId, status: { in: ['started', 'unlocked'] } },
+        where: { userId, status: { in: ['started', 'unlocked'] } },
         orderBy: { lastAccessedAt: 'desc' },
         include: { level: { select: { id: true, name: true, code: true } } }
     });
@@ -142,14 +133,13 @@ exports.getChildFullProgress = async (parentId, childId) => {
     if (currentLevel) {
         totalModules = await prisma.module.count({ where: { levelId: currentLevel.levelId } });
         completedModules = await prisma.userModuleProgress.count({
-            where: { userId: childId, module: { levelId: currentLevel.levelId }, status: 'completed' }
+            where: { userId, module: { levelId: currentLevel.levelId }, status: 'completed' }
         });
         levelRate = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
     }
 
-    // Module actuel
     const currentModule = await prisma.userModuleProgress.findFirst({
-        where: { userId: childId, status: { in: ['started', 'unlocked'] } },
+        where: { userId, status: { in: ['started', 'unlocked'] } },
         orderBy: { lastAccessedAt: 'desc' },
         include: { module: { select: { id: true, title: true } } }
     });
@@ -157,14 +147,13 @@ exports.getChildFullProgress = async (parentId, childId) => {
     if (currentModule) {
         totalPaths = await prisma.path.count({ where: { moduleId: currentModule.moduleId } });
         completedPaths = await prisma.userPathProgress.count({
-            where: { userId: childId, path: { moduleId: currentModule.moduleId }, status: 'completed' }
+            where: { userId, path: { moduleId: currentModule.moduleId }, status: 'completed' }
         });
         moduleRate = totalPaths > 0 ? Math.round((completedPaths / totalPaths) * 100) : 0;
     }
 
-    // Parcours actuel
     const currentPath = await prisma.userPathProgress.findFirst({
-        where: { userId: childId, status: { in: ['started', 'unlocked'] } },
+        where: { userId, status: { in: ['started', 'unlocked'] } },
         orderBy: { lastAccessedAt: 'desc' },
         include: { path: { select: { id: true, title: true } } }
     });
@@ -172,65 +161,75 @@ exports.getChildFullProgress = async (parentId, childId) => {
     if (currentPath) {
         totalSteps = await prisma.step.count({ where: { pathId: currentPath.pathId } });
         completedSteps = await prisma.userStepProgress.count({
-            where: { userId: childId, step: { pathId: currentPath.pathId }, status: 'completed' }
+            where: { userId, step: { pathId: currentPath.pathId }, status: 'completed' }
         });
         pathRate = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
     }
 
-    // Étape actuelle
     const currentStep = await prisma.userStepProgress.findFirst({
-        where: { userId: childId, status: { notIn: ['completed'] } },
+        where: { userId, status: { notIn: ['completed'] } },
         orderBy: { updatedAt: 'desc' },
         include: { step: { select: { id: true, title: true, stepType: true } } }
     });
 
     return {
-        success: true,
-        child,
-        data: {
-            language: {
-                id: currentLang.language.id,
-                name: currentLang.language.name,
-                code: currentLang.language.code,
-                flagUrl: currentLang.language.flagUrl,
-                status: currentLang.status,
-                progressPercentage: pct(currentLang.overallProgress),
-            },
-            level: currentLevel ? {
-                id: currentLevel.level.id,
-                name: currentLevel.level.name,
-                code: currentLevel.level.code,
-                status: currentLevel.status,
-                totalModules,
-                completedModules,
-                progressPercentage: levelRate,
-            } : null,
-            module: currentModule ? {
-                id: currentModule.module.id,
-                title: currentModule.module.title,
-                status: currentModule.status,
-                totalPaths,
-                completedPaths,
-                progressPercentage: moduleRate,
-            } : null,
-            path: currentPath ? {
-                id: currentPath.path.id,
-                title: currentPath.path.title,
-                status: currentPath.status,
-                totalSteps,
-                completedSteps,
-                progressPercentage: pathRate,
-            } : null,
-            step: currentStep ? {
-                id: currentStep.step.id,
-                title: currentStep.step.title,
-                stepType: currentStep.step.stepType,
-                status: currentStep.status,
-                progressPercentage: pct(currentStep.progressPercentage),
-                score: currentStep.score != null ? pct(currentStep.score) : null,
-            } : null,
-        }
+        language: {
+            id: currentLang.language.id,
+            name: currentLang.language.name,
+            code: currentLang.language.code,
+            flagUrl: currentLang.language.flagUrl,
+            status: currentLang.status,
+            progressPercentage: pct(currentLang.overallProgress),
+        },
+        level: currentLevel ? {
+            id: currentLevel.level.id,
+            name: currentLevel.level.name,
+            code: currentLevel.level.code,
+            status: currentLevel.status,
+            totalModules, completedModules,
+            progressPercentage: levelRate,
+        } : null,
+        module: currentModule ? {
+            id: currentModule.module.id,
+            title: currentModule.module.title,
+            status: currentModule.status,
+            totalPaths, completedPaths,
+            progressPercentage: moduleRate,
+        } : null,
+        path: currentPath ? {
+            id: currentPath.path.id,
+            title: currentPath.path.title,
+            status: currentPath.status,
+            totalSteps, completedSteps,
+            progressPercentage: pathRate,
+        } : null,
+        step: currentStep ? {
+            id: currentStep.step.id,
+            title: currentStep.step.title,
+            stepType: currentStep.step.stepType,
+            status: currentStep.status,
+            progressPercentage: pct(currentStep.progressPercentage),
+            score: currentStep.score != null ? pct(currentStep.score) : null,
+        } : null,
     };
+}
+
+// Vue parent : progression actuelle de son enfant
+exports.getChildFullProgress = async (parentId, childId) => {
+    const { AppError } = require('../../middleware/errorHandler');
+    const child = await prisma.user.findFirst({
+        where: { id: childId, parentId, accountType: 'sub_account_learner' },
+        select: { id: true, username: true, email: true }
+    });
+    if (!child) throw new AppError(404, 'Child account not found or does not belong to you');
+    const data = await computeCurrentProgress(childId);
+    return { success: true, child, data };
+};
+
+// Vue enfant : sa propre progression actuelle
+exports.getMyProgress = async (userId) => {
+    const data = await computeCurrentProgress(userId);
+    return { success: true, data };
 };
 
 // Récupérer les niveaux d'une langue (vue parent pour choisir pour l'enfant)

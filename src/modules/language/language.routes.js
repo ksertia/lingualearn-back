@@ -597,6 +597,7 @@ router.get('/children/:childId/languages', authMiddleware, allowRoles('learner')
  */
 router.get('/children/:childId/progress', authMiddleware, allowRoles('learner'), controller.getChildFullProgress);
 
+
 /**
  * @swagger
  * /api/v1/languages/children/{childId}/languages/{languageId}/assign:

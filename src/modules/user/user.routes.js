@@ -44,6 +44,23 @@ router.get('/my-children', allowRoles('learner'), userController.getMyChildren);
 
 /**
  * @swagger
+ * /api/v1/users/my-progress:
+ *   get:
+ *     summary: Progression actuelle de l'enfant connecté
+ *     description: Retourne la langue/niveau/module/parcours/étape en cours + taux de finition. Accessible au parent et à l'enfant.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Progression actuelle retournée
+ *       403:
+ *         description: Réservé aux comptes enfants
+ */
+router.get('/my-progress', userController.getMyProgress);
+
+/**
+ * @swagger
  * /api/v1/users/me:
  *   put:
  *     tags:
