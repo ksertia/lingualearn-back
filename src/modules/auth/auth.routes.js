@@ -1,6 +1,6 @@
 const express = require('express');
 const { authController } = require('./auth.controller');
-const { authMiddleware } = require('../../middleware/authMiddleware');
+const { authMiddleware, allowRoles } = require('../../middleware/authMiddleware');
 
 const router = express.Router();
 
@@ -17,6 +17,11 @@ const router = express.Router();
  *   schemas:
  *     UserRegistration:
  *       type: object
+ *       required:
+ *         - firstName
+ *         - lastName
+ *         - password
+ *         - accountType
  *       properties:
  *         firstName:
  *           type: string
@@ -34,26 +39,16 @@ const router = express.Router();
  *         password:
  *           type: string
  *           format: password
- *           example: password
+ *           example: password123
  *         username:
  *           type: string
- *           example: null
  *           nullable: true
+ *           example: null
  *         accountType:
  *           type: string
- *           enum: [admin, learner, sub_account_learner, plateform_manager, teacher]
+ *           enum: [admin, learner, plateform_manager, teacher]
  *           default: learner
- *         parentId:
- *           type: string
- *           example: null
- *           nullable: true
- *       required:
- *         - firstName
- *         - lastName
- *         - password
- *       oneOf:
- *         - required: [email]
- *         - required: [phone]
+ *       description: "Note: email ou phone est obligatoire"
  *
  *     UserLogin:
  *       type: object
@@ -204,13 +199,15 @@ router.post('/forgot-password', authController.forgotPassword);
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [loginInfo, otp]
  *             properties:
  *               loginInfo:
  *                 type: string
  *                 example: kagamaboubacar@gmail.com
+ *                 description: Email, téléphone ou username
  *               otp:
  *                 type: string
- *                 example: 123456
+ *                 example: "123456"
  *     responses:
  *       200:
  *         description: OTP verified successfully
@@ -224,11 +221,9 @@ router.post('/forgot-password', authController.forgotPassword);
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: OTP verified successfully
- *                 userId:
- *                   type: string
+ *                   example: Code verified successfully
  *       400:
- *         description: Invalid or expired OTP
+ *         description: Code invalide ou expiré
  */
 router.post('/verify-otp', authController.verifyOTP);
 
@@ -246,15 +241,14 @@ router.post('/verify-otp', authController.verifyOTP);
  *           schema:
  *             type: object
  *             required:
- *               - email
+ *               - loginInfo
  *               - otp
  *               - password
  *             properties:
  *               loginInfo:
  *                 type: string
- *                 format: email
  *                 example: "kagamaboubacar@gmail.com"
- *                 description: User's email address
+ *                 description: Email, téléphone ou username
  *               otp:
  *                 type: string
  *                 example: "792604"
@@ -343,6 +337,20 @@ router.post('/refresh-token', authController.refreshToken);
  *     tags: [Authentication]
  *     summary: Logout user
  *     description: Invalidate user session and tokens
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *                 example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *               sessionToken:
+ *                 type: string
+ *                 example: "abc123..."
  *     responses:
  *       200:
  *         description: User successfully logged out
@@ -407,5 +415,88 @@ router.post('/change-password', authMiddleware, authController.changePassword);
  *         description: User is not authenticated
  */
 router.get('/check-auth', authMiddleware, authController.checkAuth);
+
+/**
+ * @swagger
+ * /api/v1/auth/children:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: Create a child account (parent only)
+ *     description: Allows an authenticated learner to create a sub_account_learner. Requires a subscription plan with available child account slots.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [firstName, lastName, password]
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *                 example: Awa
+ *               lastName:
+ *                 type: string
+ *                 example: Diallo
+ *               password:
+ *                 type: string
+ *                 example: motdepasse123
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: awa@example.com
+ *               phone:
+ *                 type: string
+ *                 example: "+22670123456"
+ *     responses:
+ *       201:
+ *         description: Child account created successfully
+ *       403:
+ *         description: Not a learner, or subscription limit reached
+ *       400:
+ *         description: Email or phone already in use
+ */
+router.post('/children', authMiddleware, allowRoles('learner'), authController.addChildAccount);
+
+/**
+ * @swagger
+ * /api/v1/auth/children/{childId}/reset-password:
+ *   patch:
+ *     tags: [Authentication]
+ *     summary: Reset child account password (parent only)
+ *     description: Allows an authenticated learner (parent) to reset the password of one of their child accounts.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: childId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the child account
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [newPassword]
+ *             properties:
+ *               newPassword:
+ *                 type: string
+ *                 example: nouveaumotdepasse123
+ *                 minLength: 6
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ *       400:
+ *         description: Password too short
+ *       403:
+ *         description: Not a learner account
+ *       404:
+ *         description: Child not found or does not belong to you
+ */
+router.patch('/children/:childId/reset-password', authMiddleware, allowRoles('learner'), authController.resetChildPassword);
 
 module.exports = router;

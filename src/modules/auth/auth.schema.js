@@ -1,7 +1,7 @@
 const { z } = require('zod');
 const { email } = require('zod/v4');
 
-// Registration schema - AJOUT DU CHAMP "createdBy"
+// Inscription publique (learner, admin, teacher, platform_manager)
 const registerSchema = z.object({
     firstName: z.string().min(1, 'First name is required'),
     lastName: z.string().min(1, 'Last name is required'),
@@ -18,15 +18,23 @@ const registerSchema = z.object({
         .regex(/^[a-zA-Z0-9_.]+$/, 'Username can only contain letters, numbers, dots and underscores')
         .optional()
         .nullable(),
-    accountType: z.enum(['admin', 'learner', 'sub_account_learner', 'platform_manager', 'teacher']), // CORRIGÉ: plateform_manager → platform_manager
-    parentId: z.preprocess(
-        val => (val === 'null' ? null : val),
-        z.string().optional().nullable()
-    ),
-    createdBy: z.string().optional().nullable() // AJOUTÉ: pour savoir qui a créé l'utilisateur
+    accountType: z.enum(['admin', 'learner', 'plateform_manager', 'teacher']),
 }).refine(data => data.email || data.phone, {
     message: 'Either email or phone must be provided',
     path: ['email']
+});
+
+// Création d'un compte enfant par le parent connecté
+const addChildSchema = z.object({
+    firstName: z.string().min(1, 'First name is required'),
+    lastName: z.string().min(1, 'Last name is required'),
+    password: z.string()
+        .min(6, 'Password must be at least 6 characters')
+        .max(100, 'Password too long'),
+    email: z.string().email('Invalid email address').optional(),
+    phone: z.string()
+        .optional()
+        .refine(val => !val || /^\+?[1-9]\d{1,14}$/.test(val), 'Invalid phone number format'),
 });
 
 // Login schema (loginInfo: username, email, or phone)
@@ -80,6 +88,7 @@ const refreshTokenSchema = z.object({
 
 module.exports = {
     registerSchema,
+    addChildSchema,
     loginSchema,
     forgotPasswordSchema,
     resetPasswordSchema,

@@ -1,8 +1,9 @@
 const { asyncHandler } = require('../../middleware/asyncHandler');
 const { authService } = require('./auth.service');
-const { 
-    registerSchema, 
-    loginSchema, 
+const {
+    registerSchema,
+    addChildSchema,
+    loginSchema,
     forgotPasswordSchema,
     resetPasswordSchema,
     verifySchema,
@@ -151,6 +152,24 @@ const authController = {
             authenticated: true,
             user: req.user
         });
+    }),
+
+    // Création compte enfant par le parent connecté
+    addChildAccount: asyncHandler(async (req, res) => {
+        const validatedData = addChildSchema.parse(req.body);
+        const result = await authService.addChildAccount(req.user.id, validatedData);
+        res.status(201).json(result);
+    }),
+
+    // Réinitialisation mot de passe enfant par le parent
+    resetChildPassword: asyncHandler(async (req, res) => {
+        const { childId } = req.params;
+        const { newPassword } = req.body;
+        if (!newPassword || newPassword.length < 6) {
+            throw new AppError(400, 'newPassword must be at least 6 characters');
+        }
+        const result = await authService.resetChildPassword(req.user.id, childId, newPassword);
+        res.json(result);
     })
 };
 

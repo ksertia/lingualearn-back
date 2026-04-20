@@ -9,117 +9,215 @@ const { emailService } = require('../../utils/emailService');
 const { logger } = require('../../utils/logger');
 
 class AuthService {
-    // ============ INSCRIPTION ============
-     async register(data) {
-    const {
-        email,
-        phone,
-        password,
-        username,
-        accountType,
-        parentId,
-        firstName,
-        lastName
-    } = data;
+    // ============ INSCRIPTION (publique — learner, admin, teacher, platform_manager) ============
+    async register(data) {
+        const { email, phone, password, username, accountType, firstName, lastName } = data;
 
-    // Mapper le type de compte
-    const ACCOUNT_TYPE_MAP = {
-        admin: 'admin',
-        learner: 'learner',
-        sub_account_learner: 'sub_account_learner',
-        teacher: 'teacher',
-        plateform_manager: 'plateform_manager',
-    };
-    const finalAccountType = ACCOUNT_TYPE_MAP[accountType];
+        // sub_account_learner ne peut PAS s'inscrire via la route publique
+        if (accountType === 'sub_account_learner') {
+            throw new AppError(403, 'Child accounts must be created by the parent. Use POST /api/v1/auth/children');
+        }
 
-    if (!email && !phone) {
-        throw new AppError(400, 'Either email or phone must be provided');
-    }
+        const ACCOUNT_TYPE_MAP = {
+            admin: 'admin',
+            learner: 'learner',
+            teacher: 'teacher',
+            plateform_manager: 'plateform_manager',
+        };
+        const finalAccountType = ACCOUNT_TYPE_MAP[accountType];
+        if (!finalAccountType) {
+            throw new AppError(400, 'Invalid account type');
+        }
 
-    // Vérifier email existant
-    if (email) {
-        const existingEmail = await prisma.user.findUnique({ where: { email } });
-        if (existingEmail) throw new AppError(400, 'A user already exists with this email');
-    }
+        if (!email && !phone) {
+            throw new AppError(400, 'Either email or phone must be provided');
+        }
 
-    // Vérifier phone existant
-    if (phone) {
-        const existingPhone = await prisma.user.findFirst({ where: { phone } });
-        if (existingPhone) throw new AppError(400, 'A user already exists with this phone number');
-    }
+        if (email) {
+            const existingEmail = await prisma.user.findUnique({ where: { email } });
+            if (existingEmail) throw new AppError(400, 'A user already exists with this email');
+        }
 
-    // Générer username automatiquement pour les learners et sub_account_learner
-    let generatedUsername = username ?? null;
-    if (finalAccountType === 'sub_account_learner' && parentId) {
-        // Génération basée sur le parent
-        const parent = await prisma.user.findFirst({
-            where: { id: parentId, accountType: 'learner' },
-            select: { phone: true },
+        if (phone) {
+            const existingPhone = await prisma.user.findFirst({ where: { phone } });
+            if (existingPhone) throw new AppError(400, 'A user already exists with this phone number');
+        }
+
+        let generatedUsername = username ?? null;
+        if (finalAccountType === 'learner') {
+            const now = new Date();
+            const day = String(now.getDate()).padStart(2, '0');
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const year = now.getFullYear();
+            const baseUsername = `EDU-${day}${month}${year}`;
+            let uniqueUsername = baseUsername;
+            let suffix = 1;
+            while (await prisma.user.findUnique({ where: { username: uniqueUsername } })) {
+                uniqueUsername = `${baseUsername}-${suffix}`;
+                suffix++;
+            }
+            generatedUsername = uniqueUsername;
+        }
+
+        if (generatedUsername) {
+            const existingUsername = await prisma.user.findUnique({ where: { username: generatedUsername } });
+            if (existingUsername) throw new AppError(400, 'Username already taken');
+        }
+
+        const passwordHash = await bcrypt.hash(password, 12);
+
+        const user = await prisma.user.create({
+            data: {
+                email,
+                phone,
+                username: generatedUsername,
+                passwordHash,
+                accountType: finalAccountType,
+                profile: { create: { firstName, lastName } }
+            },
+            include: { profile: true }
         });
-        let parentPhone = parent && parent.phone ? parent.phone.replace(/^\+\d{3}/, '') : '';
-        const firstFour = parentPhone.replace(/\D/g, '').slice(0, 4).padEnd(4, '0');
-        const now = new Date();
-        const day = String(now.getDate()).padStart(2, '0');
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const year = now.getFullYear();
-        const baseUsername = `${firstFour}-EDU-${day}${month}${year}`;
-        let uniqueUsername = baseUsername;
-        let suffix = 1;
-        while (await prisma.user.findUnique({ where: { username: uniqueUsername } })) {
-            uniqueUsername = `${baseUsername}-${suffix}`;
-            suffix++;
+
+        if (finalAccountType === 'learner' && email && generatedUsername) {
+            await emailService.sendWelcomeChildEmail(email, generatedUsername);
         }
-        generatedUsername = uniqueUsername;
-    } else if (finalAccountType === 'learner') {
-        // Génération pour learner sans parent
-        const now = new Date();
-        const day = String(now.getDate()).padStart(2, '0');
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const year = now.getFullYear();
-        const baseUsername = `EDU-${day}${month}${year}`;
-        let uniqueUsername = baseUsername;
-        let suffix = 1;
-        while (await prisma.user.findUnique({ where: { username: uniqueUsername } })) {
-            uniqueUsername = `${baseUsername}-${suffix}`;
-            suffix++;
-        }
-        generatedUsername = uniqueUsername;
-    }
 
-    if (generatedUsername) {
-        const existingUsername = await prisma.user.findUnique({ where: { username: generatedUsername } });
-        if (existingUsername) throw new AppError(400, 'Username already taken');
-    }
-
-    const passwordHash = await bcrypt.hash(password, 12);
-
-    // Créer l'utilisateur
-    const user = await prisma.user.create({
-        data: {
-            email,
-            phone,
+        return {
+            success: true,
+            message: 'User registered successfully',
             username: generatedUsername,
-            passwordHash,
-            accountType: finalAccountType,
-            parentId: finalAccountType === 'sub_account_learner' ? parentId : null,
-            profile: { create: { firstName, lastName } }
-        },
-        include: { profile: true }
-    });
-
-    // Envoi email de bienvenue pour learners et sub_account_learner
-    if ((finalAccountType === 'learner' || finalAccountType === 'sub_account_learner') && email && generatedUsername) {
-        await emailService.sendWelcomeChildEmail(email, generatedUsername);
+            email: user.email
+        };
     }
 
-    return {
-        success: true,
-        message: 'User registered successfully',
-        username: generatedUsername,
-        email: user.email
-    };
-}
+    // ============ CRÉATION COMPTE ENFANT (réservée au parent connecté) ============
+    async addChildAccount(parentId, data) {
+        const { password, firstName, lastName, phone, email } = data;
 
+        // Vérifier que le parent existe et est un learner
+        const parent = await prisma.user.findUnique({
+            where: { id: parentId },
+            select: {
+                id: true,
+                accountType: true,
+                phone: true,
+                subscription: {
+                    select: {
+                        plan: { select: { maxSubAccounts: true } }
+                    }
+                }
+            }
+        });
+
+        if (!parent || parent.accountType !== 'learner') {
+            throw new AppError(403, 'Only learner accounts can create child accounts');
+        }
+
+        // Vérifier la limite d'abonnement
+        const maxSubAccounts = parent.subscription?.plan?.maxSubAccounts ?? 0;
+        if (maxSubAccounts === 0) {
+            throw new AppError(403, 'Your subscription plan does not allow child accounts');
+        }
+
+        const existingChildCount = await prisma.user.count({
+            where: { parentId, accountType: 'sub_account_learner' }
+        });
+
+        if (existingChildCount >= maxSubAccounts) {
+            throw new AppError(403, `You have reached the maximum number of child accounts (${maxSubAccounts}) for your plan`);
+        }
+
+        // Vérifier unicité email/phone si fournis
+        if (email) {
+            const existingEmail = await prisma.user.findUnique({ where: { email } });
+            if (existingEmail) throw new AppError(400, 'A user already exists with this email');
+        }
+
+        if (phone) {
+            const existingPhone = await prisma.user.findFirst({ where: { phone } });
+            if (existingPhone) throw new AppError(400, 'A user already exists with this phone number');
+        }
+
+        // Génération du username : PRENOM-EDU-001, PRENOM-EDU-002...
+        const firstNameClean = firstName
+            .toUpperCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')  // retire les accents
+            .replace(/[^A-Z]/g, '');           // garde uniquement les lettres
+        const baseUsername = `${firstNameClean}-EDU`;
+        const existingSiblings = await prisma.user.count({
+            where: { parentId, accountType: 'sub_account_learner' }
+        });
+        let orderNum = existingSiblings + 1;
+        let uniqueUsername = `${baseUsername}-${String(orderNum).padStart(3, '0')}`;
+        while (await prisma.user.findUnique({ where: { username: uniqueUsername } })) {
+            orderNum++;
+            uniqueUsername = `${baseUsername}-${String(orderNum).padStart(3, '0')}`;
+        }
+
+        const passwordHash = await bcrypt.hash(password, 12);
+
+        const child = await prisma.user.create({
+            data: {
+                email: email ?? null,
+                phone: phone ?? null,
+                username: uniqueUsername,
+                passwordHash,
+                accountType: 'sub_account_learner',
+                parentId,
+                createdBy: parentId,
+                isVerified: true,
+                profile: { create: { firstName, lastName } }
+            },
+            include: { profile: true }
+        });
+
+        if (email) {
+            await emailService.sendWelcomeChildEmail(email, uniqueUsername);
+        }
+
+        return {
+            success: true,
+            message: 'Child account created successfully',
+            username: uniqueUsername,
+            childId: child.id,
+            email: child.email ?? null
+        };
+    }
+
+
+    // ============ RÉINITIALISATION MOT DE PASSE ENFANT (par le parent) ============
+    async resetChildPassword(parentId, childId, newPassword) {
+        // Vérifier que l'enfant appartient bien à ce parent
+        const child = await prisma.user.findFirst({
+            where: {
+                id: childId,
+                parentId,
+                accountType: 'sub_account_learner'
+            },
+            select: { id: true, username: true, email: true }
+        });
+
+        if (!child) {
+            throw new AppError(404, 'Child account not found or does not belong to you');
+        }
+
+        const passwordHash = await bcrypt.hash(newPassword, 12);
+
+        await prisma.user.update({
+            where: { id: childId },
+            data: { passwordHash }
+        });
+
+        // Invalider toutes les sessions actives de l'enfant
+        await prisma.session.deleteMany({ where: { userId: childId } });
+        await prisma.refreshToken.deleteMany({ where: { userId: childId } });
+
+        return {
+            success: true,
+            message: `Password for ${child.username} has been reset successfully`
+        };
+    }
 
     // ============ CONNEXION ============
     async login(data, req) {
