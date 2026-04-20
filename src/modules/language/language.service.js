@@ -244,6 +244,25 @@ exports.getMyProgress = async (userId) => {
     return { success: true, data };
 };
 
+// Basculer vers une langue (met à jour lastAccessedAt → remonte en tête)
+exports.switchLanguage = async (userId, languageId) => {
+    const { AppError } = require('../../middleware/errorHandler');
+
+    const progress = await prisma.userLanguageProgress.findUnique({
+        where: { userId_languageId: { userId, languageId } },
+        include: { language: { select: { id: true, name: true, code: true, flagUrl: true } } }
+    });
+    if (!progress) throw new AppError(404, 'This language is not assigned to your account');
+
+    await prisma.userLanguageProgress.update({
+        where: { userId_languageId: { userId, languageId } },
+        data: { lastAccessedAt: new Date() }
+    });
+
+    const data = await computeCurrentProgress(userId);
+    return { success: true, data };
+};
+
 // Récupérer les niveaux d'une langue (vue parent pour choisir pour l'enfant)
 exports.getChildLanguageLevels = async (parentId, childId, languageId) => {
     const { AppError } = require('../../middleware/errorHandler');

@@ -572,6 +572,8 @@ router.get('/active', controller.getActiveLanguages);
  *       404:
  *         description: Enfant introuvable
  */
+router.post('/my-language/:languageId/switch', authMiddleware, controller.switchLanguage);
+
 router.get('/children/:childId/languages', authMiddleware, allowRoles('learner'), controller.getChildLanguages);
 
 /**

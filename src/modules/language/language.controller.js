@@ -66,6 +66,16 @@ exports.assignLevelToChild = async (req, res, next) => {
     }
 };
 
+exports.switchLanguage = async (req, res, next) => {
+    try {
+        const { languageId } = req.params;
+        const result = await service.switchLanguage(req.user.id, languageId);
+        res.json(result);
+    } catch (err) {
+        next(err);
+    }
+};
+
 exports.selectLanguage = async (req, res, next) => {
        try {
 	       const { userId, languageId } = req.params;
