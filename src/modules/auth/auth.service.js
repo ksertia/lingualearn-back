@@ -97,34 +97,11 @@ class AuthService {
         // Vérifier que le parent existe et est un learner
         const parent = await prisma.user.findUnique({
             where: { id: parentId },
-            select: {
-                id: true,
-                accountType: true,
-                phone: true,
-                subscription: {
-                    select: {
-                        plan: { select: { maxSubAccounts: true } }
-                    }
-                }
-            }
+            select: { id: true, accountType: true, phone: true }
         });
 
         if (!parent || parent.accountType !== 'learner') {
             throw new AppError(403, 'Only learner accounts can create child accounts');
-        }
-
-        // Vérifier la limite d'abonnement
-        const maxSubAccounts = parent.subscription?.plan?.maxSubAccounts ?? 0;
-        if (maxSubAccounts === 0) {
-            throw new AppError(403, 'Your subscription plan does not allow child accounts');
-        }
-
-        const existingChildCount = await prisma.user.count({
-            where: { parentId, accountType: 'sub_account_learner' }
-        });
-
-        if (existingChildCount >= maxSubAccounts) {
-            throw new AppError(403, `You have reached the maximum number of child accounts (${maxSubAccounts}) for your plan`);
         }
 
         // Vérifier unicité email/phone si fournis
