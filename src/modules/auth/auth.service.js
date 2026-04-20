@@ -201,52 +201,40 @@ class AuthService {
         const { loginInfo, password } = data;
         let user = null;
 
-        // Trouver l'utilisateur par email, phone ou username
+        const userSelect = {
+            id: true,
+            email: true,
+            phone: true,
+            username: true,
+            passwordHash: true,
+            accountType: true,
+            parentId: true,
+            isVerified: true,
+            isActive: true,
+            firstLogin: true,
+            lastLogin: true,
+            languageProgress: {
+                select: {
+                    status: true,
+                    overallProgress: true,
+                    language: { select: { id: true, name: true, code: true, flagUrl: true } }
+                }
+            },
+            levelProgress: {
+                select: {
+                    status: true,
+                    progressPercentage: true,
+                    level: { select: { id: true, name: true, code: true } }
+                }
+            }
+        };
+
         if (loginInfo.includes('@')) {
-            user = await prisma.user.findUnique({
-                where: { email: loginInfo },
-                select: {
-                    id: true,
-                    email: true,
-                    phone: true,
-                    username: true,
-                    passwordHash: true,
-                    accountType: true,
-                    isVerified: true,
-                    isActive: true,
-                    lastLogin: true,
-                },
-            });
+            user = await prisma.user.findUnique({ where: { email: loginInfo }, select: userSelect });
         } else if (/^\+?\d+$/.test(loginInfo)) {
-            user = await prisma.user.findFirst({
-                where: { phone: loginInfo },
-                select: {
-                    id: true,
-                    email: true,
-                    phone: true,
-                    username: true,
-                    passwordHash: true,
-                    accountType: true,
-                    isVerified: true,
-                    isActive: true,
-                    lastLogin: true,
-                },
-            });
+            user = await prisma.user.findFirst({ where: { phone: loginInfo }, select: userSelect });
         } else {
-            user = await prisma.user.findUnique({
-                where: { username: loginInfo },
-                select: {
-                    id: true,
-                    email: true,
-                    phone: true,
-                    username: true,
-                    passwordHash: true,
-                    accountType: true,
-                    isVerified: true,
-                    isActive: true,
-                    lastLogin: true,
-                },
-            });
+            user = await prisma.user.findUnique({ where: { username: loginInfo }, select: userSelect });
         }
 
         // Vérifications
@@ -295,7 +283,6 @@ class AuthService {
         // Créer une session
         await this.createSession(user.id, req);
 
-        // Retourner les données utilisateur sans le mot de passe
         const { passwordHash, ...userWithoutPassword } = user;
 
         await this.logLoginAttempt(loginInfo, user.id, true);
