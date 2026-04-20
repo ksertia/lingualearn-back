@@ -972,6 +972,34 @@ class UserService {
         };
     }
 
+    // Récupérer les comptes enfants d'un parent
+    async getMyChildren(parentId) {
+        const children = await prisma.user.findMany({
+            where: { parentId, accountType: 'sub_account_learner' },
+            select: {
+                id: true,
+                username: true,
+                email: true,
+                phone: true,
+                isActive: true,
+                isVerified: true,
+                createdAt: true,
+                lastLogin: true,
+                lastActive: true,
+                profile: {
+                    select: {
+                        firstName: true,
+                        lastName: true,
+                        avatarUrl: true,
+                    }
+                }
+            },
+            orderBy: { createdAt: 'asc' }
+        });
+
+        return { success: true, total: children.length, data: children };
+    }
+
     // Cleanup périodique du cache
     cleanupCache() {
         const now = Date.now();

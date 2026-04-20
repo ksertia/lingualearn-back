@@ -27,6 +27,23 @@ router.get('/me', userController.getCurrentUser);
 
 /**
  * @swagger
+ * /api/v1/users/my-children:
+ *   get:
+ *     tags: [Users]
+ *     summary: Get my child accounts (parent only)
+ *     description: Returns all sub_account_learner accounts created by the authenticated learner.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of child accounts
+ *       403:
+ *         description: Not a learner account
+ */
+router.get('/my-children', allowRoles('learner'), userController.getMyChildren);
+
+/**
+ * @swagger
  * /api/v1/users/me:
  *   put:
  *     tags:

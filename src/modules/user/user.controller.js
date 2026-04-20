@@ -111,11 +111,17 @@ const userController = {
     // Récupérer le profil actuel
     getCurrentUser: asyncHandler(async (req, res) => {
         const user = await userService.getCurrentUserDetails(req.user.id);
-        
+
         res.json({
             success: true,
             data: user
         });
+    }),
+
+    // Récupérer les comptes enfants du parent connecté
+    getMyChildren: asyncHandler(async (req, res) => {
+        const result = await userService.getMyChildren(req.user.id);
+        res.json(result);
     })
 };
 
