@@ -694,6 +694,66 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
   }
 
   /**
+   * Initialise la progression pour un utilisateur sur toutes les langues actives
+   * Débloque module 1, parcours 1, étape 1 pour chaque langue
+   */
+  async initializeUserAllLanguages(userId) {
+    const languages = await this.prisma.language.findMany({
+      where: { isActive: true }
+    });
+
+    const results = [];
+    for (const language of languages) {
+      try {
+        const result = await this.initializeUserLanguageProgress(userId, language.id);
+        results.push({ languageId: language.id, languageName: language.name, ...result });
+      } catch (err) {
+        results.push({ languageId: language.id, languageName: language.name, success: false, error: err.message });
+      }
+    }
+
+    return { success: true, message: 'Progression initialisée pour toutes les langues', data: results };
+  }
+
+  /**
+   * Initialise la progression pour tous les utilisateurs sur toutes les langues actives
+   */
+  async initializeAllUsersAllLanguages() {
+    const [users, languages] = await Promise.all([
+      this.prisma.user.findMany({ where: { isActive: true }, select: { id: true, username: true } }),
+      this.prisma.language.findMany({ where: { isActive: true }, select: { id: true, name: true } })
+    ]);
+
+    let totalSuccess = 0;
+    let totalSkipped = 0;
+    let totalError = 0;
+
+    for (const user of users) {
+      for (const language of languages) {
+        try {
+          const existing = await this.prisma.userLanguageProgress.findUnique({
+            where: { userId_languageId: { userId: user.id, languageId: language.id } }
+          });
+          if (existing && existing.status !== ProgressionUnlockService.STATUS.NOT_STARTED) {
+            totalSkipped++;
+            continue;
+          }
+          await this.initializeUserLanguageProgress(user.id, language.id);
+          totalSuccess++;
+        } catch (err) {
+          totalError++;
+        }
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Initialisation globale terminée',
+      data: { totalUsers: users.length, totalLanguages: languages.length, totalSuccess, totalSkipped, totalError }
+    };
+  }
+
+  /**
    * Méthodes de compatibilité avec l'interface existante
    */
   async unlockLevelForUser(userId, levelId) {

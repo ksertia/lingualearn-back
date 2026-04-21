@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const progressionController = require('./progression.controller');
+const { authMiddleware } = require('../../middleware/authMiddleware');
+
+router.use(authMiddleware);
 
 /**
  * @swagger

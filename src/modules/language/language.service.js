@@ -1,3 +1,5 @@
+const progressionService = require('../progression/progression.service');
+
 // Récupérer toutes les langues liées à un utilisateur (via userLanguageProgress)
 exports.getLanguagesByUserId = async (userId) => {
 	// Récupérer TOUTES les langues actives avec leur progression
@@ -55,17 +57,26 @@ exports.assignLanguageToChild = async (parentId, childId, languageId) => {
         throw new AppError(404, 'Language not found or not active');
     }
 
-    // Créer ou mettre à jour la progression
-    const progress = await prisma.userLanguageProgress.upsert({
-        where: { userId_languageId: { userId: childId, languageId } },
-        create: {
+    // Vérifier si déjà assigné
+    const existing = await prisma.userLanguageProgress.findUnique({
+        where: { userId_languageId: { userId: childId, languageId } }
+    });
+
+    if (existing) {
+        return {
+            success: true,
+            message: `Language "${language.name}" already assigned to ${child.username}`,
+            data: { language, progress: existing }
+        };
+    }
+
+    // Créer la progression de langue
+    const progress = await prisma.userLanguageProgress.create({
+        data: {
             userId: childId,
             languageId,
             status: 'started',
             startedAt: new Date(),
-            lastAccessedAt: new Date()
-        },
-        update: {
             lastAccessedAt: new Date()
         }
     });
@@ -329,22 +340,16 @@ exports.assignLevelToChild = async (parentId, childId, languageId, levelId) => {
     });
     if (!level) throw new AppError(404, 'Level not found for this language');
 
-    const progress = await prisma.userLevelProgress.upsert({
-        where: { userId_levelId: { userId: childId, levelId } },
-        create: {
-            userId: childId,
-            levelId,
-            status: 'unlocked',
-            unlockedAt: new Date(),
-            startedAt: new Date(),
-            lastAccessedAt: new Date()
-        },
-        update: { lastAccessedAt: new Date() }
+    // Débloquer ce niveau + module 1 + parcours 1 + étape 1 en cascade
+    await progressionService.unlockLevelWithChildren(childId, levelId);
+
+    const progress = await prisma.userLevelProgress.findUnique({
+        where: { userId_levelId: { userId: childId, levelId } }
     });
 
     return {
         success: true,
-        message: `Level "${level.name}" assigned to ${child.username}`,
+        message: `Level "${level.name}" assigned to ${child.username} — module 1, parcours 1 et étape 1 débloqués`,
         data: { level, progress }
     };
 };
@@ -353,15 +358,14 @@ exports.assignLevelToChild = async (parentId, childId, languageId, levelId) => {
 exports.selectLanguageForUser = async (userId, languageId) => {
 	let progress = await prisma.userLanguageProgress.findUnique({ where: { userId_languageId: { userId, languageId } } });
 	if (!progress) {
-		// Créer et démarrer automatiquement la langue
-		progress = await prisma.userLanguageProgress.create({ 
-			data: { 
-				userId, 
-				languageId, 
-				status: 'started',  // Démarré automatiquement
+		progress = await prisma.userLanguageProgress.create({
+			data: {
+				userId,
+				languageId,
+				status: 'started',
 				startedAt: new Date(),
 				lastAccessedAt: new Date()
-			} 
+			}
 		});
 	} else {
 		// Mettre à jour lastAccessedAt si déjà sélectionné
