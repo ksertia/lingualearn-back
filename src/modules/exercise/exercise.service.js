@@ -121,24 +121,14 @@ async function submitExerciseAnswer(exerciseId, userId, userAnswers) {
 
 				if (nextStep) {
 					await prisma.userStepProgress.upsert({
-						where: {
-							userId_stepId: {
-								userId,
-								stepId: nextStep.id
-							}
-						},
-						update: {
-							status: 'unlocked',
-							unlockedAt: new Date()
-						},
-						create: {
-							userId,
-							stepId: nextStep.id,
-							status: 'unlocked',
-							unlockedAt: new Date()
-						}
+						where: { userId_stepId: { userId, stepId: nextStep.id } },
+						update: { status: 'unlocked', unlockedAt: new Date() },
+						create: { userId, stepId: nextStep.id, status: 'unlocked', unlockedAt: new Date() }
 					});
-					
+
+					// Recalculer les pourcentages après completion de l'étape
+					await progressionService.handleStepProgressRecalculation(userId, exercise.step.pathId);
+
 					nextStepUnlocked = {
 						id: nextStep.id,
 						title: nextStep.title,

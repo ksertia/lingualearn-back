@@ -201,26 +201,15 @@ exports.completeLessonForUser = async (lessonId, userId) => {
     });
 
     if (nextStep) {
-      // Créer ou mettre à jour la progression de l'étape suivante
       await prisma.userStepProgress.upsert({
-        where: {
-          userId_stepId: {
-            userId,
-            stepId: nextStep.id
-          }
-        },
-        update: {
-          status: 'unlocked',
-          unlockedAt: new Date()
-        },
-        create: {
-          userId,
-          stepId: nextStep.id,
-          status: 'unlocked',
-          unlockedAt: new Date()
-        }
+        where: { userId_stepId: { userId, stepId: nextStep.id } },
+        update: { status: 'unlocked', unlockedAt: new Date() },
+        create: { userId, stepId: nextStep.id, status: 'unlocked', unlockedAt: new Date() }
       });
-      
+
+      // Recalculer les pourcentages après completion de la leçon
+      await progressionService.handleStepProgressRecalculation(userId, lesson.step.pathId);
+
       nextStepUnlocked = {
         id: nextStep.id,
         title: nextStep.title,

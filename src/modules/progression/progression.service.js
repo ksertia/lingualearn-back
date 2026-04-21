@@ -1,5 +1,68 @@
 const { prisma } = require('../../config/prisma');
 
+// Recalcule progressPercentage du parcours, module, level et overallProgress de la langue
+async function recalculateAllProgress(userId, pathId) {
+  try {
+    const path = await prisma.path.findUnique({
+      where: { id: pathId },
+      include: { module: { include: { level: { include: { language: true } } } } }
+    });
+    if (!path) return;
+
+    const moduleId = path.moduleId;
+    const levelId = path.module.levelId;
+    const languageId = path.module.level.languageId;
+
+    // 1. Pourcentage du parcours (étapes complétées / total étapes)
+    const [totalSteps, completedSteps] = await Promise.all([
+      prisma.step.count({ where: { pathId, isActive: true } }),
+      prisma.userStepProgress.count({ where: { userId, step: { pathId }, status: 'completed' } })
+    ]);
+    const pathPct = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
+    await prisma.userPathProgress.updateMany({
+      where: { userId, pathId },
+      data: { progressPercentage: pathPct }
+    });
+
+    // 2. Pourcentage du module (parcours complétés / total parcours)
+    const [totalPaths, completedPaths] = await Promise.all([
+      prisma.path.count({ where: { moduleId, isActive: true } }),
+      prisma.userPathProgress.count({ where: { userId, path: { moduleId }, status: 'completed' } })
+    ]);
+    const modulePct = totalPaths > 0 ? Math.round((completedPaths / totalPaths) * 100) : 0;
+    await prisma.userModuleProgress.updateMany({
+      where: { userId, moduleId },
+      data: { progressPercentage: modulePct }
+    });
+
+    // 3. Pourcentage du level (modules complétés / total modules)
+    const [totalModules, completedModules] = await Promise.all([
+      prisma.module.count({ where: { levelId, isActive: true } }),
+      prisma.userModuleProgress.count({ where: { userId, module: { levelId }, status: 'completed' } })
+    ]);
+    const levelPct = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
+    await prisma.userLevelProgress.updateMany({
+      where: { userId, levelId },
+      data: { progressPercentage: levelPct }
+    });
+
+    // 4. Progression globale de la langue (steps complétées / total steps de la langue)
+    const [totalLangSteps, completedLangSteps] = await Promise.all([
+      prisma.step.count({ where: { path: { module: { level: { languageId } } }, isActive: true } }),
+      prisma.userStepProgress.count({
+        where: { userId, step: { path: { module: { level: { languageId } } } }, status: 'completed' }
+      })
+    ]);
+    const overallPct = totalLangSteps > 0 ? Math.round((completedLangSteps / totalLangSteps) * 100) : 0;
+    await prisma.userLanguageProgress.updateMany({
+      where: { userId, languageId },
+      data: { overallProgress: overallPct }
+    });
+  } catch (err) {
+    console.error('Erreur recalcul progression:', err.message);
+  }
+}
+
 /**
  * Service de déblocage automatique des niveaux, modules, parcours et étapes
  * Logique séquentielle stricte : Chaque élément doit être terminé pour débloquer le suivant
@@ -276,14 +339,17 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
 
       // Marquer l'étape comme complétée
       const stepProgress = await this.completeElement(
-        userId, 
-        ProgressionUnlockService.ELEMENT_TYPES.STEP, 
+        userId,
+        ProgressionUnlockService.ELEMENT_TYPES.STEP,
         stepId
       );
 
+      // Recalculer les pourcentages après chaque étape complétée
+      await recalculateAllProgress(userId, step.pathId);
+
       // Récupérer l'étape suivante dans le même parcours
       const nextStep = await this.getNextStep(step.pathId, step.index);
-      
+
       if (nextStep) {
         // Débloquer l'étape suivante avec son contenu
         await this.unlockStepWithContent(userId, nextStep.id);
@@ -305,6 +371,9 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
     // Marquer le parcours comme complété
     await this.completeElement(userId, ProgressionUnlockService.ELEMENT_TYPES.PATH, pathId);
 
+    // Recalculer tous les pourcentages en cascade
+    await recalculateAllProgress(userId, pathId);
+
     // Récupérer le parcours suivant dans le même module
     const path = await this.prisma.path.findUnique({ where: { id: pathId } });
     const nextPath = await this.getNextPath(path.moduleId, path.index);
@@ -322,23 +391,22 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
    * Gère la complétion d'un module
    */
   async handleModuleCompletion(userId, moduleId) {
-    // Vérifier que le module existe
     const module = await this.prisma.module.findUnique({ where: { id: moduleId } });
-    if (!module) {
-      throw new Error(`Module avec l'ID ${moduleId} introuvable`);
-    }
-    
-    // Marquer le module comme complété
-    await this.completeElement(userId, ProgressionUnlockService.ELEMENT_TYPES.MODULE, moduleId);
+    if (!module) throw new Error(`Module avec l'ID ${moduleId} introuvable`);
 
-    // Récupérer le module suivant dans le même niveau
+    // Marquer le module comme complété à 100%
+    await this.prisma.userModuleProgress.updateMany({
+      where: { userId, moduleId },
+      data: { status: ProgressionUnlockService.STATUS.COMPLETED, progressPercentage: 100, completedAt: new Date() }
+    });
+
+    // Recalculer le level et la langue
+    await this.recalculateLevelAndLanguage(userId, module.levelId);
+
     const nextModule = await this.getNextModule(module.levelId, module.index);
-
     if (nextModule) {
-      // Débloquer le module suivant
       await this.unlockModuleWithChildren(userId, nextModule.id);
     } else {
-      // C'était le dernier module du niveau
       await this.handleLevelCompletion(userId, module.levelId);
     }
   }
@@ -347,18 +415,21 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
    * Gère la complétion d'un niveau
    */
   async handleLevelCompletion(userId, levelId) {
-    // Marquer le niveau comme complété
-    await this.completeElement(userId, ProgressionUnlockService.ELEMENT_TYPES.LEVEL, levelId);
-
-    // Récupérer le niveau suivant dans la même langue
     const level = await this.prisma.level.findUnique({ where: { id: levelId } });
-    const nextLevel = await this.getNextLevel(level.languageId, level.index);
 
+    // Marquer le level comme complété à 100%
+    await this.prisma.userLevelProgress.updateMany({
+      where: { userId, levelId },
+      data: { status: ProgressionUnlockService.STATUS.COMPLETED, progressPercentage: 100, completedAt: new Date() }
+    });
+
+    // Recalculer la progression globale de la langue
+    await this.recalculateLanguageProgress(userId, level.languageId);
+
+    const nextLevel = await this.getNextLevel(level.languageId, level.index);
     if (nextLevel) {
-      // Débloquer le niveau suivant
       await this.unlockLevelWithChildren(userId, nextLevel.id);
     } else {
-      // C'était le dernier niveau de la langue
       await this.handleLanguageCompletion(userId, level.languageId);
     }
   }
@@ -367,7 +438,10 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
    * Gère la complétion d'une langue
    */
   async handleLanguageCompletion(userId, languageId) {
-    await this.updateLanguageStatus(userId, languageId, ProgressionUnlockService.STATUS.COMPLETED);
+    await this.prisma.userLanguageProgress.updateMany({
+      where: { userId, languageId },
+      data: { status: ProgressionUnlockService.STATUS.COMPLETED, overallProgress: 100, completedAt: new Date() }
+    });
   }
 
   /**
@@ -753,6 +827,41 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
     };
   }
 
+  // Recalcule progressPercentage du level et overallProgress de la langue
+  async recalculateLevelAndLanguage(userId, levelId) {
+    const level = await this.prisma.level.findUnique({ where: { id: levelId } });
+    if (!level) return;
+
+    const [totalModules, completedModules] = await Promise.all([
+      this.prisma.module.count({ where: { levelId, isActive: true } }),
+      this.prisma.userModuleProgress.count({ where: { userId, module: { levelId }, status: 'completed' } })
+    ]);
+    const levelPct = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
+
+    await this.prisma.userLevelProgress.updateMany({
+      where: { userId, levelId },
+      data: { progressPercentage: levelPct }
+    });
+
+    await this.recalculateLanguageProgress(userId, level.languageId);
+  }
+
+  // Recalcule overallProgress de la langue
+  async recalculateLanguageProgress(userId, languageId) {
+    const [totalSteps, completedSteps] = await Promise.all([
+      this.prisma.step.count({ where: { path: { module: { level: { languageId } } }, isActive: true } }),
+      this.prisma.userStepProgress.count({
+        where: { userId, step: { path: { module: { level: { languageId } } } }, status: 'completed' }
+      })
+    ]);
+    const overallPct = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
+
+    await this.prisma.userLanguageProgress.updateMany({
+      where: { userId, languageId },
+      data: { overallProgress: overallPct }
+    });
+  }
+
   /**
    * Méthodes de compatibilité avec l'interface existante
    */
@@ -774,6 +883,11 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
 
   async completePathAndUnlockNext(userId, pathId) {
     await this.handlePathCompletion(userId, pathId);
+  }
+
+  // Recalcule les pourcentages sans déclencher la cascade de completion
+  async handleStepProgressRecalculation(userId, pathId) {
+    await recalculateAllProgress(userId, pathId);
   }
 
   async completeModuleAndUnlockNext(userId, moduleId) {
