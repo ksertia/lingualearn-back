@@ -1,3 +1,7 @@
+const stepService = require('./step.service');
+const { createStepSchema, updateStepSchema } = require('./step.schema');
+const { asyncHandler } = require('../../middleware/asyncHandler');
+
 // Progression endpoints
 exports.startStep = async (req, res, next) => {
   try {
@@ -54,10 +58,6 @@ exports.getStepContent = async (req, res, next) => {
     next(err);
   }
 };
-const stepService = require('./step.service');
-const { createStepSchema, updateStepSchema } = require('./step.schema');
-const { asyncHandler } = require('../../middleware/asyncHandler');
-
 
 exports.create = asyncHandler(async (req, res) => {
   const { error, value } = createStepSchema.validate(req.body);

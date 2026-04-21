@@ -2,23 +2,22 @@ const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
 
 // Récupérer tous les modules liés à un utilisateur (via userModuleProgress)
-exports.getModulesByUserId = async (userId) => {
-  // 1. Trouver le niveau actuel de l'utilisateur
-  const userLevelProgress = await prisma.userLevelProgress.findFirst({
-    where: { 
-      userId,
-      status: { in: ['unlocked', 'started'] }  // Niveau actif
-    },
-    orderBy: { lastAccessedAt: 'desc' }
-  });
+exports.getModulesByUserId = async (userId, levelId = null) => {
+  let targetLevelId = levelId;
 
-  if (!userLevelProgress) {
-    return [];  // Aucun niveau actif
+  // Si levelId non fourni, chercher le level actif de l'utilisateur
+  if (!targetLevelId) {
+    const userLevelProgress = await prisma.userLevelProgress.findFirst({
+      where: { userId, status: { in: ['unlocked', 'started', 'completed'] } },
+      orderBy: { lastAccessedAt: 'desc' }
+    });
+    if (!userLevelProgress) return [];
+    targetLevelId = userLevelProgress.levelId;
   }
 
-  // 2. Récupérer TOUS les modules du niveau avec leur progression
+  // Récupérer TOUS les modules du niveau avec leur progression
   const modules = await prisma.module.findMany({
-    where: { levelId: userLevelProgress.levelId },
+    where: { levelId: targetLevelId },
     orderBy: { index: 'asc' },
     include: {
       userProgress: {

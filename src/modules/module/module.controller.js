@@ -1,3 +1,5 @@
+const service = require('./module.service');
+
 // Progression endpoints
 exports.startModule = async (req, res, next) => {
   try {
@@ -24,14 +26,14 @@ exports.completeModule = async (req, res, next) => {
 };
 exports.getByUserId = async (req, res, next) => {
   try {
-    const modules = await service.getModulesByUserId(req.params.userId);
-    // Retourner un tableau vide si aucun niveau sélectionné (comportement normal)
+    const { userId } = req.params;
+    const { levelId } = req.query;
+    const modules = await service.getModulesByUserId(userId, levelId || null);
     res.json({ success: true, data: modules });
   } catch (err) {
     next(err);
   }
 };
-const service = require('./module.service');
 
 exports.create = async (req, res, next) => {
   try {
