@@ -1,4 +1,5 @@
 const { prisma } = require('../../config/prisma');
+const progressionService = require('../progression/progression.service');
 
 // Récupérer tous les cours liés à un utilisateur (via userStepProgress -> step -> lesson)
 exports.getCoursesByUserId = async (userId) => {
@@ -73,10 +74,7 @@ exports.startCourseForUser = async (userId, courseId) => {
 
 exports.completeCourseForUser = async (userId, courseId) => {
   const stepId = await getLessonStepId(courseId);
-  return prisma.userStepProgress.update({
-    where: { userId_stepId: { userId, stepId } },
-    data: { status: 'completed', completedAt: new Date() }
-  });
+  return exports.completeLessonForUser(courseId, userId);
 };
 
 // Récupérer les lessons d'une étape avec progression utilisateur
@@ -126,7 +124,6 @@ exports.getLessonsByStep = async (stepId, userId = null) => {
 
 // Compléter une leçon pour un utilisateur
 exports.completeLessonForUser = async (lessonId, userId) => {
-  const progressionService = require('../progression/progression.service');
   
   // 1. Récupérer la leçon
   const lesson = await prisma.lesson.findUnique({
@@ -230,19 +227,8 @@ exports.completeLessonForUser = async (lessonId, userId) => {
         index: nextStep.index
       };
     } else {
-      // Toutes les étapes complétées, marquer le parcours comme complété
-      await prisma.userPathProgress.update({
-        where: {
-          userId_pathId: {
-            userId,
-            pathId: lesson.step.pathId
-          }
-        },
-        data: {
-          status: 'completed',
-          completedAt: new Date()
-        }
-      });
+      // Toutes les étapes complétées → cascade automatique (path → module → level → language)
+      await progressionService.handlePathCompletion(userId, lesson.step.pathId);
     }
   } catch (error) {
     console.error('Erreur lors du déblocage de l\'étape suivante:', error);

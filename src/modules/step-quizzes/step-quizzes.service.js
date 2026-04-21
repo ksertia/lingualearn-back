@@ -1,4 +1,5 @@
 const { prisma } = require('../../config/prisma');
+const progressionService = require('../progression/progression.service');
 
 async function createStepQuiz(data) {
 	// Filtrer les champs non présents dans le modèle Quiz
@@ -154,19 +155,8 @@ async function submitQuizAnswer(quizId, userId, userAnswers) {
 						index: nextStep.index
 					};
 				} else {
-					// Toutes les étapes complétées, marquer le parcours comme complété
-					await prisma.userPathProgress.update({
-						where: {
-							userId_pathId: {
-								userId,
-								pathId: quiz.step.pathId
-							}
-						},
-						data: {
-							status: 'completed',
-							completedAt: new Date()
-						}
-					});
+					// Toutes les étapes complétées → cascade automatique (path → module → level → language)
+					await progressionService.handlePathCompletion(userId, quiz.step.pathId);
 				}
 			} catch (error) {
 				console.error('Erreur lors du déblocage de l\'étape suivante:', error);

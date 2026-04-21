@@ -1,4 +1,5 @@
 const { prisma } = require('../../config/prisma');
+const progressionService = require('../progression/progression.service');
 
 async function createExercise(data) {
 	return prisma.exercise.create({ data });
@@ -144,19 +145,8 @@ async function submitExerciseAnswer(exerciseId, userId, userAnswers) {
 						index: nextStep.index
 					};
 				} else {
-					// Toutes les étapes complétées, marquer le parcours comme complété
-					await prisma.userPathProgress.update({
-						where: {
-							userId_pathId: {
-								userId,
-								pathId: exercise.step.pathId
-							}
-						},
-						data: {
-							status: 'completed',
-							completedAt: new Date()
-						}
-					});
+					// Toutes les étapes complétées → cascade automatique (path → module → level → language)
+					await progressionService.handlePathCompletion(userId, exercise.step.pathId);
 				}
 			} catch (error) {
 				console.error('Erreur lors du déblocage de l\'étape suivante:', error);
