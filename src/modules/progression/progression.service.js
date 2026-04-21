@@ -1,11 +1,12 @@
 const { prisma } = require('../../config/prisma');
 
 // Recalcule progressPercentage du parcours, module, level et overallProgress de la langue
+// Formule exacte : étapes complétées / total étapes à chaque niveau de la hiérarchie
 async function recalculateAllProgress(userId, pathId) {
   try {
     const path = await prisma.path.findUnique({
       where: { id: pathId },
-      include: { module: { include: { level: { include: { language: true } } } } }
+      include: { module: { include: { level: true } } }
     });
     if (!path) return;
 
@@ -13,51 +14,124 @@ async function recalculateAllProgress(userId, pathId) {
     const levelId = path.module.levelId;
     const languageId = path.module.level.languageId;
 
-    // 1. Pourcentage du parcours (étapes complétées / total étapes)
-    const [totalSteps, completedSteps] = await Promise.all([
-      prisma.step.count({ where: { pathId, isActive: true } }),
-      prisma.userStepProgress.count({ where: { userId, step: { pathId }, status: 'completed' } })
-    ]);
-    const pathPct = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
+    // 1. % du parcours = étapes complétées / total étapes du parcours
+    const stepsInPath = await prisma.step.findMany({
+      where: { pathId, isActive: true },
+      select: { id: true }
+    });
+    const stepIdsInPath = stepsInPath.map(s => s.id);
+    const completedInPath = stepIdsInPath.length > 0
+      ? await prisma.userStepProgress.count({
+          where: { userId, stepId: { in: stepIdsInPath }, status: 'completed' }
+        })
+      : 0;
+    const pathPct = stepIdsInPath.length > 0
+      ? Math.round((completedInPath / stepIdsInPath.length) * 100)
+      : 0;
     await prisma.userPathProgress.updateMany({
       where: { userId, pathId },
       data: { progressPercentage: pathPct }
     });
 
-    // 2. Pourcentage du module (parcours complétés / total parcours)
-    const [totalPaths, completedPaths] = await Promise.all([
-      prisma.path.count({ where: { moduleId, isActive: true } }),
-      prisma.userPathProgress.count({ where: { userId, path: { moduleId }, status: 'completed' } })
-    ]);
-    const modulePct = totalPaths > 0 ? Math.round((completedPaths / totalPaths) * 100) : 0;
+    // 2. % du module = étapes complétées / total étapes du module
+    const pathsInModule = await prisma.path.findMany({
+      where: { moduleId, isActive: true },
+      select: { id: true }
+    });
+    const pathIdsInModule = pathsInModule.map(p => p.id);
+    const stepsInModule = pathIdsInModule.length > 0
+      ? await prisma.step.findMany({
+          where: { pathId: { in: pathIdsInModule }, isActive: true },
+          select: { id: true }
+        })
+      : [];
+    const stepIdsInModule = stepsInModule.map(s => s.id);
+    const completedInModule = stepIdsInModule.length > 0
+      ? await prisma.userStepProgress.count({
+          where: { userId, stepId: { in: stepIdsInModule }, status: 'completed' }
+        })
+      : 0;
+    const modulePct = stepIdsInModule.length > 0
+      ? Math.round((completedInModule / stepIdsInModule.length) * 100)
+      : 0;
     await prisma.userModuleProgress.updateMany({
       where: { userId, moduleId },
       data: { progressPercentage: modulePct }
     });
 
-    // 3. Pourcentage du level (modules complétés / total modules)
-    const [totalModules, completedModules] = await Promise.all([
-      prisma.module.count({ where: { levelId, isActive: true } }),
-      prisma.userModuleProgress.count({ where: { userId, module: { levelId }, status: 'completed' } })
-    ]);
-    const levelPct = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
+    // 3. % du level = étapes complétées / total étapes du level
+    const modulesInLevel = await prisma.module.findMany({
+      where: { levelId, isActive: true },
+      select: { id: true }
+    });
+    const moduleIdsInLevel = modulesInLevel.map(m => m.id);
+    const pathsInLevel = moduleIdsInLevel.length > 0
+      ? await prisma.path.findMany({
+          where: { moduleId: { in: moduleIdsInLevel }, isActive: true },
+          select: { id: true }
+        })
+      : [];
+    const pathIdsInLevel = pathsInLevel.map(p => p.id);
+    const stepsInLevel = pathIdsInLevel.length > 0
+      ? await prisma.step.findMany({
+          where: { pathId: { in: pathIdsInLevel }, isActive: true },
+          select: { id: true }
+        })
+      : [];
+    const stepIdsInLevel = stepsInLevel.map(s => s.id);
+    const completedInLevel = stepIdsInLevel.length > 0
+      ? await prisma.userStepProgress.count({
+          where: { userId, stepId: { in: stepIdsInLevel }, status: 'completed' }
+        })
+      : 0;
+    const levelPct = stepIdsInLevel.length > 0
+      ? Math.round((completedInLevel / stepIdsInLevel.length) * 100)
+      : 0;
     await prisma.userLevelProgress.updateMany({
       where: { userId, levelId },
       data: { progressPercentage: levelPct }
     });
 
-    // 4. Progression globale de la langue (steps complétées / total steps de la langue)
-    const [totalLangSteps, completedLangSteps] = await Promise.all([
-      prisma.step.count({ where: { path: { module: { level: { languageId } } }, isActive: true } }),
-      prisma.userStepProgress.count({
-        where: { userId, step: { path: { module: { level: { languageId } } } }, status: 'completed' }
-      })
-    ]);
-    const overallPct = totalLangSteps > 0 ? Math.round((completedLangSteps / totalLangSteps) * 100) : 0;
+    // 4. % global langue = étapes complétées / total étapes de toute la langue
+    const levelsInLang = await prisma.level.findMany({
+      where: { languageId, isActive: true },
+      select: { id: true }
+    });
+    const levelIdsInLang = levelsInLang.map(l => l.id);
+    const modulesInLang = levelIdsInLang.length > 0
+      ? await prisma.module.findMany({
+          where: { levelId: { in: levelIdsInLang }, isActive: true },
+          select: { id: true }
+        })
+      : [];
+    const moduleIdsInLang = modulesInLang.map(m => m.id);
+    const pathsInLang = moduleIdsInLang.length > 0
+      ? await prisma.path.findMany({
+          where: { moduleId: { in: moduleIdsInLang }, isActive: true },
+          select: { id: true }
+        })
+      : [];
+    const pathIdsInLang = pathsInLang.map(p => p.id);
+    const stepsInLang = pathIdsInLang.length > 0
+      ? await prisma.step.findMany({
+          where: { pathId: { in: pathIdsInLang }, isActive: true },
+          select: { id: true }
+        })
+      : [];
+    const stepIdsInLang = stepsInLang.map(s => s.id);
+    const completedInLang = stepIdsInLang.length > 0
+      ? await prisma.userStepProgress.count({
+          where: { userId, stepId: { in: stepIdsInLang }, status: 'completed' }
+        })
+      : 0;
+    const overallPct = stepIdsInLang.length > 0
+      ? Math.round((completedInLang / stepIdsInLang.length) * 100)
+      : 0;
     await prisma.userLanguageProgress.updateMany({
       where: { userId, languageId },
       data: { overallProgress: overallPct }
     });
+
   } catch (err) {
     console.error('Erreur recalcul progression:', err.message);
   }
@@ -832,34 +906,34 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
     const level = await this.prisma.level.findUnique({ where: { id: levelId } });
     if (!level) return;
 
-    const [totalModules, completedModules] = await Promise.all([
-      this.prisma.module.count({ where: { levelId, isActive: true } }),
-      this.prisma.userModuleProgress.count({ where: { userId, module: { levelId }, status: 'completed' } })
-    ]);
-    const levelPct = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
+    // % level = étapes complétées / total étapes du level
+    const modulesInLevel = await this.prisma.module.findMany({ where: { levelId, isActive: true }, select: { id: true } });
+    const moduleIds = modulesInLevel.map(m => m.id);
+    const pathsInLevel = moduleIds.length > 0 ? await this.prisma.path.findMany({ where: { moduleId: { in: moduleIds }, isActive: true }, select: { id: true } }) : [];
+    const pathIds = pathsInLevel.map(p => p.id);
+    const stepsInLevel = pathIds.length > 0 ? await this.prisma.step.findMany({ where: { pathId: { in: pathIds }, isActive: true }, select: { id: true } }) : [];
+    const stepIds = stepsInLevel.map(s => s.id);
+    const completedInLevel = stepIds.length > 0 ? await this.prisma.userStepProgress.count({ where: { userId, stepId: { in: stepIds }, status: 'completed' } }) : 0;
+    const levelPct = stepIds.length > 0 ? Math.round((completedInLevel / stepIds.length) * 100) : 0;
 
-    await this.prisma.userLevelProgress.updateMany({
-      where: { userId, levelId },
-      data: { progressPercentage: levelPct }
-    });
-
+    await this.prisma.userLevelProgress.updateMany({ where: { userId, levelId }, data: { progressPercentage: levelPct } });
     await this.recalculateLanguageProgress(userId, level.languageId);
   }
 
-  // Recalcule overallProgress de la langue
+  // Recalcule overallProgress de la langue = étapes complétées / total étapes de la langue
   async recalculateLanguageProgress(userId, languageId) {
-    const [totalSteps, completedSteps] = await Promise.all([
-      this.prisma.step.count({ where: { path: { module: { level: { languageId } } }, isActive: true } }),
-      this.prisma.userStepProgress.count({
-        where: { userId, step: { path: { module: { level: { languageId } } } }, status: 'completed' }
-      })
-    ]);
-    const overallPct = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
+    const levelsInLang = await this.prisma.level.findMany({ where: { languageId, isActive: true }, select: { id: true } });
+    const levelIds = levelsInLang.map(l => l.id);
+    const modulesInLang = levelIds.length > 0 ? await this.prisma.module.findMany({ where: { levelId: { in: levelIds }, isActive: true }, select: { id: true } }) : [];
+    const moduleIds = modulesInLang.map(m => m.id);
+    const pathsInLang = moduleIds.length > 0 ? await this.prisma.path.findMany({ where: { moduleId: { in: moduleIds }, isActive: true }, select: { id: true } }) : [];
+    const pathIds = pathsInLang.map(p => p.id);
+    const stepsInLang = pathIds.length > 0 ? await this.prisma.step.findMany({ where: { pathId: { in: pathIds }, isActive: true }, select: { id: true } }) : [];
+    const stepIds = stepsInLang.map(s => s.id);
+    const completedInLang = stepIds.length > 0 ? await this.prisma.userStepProgress.count({ where: { userId, stepId: { in: stepIds }, status: 'completed' } }) : 0;
+    const overallPct = stepIds.length > 0 ? Math.round((completedInLang / stepIds.length) * 100) : 0;
 
-    await this.prisma.userLanguageProgress.updateMany({
-      where: { userId, languageId },
-      data: { overallProgress: overallPct }
-    });
+    await this.prisma.userLanguageProgress.updateMany({ where: { userId, languageId }, data: { overallProgress: overallPct } });
   }
 
   /**
