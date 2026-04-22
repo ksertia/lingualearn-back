@@ -38,7 +38,7 @@ class EmailService {
                             <!-- Header -->
                             <tr>
                                 <td style="background:${color}; padding:25px; text-align:center; color:#ffffff;">
-                                    <h1 style="margin:0; font-size:24px;">Lingualearn</h1>
+                                    <h1 style="margin:0; font-size:24px;">LinguaLearn</h1>
                                 </td>
                             </tr>
 
