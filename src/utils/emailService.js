@@ -38,7 +38,7 @@ class EmailService {
                             <!-- Header -->
                             <tr>
                                 <td style="background:${color}; padding:25px; text-align:center; color:#ffffff;">
-                                    <h1 style="margin:0; font-size:24px;">LinguaLearn</h1>
+                                    <h1 style="margin:0; font-size:24px;">Tibi</h1>
                                 </td>
                             </tr>
 
@@ -74,7 +74,7 @@ class EmailService {
                             <!-- Footer -->
                             <tr>
                                 <td style="background:#f9fafb; padding:18px; text-align:center; font-size:12px; color:#9ca3af;">
-                                    © ${new Date().getFullYear()} Lingualearn. All rights reserved.
+                                    © ${new Date().getFullYear()} Tibi. All rights reserved.
                                 </td>
                             </tr>
 
@@ -93,7 +93,7 @@ class EmailService {
     async sendMail({ to, subject, html }) {
         try {
             const mailOptions = {
-                from: `"Lingualearn Auth" <${appConfig.email.user}>`,
+                from: `"Tibi Auth" <${appConfig.email.user}>`,
                 to,
                 subject,
                 html
@@ -147,7 +147,7 @@ class EmailService {
         const html = this.emailTemplate({
             title: 'Verify Your Email Address',
             message: `
-                <p>Thank you for creating an account with Lingualearn.</p>
+                <p>Thank you for creating an account with Tibi.</p>
                 <p>Please verify your email address to activate your account.</p>
             `,
             buttonText: 'Verify Email',
@@ -180,7 +180,7 @@ class EmailService {
     ========================== */
     async sendWelcomeChildEmail(email, username) {
         const html = this.emailTemplate({
-            title: 'Bienvenue sur Lingualearn !',
+            title: 'Bienvenue sur Tibi !',
             message: `
                 <p>Votre compte enfant a bien été créé.</p>
                 <p>Voici vos informations de connexion :</p>
@@ -193,7 +193,7 @@ class EmailService {
             color: '#2563eb',
             footerNote: 'Pour toute question, contactez notre support.'
         });
-        return this.sendEmail(email, 'Bienvenue sur Lingualearn', html);
+        return this.sendEmail(email, 'Bienvenue sur Tibi', html);
     }
 
     /* =========================
@@ -204,7 +204,7 @@ class EmailService {
             title: 'Nouveau sous-compte créé',
             message: `
                 <p>Bonjour <strong>${parentName}</strong>,</p>
-                <p>Un compte enfant a été créé avec succès sur Lingualearn pour <strong>${childFirstName}</strong>.</p>
+                <p>Un compte enfant a été créé avec succès sur Tibi pour <strong>${childFirstName}</strong>.</p>
                 <p>Voici les informations de connexion du sous-compte :</p>
                 <table style="width:100%; border-collapse:collapse; margin:16px 0;">
                     <tr style="background:#f3f4f6;">
@@ -221,7 +221,7 @@ class EmailService {
             color: '#2563eb',
             footerNote: 'Si vous n\'êtes pas à l\'origine de cette action, contactez notre support immédiatement.'
         });
-        return this.sendEmail(parentEmail, '✅ Sous-compte créé — Lingualearn', html);
+        return this.sendEmail(parentEmail, '✅ Sous-compte créé — Tibi', html);
     }
 
     /* =========================
@@ -249,7 +249,7 @@ class EmailService {
             color: '#f59e0b',
             footerNote: 'Si vous n\'êtes pas à l\'origine de cette action, contactez notre support immédiatement.'
         });
-        return this.sendEmail(parentEmail, '🔑 Mot de passe sous-compte modifié — Lingualearn', html);
+        return this.sendEmail(parentEmail, '🔑 Mot de passe sous-compte modifié — Tibi', html);
     }
 }
 
