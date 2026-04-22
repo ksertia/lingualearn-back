@@ -195,6 +195,62 @@ class EmailService {
         });
         return this.sendEmail(email, 'Bienvenue sur Lingualearn', html);
     }
+
+    /* =========================
+       NOTIFICATION PARENT — CRÉATION SOUS-COMPTE
+    ========================== */
+    async sendParentChildCreatedEmail(parentEmail, parentName, childUsername, childPassword, childFirstName) {
+        const html = this.emailTemplate({
+            title: 'Nouveau sous-compte créé',
+            message: `
+                <p>Bonjour <strong>${parentName}</strong>,</p>
+                <p>Un compte enfant a été créé avec succès sur Lingualearn pour <strong>${childFirstName}</strong>.</p>
+                <p>Voici les informations de connexion du sous-compte :</p>
+                <table style="width:100%; border-collapse:collapse; margin:16px 0;">
+                    <tr style="background:#f3f4f6;">
+                        <td style="padding:10px 14px; font-weight:bold; color:#374151;">Nom d'utilisateur</td>
+                        <td style="padding:10px 14px; color:#2563eb; font-weight:bold;">${childUsername}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:10px 14px; font-weight:bold; color:#374151;">Mot de passe</td>
+                        <td style="padding:10px 14px; color:#374151;">${childPassword}</td>
+                    </tr>
+                </table>
+                <p style="color:#dc2626; font-size:13px;">⚠️ Conservez ces informations en lieu sûr. Vous pouvez modifier le mot de passe depuis votre espace parent à tout moment.</p>
+            `,
+            color: '#2563eb',
+            footerNote: 'Si vous n\'êtes pas à l\'origine de cette action, contactez notre support immédiatement.'
+        });
+        return this.sendEmail(parentEmail, '✅ Sous-compte créé — Lingualearn', html);
+    }
+
+    /* =========================
+       NOTIFICATION PARENT — MOT DE PASSE SOUS-COMPTE MODIFIÉ
+    ========================== */
+    async sendParentChildPasswordChangedEmail(parentEmail, parentName, childUsername, newPassword) {
+        const html = this.emailTemplate({
+            title: 'Mot de passe du sous-compte modifié',
+            message: `
+                <p>Bonjour <strong>${parentName}</strong>,</p>
+                <p>Le mot de passe du sous-compte <strong>${childUsername}</strong> a été modifié avec succès.</p>
+                <p>Nouveau mot de passe :</p>
+                <table style="width:100%; border-collapse:collapse; margin:16px 0;">
+                    <tr style="background:#f3f4f6;">
+                        <td style="padding:10px 14px; font-weight:bold; color:#374151;">Nom d'utilisateur</td>
+                        <td style="padding:10px 14px; color:#2563eb; font-weight:bold;">${childUsername}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:10px 14px; font-weight:bold; color:#374151;">Nouveau mot de passe</td>
+                        <td style="padding:10px 14px; color:#374151;">${newPassword}</td>
+                    </tr>
+                </table>
+                <p style="color:#dc2626; font-size:13px;">⚠️ Conservez ces informations en lieu sûr.</p>
+            `,
+            color: '#f59e0b',
+            footerNote: 'Si vous n\'êtes pas à l\'origine de cette action, contactez notre support immédiatement.'
+        });
+        return this.sendEmail(parentEmail, '🔑 Mot de passe sous-compte modifié — Lingualearn', html);
+    }
 }
 
 const emailService = new EmailService();

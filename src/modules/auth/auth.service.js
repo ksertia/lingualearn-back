@@ -97,7 +97,7 @@ class AuthService {
         // Vérifier que le parent existe et est un learner
         const parent = await prisma.user.findUnique({
             where: { id: parentId },
-            select: { id: true, accountType: true, phone: true }
+            select: { id: true, accountType: true, phone: true, email: true, profile: { select: { firstName: true, lastName: true } } }
         });
 
         if (!parent || parent.accountType !== 'learner') {
@@ -149,8 +149,21 @@ class AuthService {
             include: { profile: true }
         });
 
+        // Email de bienvenue à l'enfant (si il a un email)
         if (email) {
             await emailService.sendWelcomeChildEmail(email, uniqueUsername);
+        }
+
+        // Email de notification au parent avec les infos du sous-compte
+        if (parent.email) {
+            const parentName = parent.profile?.firstName || 'Parent';
+            await emailService.sendParentChildCreatedEmail(
+                parent.email,
+                parentName,
+                uniqueUsername,
+                password,
+                firstName
+            );
         }
 
         return {
@@ -167,17 +180,19 @@ class AuthService {
     async resetChildPassword(parentId, childId, newPassword) {
         // Vérifier que l'enfant appartient bien à ce parent
         const child = await prisma.user.findFirst({
-            where: {
-                id: childId,
-                parentId,
-                accountType: 'sub_account_learner'
-            },
+            where: { id: childId, parentId, accountType: 'sub_account_learner' },
             select: { id: true, username: true, email: true }
         });
 
         if (!child) {
             throw new AppError(404, 'Child account not found or does not belong to you');
         }
+
+        // Récupérer les infos du parent
+        const parent = await prisma.user.findUnique({
+            where: { id: parentId },
+            select: { email: true, profile: { select: { firstName: true } } }
+        });
 
         const passwordHash = await bcrypt.hash(newPassword, 12);
 
@@ -189,6 +204,17 @@ class AuthService {
         // Invalider toutes les sessions actives de l'enfant
         await prisma.session.deleteMany({ where: { userId: childId } });
         await prisma.refreshToken.deleteMany({ where: { userId: childId } });
+
+        // Email de notification au parent avec le nouveau mot de passe
+        if (parent?.email) {
+            const parentName = parent.profile?.firstName || 'Parent';
+            await emailService.sendParentChildPasswordChangedEmail(
+                parent.email,
+                parentName,
+                child.username,
+                newPassword
+            );
+        }
 
         return {
             success: true,
