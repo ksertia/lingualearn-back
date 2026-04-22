@@ -581,8 +581,8 @@ class AuthService {
             // Vérifier le refresh token
             const decoded = jwt.verify(refreshToken, appConfig.refreshTokenSecret);
 
-            // Trouver le token en base
-            const storedToken = await prisma.refreshToken.findUnique({
+            // Trouver le token en base (findFirst car le champ token est de type Text)
+            const storedToken = await prisma.refreshToken.findFirst({
                 where: { token: refreshToken },
                 include: { user: true },
             });

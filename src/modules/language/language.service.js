@@ -70,20 +70,16 @@ exports.assignLanguageToChild = async (parentId, childId, languageId) => {
         };
     }
 
-    // Créer la progression de langue
-    const progress = await prisma.userLanguageProgress.create({
-        data: {
-            userId: childId,
-            languageId,
-            status: 'started',
-            startedAt: new Date(),
-            lastAccessedAt: new Date()
-        }
+    // Initialiser la progression complète (langue → level1 → module1 → parcours1 → étape1)
+    await progressionService.initializeUserLanguageProgress(childId, languageId);
+
+    const progress = await prisma.userLanguageProgress.findUnique({
+        where: { userId_languageId: { userId: childId, languageId } }
     });
 
     return {
         success: true,
-        message: `Language "${language.name}" assigned to ${child.username}`,
+        message: `Language "${language.name}" assigned to ${child.username} — progression initialisée`,
         data: { language, progress }
     };
 };
@@ -356,25 +352,24 @@ exports.assignLevelToChild = async (parentId, childId, languageId, levelId) => {
 
 // Progression utilisateur pour Language
 exports.selectLanguageForUser = async (userId, languageId) => {
-	let progress = await prisma.userLanguageProgress.findUnique({ where: { userId_languageId: { userId, languageId } } });
-	if (!progress) {
-		progress = await prisma.userLanguageProgress.create({
-			data: {
-				userId,
-				languageId,
-				status: 'started',
-				startedAt: new Date(),
-				lastAccessedAt: new Date()
-			}
-		});
+	const existing = await prisma.userLanguageProgress.findUnique({
+		where: { userId_languageId: { userId, languageId } }
+	});
+
+	if (!existing) {
+		// Première sélection → initialiser toute la cascade (level1 → module1 → parcours1 → étape1)
+		await progressionService.initializeUserLanguageProgress(userId, languageId);
 	} else {
-		// Mettre à jour lastAccessedAt si déjà sélectionné
-		progress = await prisma.userLanguageProgress.update({
+		// Déjà sélectionnée → juste mettre à jour lastAccessedAt
+		await prisma.userLanguageProgress.update({
 			where: { userId_languageId: { userId, languageId } },
 			data: { lastAccessedAt: new Date() }
 		});
 	}
-	return progress;
+
+	return prisma.userLanguageProgress.findUnique({
+		where: { userId_languageId: { userId, languageId } }
+	});
 };
 
 exports.startLanguageForUser = async (userId, languageId) => {

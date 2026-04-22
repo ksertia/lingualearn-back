@@ -275,29 +275,32 @@ class LevelService {
             throw new Error('Niveau introuvable ou inactif');
         }
 
-        // Utiliser upsert pour éviter deux requêtes
+        const existing = await prisma.userLevelProgress.findUnique({
+            where: { userId_levelId: { userId, levelId } }
+        });
+
         const progress = await prisma.userLevelProgress.upsert({
             where: { userId_levelId: { userId, levelId } },
-            update: { 
-                lastAccessedAt: new Date() 
-            },
-            create: { 
-                userId, 
-                levelId, 
-                status: 'started',
-                startedAt: new Date(),
+            update: { lastAccessedAt: new Date() },
+            create: {
+                userId,
+                levelId,
+                status: 'unlocked',
+                unlockedAt: new Date(),
                 lastAccessedAt: new Date()
             }
         });
 
-        // Si c'est une nouvelle sélection, débloquer le contenu
-        if (progress.createdAt === progress.updatedAt) {
-            await this.unlockLevelContent(userId, levelId);
+        // Si c'est une première sélection, débloquer module1 → parcours1 → étape1
+        if (!existing) {
+            await progressionService.unlockModuleWithChildren(userId, (await prisma.module.findFirst({
+                where: { levelId, isActive: true },
+                orderBy: { index: 'asc' },
+                select: { id: true }
+            }))?.id);
         }
 
-        // Invalider le cache utilisateur
         this.invalidateCache(null, level.languageId);
-        
         return progress;
     }
 
