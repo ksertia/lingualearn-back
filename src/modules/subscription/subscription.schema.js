@@ -5,10 +5,9 @@ const createSubscriptionSchema = Joi.object({
   planId:             Joi.string().required(),
   status:             Joi.string().valid('active', 'canceled', 'pending').default('active'),
   billingCycle:       Joi.string().valid('monthly', 'yearly').default('monthly'),
-  currentPeriodStart: Joi.date().required(),
-  currentPeriodEnd:   Joi.date().required(),
+  currentPeriodStart: Joi.date().default(() => new Date()),
+  // currentPeriodEnd est calculé automatiquement à partir de billingCycle
   cancelAtPeriodEnd:  Joi.boolean().default(false),
-  canceledAt:         Joi.date().allow(null),
 });
 
 const updateSubscriptionSchema = Joi.object({

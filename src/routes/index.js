@@ -43,25 +43,27 @@ router.use('/subscriptions', subscriptionRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/messages-ws', messageWsRoutes);
 
+// ─── Routes auth seule (languages et levels : libres après connexion) ────────
+router.use('/levels',        authMiddleware, levelRoutes);
+router.use('/languages',     authMiddleware, languageRoutes);
+
 // ─── Routes nécessitant authentification + abonnement actif ───────────────────
-router.use('/levels',        authMiddleware, requireSubscription, levelRoutes);
 router.use('/modules',       authMiddleware, requireSubscription, moduleRoutes);
 router.use('/steps',         authMiddleware, requireSubscription, stepRoutes);
 router.use('/exercises',     authMiddleware, requireSubscription, exerciseRoutes);
 router.use('/courses',       authMiddleware, requireSubscription, courseRoutes);
 router.use('/step-quizzes',  authMiddleware, requireSubscription, stepQuizRoutes);
 router.use('/learning-paths',authMiddleware, requireSubscription, learningPathsRoutes);
-router.use('/languages',     authMiddleware, requireSubscription, languageRoutes);
 router.use('/discover',      authMiddleware, requireSubscription, discoverRoutes);
 router.use('/evaluation',    authMiddleware, requireSubscription, evaluationRoutes);
 router.use('/progression',   authMiddleware, requireSubscription, progressionRoutes);
 router.use('/gamification',  authMiddleware, requireSubscription, gamificationRoutes);
 
-// ─── Routes utilisateur avec abonnement (progression individuelle) ─────────────
-router.get('/users/:userId/languages',                          authMiddleware, requireSubscription, languageController.getByUserId);
-router.post('/users/:userId/languages/:languageId/select',      authMiddleware, requireSubscription, languageController.selectLanguage);
-router.get('/users/:userId/levels',                             authMiddleware, requireSubscription, levelController.getByUserId);
-router.post('/users/:userId/levels/:levelId/select',            authMiddleware, requireSubscription, levelController.selectLevel);
+// ─── Routes utilisateur : languages et levels sans abonnement ────────────────
+router.get('/users/:userId/languages',                          authMiddleware, languageController.getByUserId);
+router.post('/users/:userId/languages/:languageId/select',      authMiddleware, languageController.selectLanguage);
+router.get('/users/:userId/levels',                             authMiddleware, levelController.getByUserId);
+router.post('/users/:userId/levels/:levelId/select',            authMiddleware, levelController.selectLevel);
 
 router.get('/users/:userId/modules',                            authMiddleware, requireSubscription, moduleController.getByUserId);
 router.post('/users/:userId/modules/:moduleId/start',           authMiddleware, requireSubscription, moduleController.startModule);

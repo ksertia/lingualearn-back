@@ -1,8 +1,27 @@
 const { prisma } = require('../../config/prisma');
 
+function computePeriodEnd(start, billingCycle) {
+  const date = new Date(start);
+  if (billingCycle === 'yearly') {
+    date.setFullYear(date.getFullYear() + 1);
+  } else {
+    date.setMonth(date.getMonth() + 1);
+  }
+  return date;
+}
+
 async function createSubscription(data) {
+  const periodStart = data.currentPeriodStart ?? new Date();
+  const periodEnd   = computePeriodEnd(periodStart, data.billingCycle ?? 'monthly');
+
   const subscription = await prisma.subscription.create({
-    data,
+    data: {
+      ...data,
+      currentPeriodStart: periodStart,
+      currentPeriodEnd:   periodEnd,
+      cancelAtPeriodEnd:  data.cancelAtPeriodEnd ?? false,
+      canceledAt:         null,
+    },
     include: { plan: true },
   });
 
