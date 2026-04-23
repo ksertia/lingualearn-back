@@ -360,6 +360,7 @@ model UserStepProgress {
   startedAt          DateTime?
   completedAt        DateTime?
   unlockedAt         DateTime?
+  lastAccessedAt     DateTime?
   timeSpentMinutes   Int       @default(0)
   totalXp            Int       @default(0)
   createdAt          DateTime  @default(now())
@@ -370,6 +371,7 @@ model UserStepProgress {
   @@unique([userId, stepId])
   @@index([stepId, status])
   @@index([userId, status])
+  @@index([userId, lastAccessedAt])
   @@map("user_step_progress")
 }
 
