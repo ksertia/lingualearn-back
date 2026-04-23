@@ -1,7 +1,8 @@
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../middleware/errorHandler');
-const orangeProvider = require('./providers/orange');
-const moovProvider   = require('./providers/moov');
+const orange = require('./providers/orange');
+const moov   = require('./providers/moov');
+const { verifyOperator } = require('./providers/verifyOperator');
 
 const OTP_EXPIRY_MINUTES = 5;
 const SUPPORTED_METHODS  = ['orange_money', 'moov_money', 'coris_money'];
@@ -11,9 +12,21 @@ function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+function makeOrderId() {
+  return `LL-${Date.now()}`;
+}
+
+// ─── ÉTAPE 1 : Initier le paiement ───────────────────────────────────────────
 async function initiatePayment({ userId, planId, billingCycle, paymentMethod, phoneNumber }) {
   if (!SUPPORTED_METHODS.includes(paymentMethod)) {
     throw new AppError(400, `Méthode de paiement non supportée. Utilisez : ${SUPPORTED_METHODS.join(', ')}`);
+  }
+
+  // Valider que le numéro correspond à l'opérateur choisi
+  try {
+    verifyOperator(paymentMethod, phoneNumber);
+  } catch (err) {
+    throw new AppError(400, err.message);
   }
 
   const plan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
@@ -30,47 +43,40 @@ async function initiatePayment({ userId, planId, billingCycle, paymentMethod, ph
   });
 
   const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
-  let otpCode = null;
-  let providerRef = null;
-  let devOtp = null;
+  const orderId      = makeOrderId();
 
-  // ── Orange Money ──────────────────────────────────────────────────────────────
+  let otpCode    = null;
+  let providerRef = null;
+  let devOtp     = null;
+  let instructions = null;
+
+  // ── Orange Money ─────────────────────────────────────────────────────────────
+  // L'OTP est généré côté client via USSD — pas d'appel API ici
   if (paymentMethod === 'orange_money') {
-    const orderId = `LL-${Date.now()}`;
-    try {
-      const result = await orangeProvider.initiatePayment({
-        phoneNumber,
-        amount: Number(amount),
-        currency: plan.currency ?? 'XOF',
-        orderId,
-      });
-      providerRef = result.payToken;
-      // Orange envoie l'OTP directement au téléphone — on ne le stocke pas
-    } catch (err) {
-      throw new AppError(502, `Orange Money: ${err.message}`);
-    }
+    providerRef  = orderId;
+    instructions = `Composez *144*4*6*${Number(amount)}# sur votre téléphone pour obtenir votre code OTP, puis saisissez-le ici.`;
   }
 
-  // ── Moov Money ────────────────────────────────────────────────────────────────
+  // ── Moov Money ───────────────────────────────────────────────────────────────
+  // L'API envoie automatiquement un SMS OTP au client
   else if (paymentMethod === 'moov_money') {
-    const orderId = `LL-${Date.now()}`;
     try {
-      const result = await moovProvider.initiatePayment({
+      const result = await moov.sendOtp({
+        transactionId: orderId,
         phoneNumber,
         amount: Number(amount),
-        orderId,
       });
-      providerRef = result.otpReference;
-      // Moov envoie aussi l'OTP au téléphone
+      // moovTransId = trans-id Moov, nécessaire à la confirmation
+      providerRef = `${orderId}|${result.moovTransId}`;
     } catch (err) {
       throw new AppError(502, `Moov Money: ${err.message}`);
     }
   }
 
-  // ── Mode fictif (coris_money ou dev) ─────────────────────────────────────────
+  // ── Coris Money / mode fictif ─────────────────────────────────────────────
   else {
     otpCode = generateOtp();
-    devOtp  = IS_DEV ? otpCode : undefined;
+    if (IS_DEV) devOtp = otpCode;
   }
 
   const paymentRequest = await prisma.paymentRequest.create({
@@ -82,8 +88,8 @@ async function initiatePayment({ userId, planId, billingCycle, paymentMethod, ph
       phoneNumber,
       amount,
       currency:    plan.currency ?? 'XOF',
-      otpCode,       // null pour orange/moov (OTP géré par l'opérateur)
-      providerRef,   // pay_token Orange ou otpReference Moov
+      otpCode,
+      providerRef,
       otpExpiresAt,
       status: 'pending',
     },
@@ -93,17 +99,19 @@ async function initiatePayment({ userId, planId, billingCycle, paymentMethod, ph
   const response = {
     paymentRequestId: paymentRequest.id,
     phoneNumber,
-    amount:       paymentRequest.amount,
-    currency:     paymentRequest.currency,
-    plan:         { id: plan.id, planName: plan.planName, planCode: plan.planCode },
+    amount:      paymentRequest.amount,
+    currency:    paymentRequest.currency,
+    plan:        { id: plan.id, planName: plan.planName, planCode: plan.planCode },
     otpExpiresAt,
   };
 
-  if (devOtp) response._devOtp = devOtp;
+  if (instructions) response.instructions = instructions;
+  if (devOtp)       response._devOtp = devOtp;
 
   return response;
 }
 
+// ─── ÉTAPE 2 : Confirmer le paiement avec l'OTP ──────────────────────────────
 async function confirmPayment({ paymentRequestId, otpCode }) {
   const paymentRequest = await prisma.paymentRequest.findUnique({
     where: { id: paymentRequestId },
@@ -122,41 +130,50 @@ async function confirmPayment({ paymentRequestId, otpCode }) {
     throw new AppError(400, 'Le code OTP a expiré. Veuillez recommencer.');
   }
 
-  // ── Vérification OTP selon l'opérateur ───────────────────────────────────────
+  // ── Vérification selon l'opérateur ───────────────────────────────────────
   if (paymentRequest.paymentMethod === 'orange_money') {
     try {
-      const status = await orangeProvider.checkPaymentStatus(paymentRequest.providerRef);
-      if (status.status !== 'SUCCESS') {
-        throw new AppError(400, `Orange Money: paiement non confirmé (${status.status}).`);
-      }
-    } catch (err) {
-      if (err instanceof AppError) throw err;
-      throw new AppError(502, `Orange Money: ${err.message}`);
-    }
-  } else if (paymentRequest.paymentMethod === 'moov_money') {
-    try {
-      await moovProvider.confirmPayment({
-        phoneNumber:  paymentRequest.phoneNumber,
-        amount:       Number(paymentRequest.amount),
-        orderId:      paymentRequest.providerRef,
-        otpCode,
-        otpReference: paymentRequest.providerRef,
+      await orange.confirmPayment({
+        phoneNumber: paymentRequest.phoneNumber,
+        amount:      Number(paymentRequest.amount),
+        otp:         otpCode,
+        orderId:     paymentRequest.providerRef,
       });
     } catch (err) {
       await prisma.paymentRequest.update({
         where: { id: paymentRequestId },
         data: { status: 'failed', failureReason: err.message },
       });
-      throw new AppError(400, err.message);
+      throw new AppError(400, `Orange Money: ${err.message}`);
+    }
+  } else if (paymentRequest.paymentMethod === 'moov_money') {
+    // providerRef format : "orderId|moovTransId"
+    const [requestId, moovTransId] = (paymentRequest.providerRef ?? '').split('|');
+    const newRequestId = makeOrderId();
+    try {
+      await moov.confirmPayment({
+        newRequestId,
+        moovTransId,
+        requestId,
+        phoneNumber: paymentRequest.phoneNumber,
+        amount:      Number(paymentRequest.amount),
+        otp:         otpCode,
+      });
+    } catch (err) {
+      await prisma.paymentRequest.update({
+        where: { id: paymentRequestId },
+        data: { status: 'failed', failureReason: err.message },
+      });
+      throw new AppError(400, `Moov Money: ${err.message}`);
     }
   } else {
-    // coris_money ou mode fictif : vérification locale du code OTP
+    // coris_money ou mode fictif : vérification locale
     if (paymentRequest.otpCode !== otpCode) {
       throw new AppError(400, 'Code OTP incorrect.');
     }
   }
 
-  // ── OTP valide → créer l'abonnement ──────────────────────────────────────────
+  // ── OTP valide → créer l'abonnement ──────────────────────────────────────
   const periodStart = new Date();
   const periodEnd   = new Date(periodStart);
   if (paymentRequest.billingCycle === 'yearly') {

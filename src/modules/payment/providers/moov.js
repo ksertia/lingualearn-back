@@ -1,65 +1,89 @@
 const axios = require('axios');
-const https = require('https');
 
-const BASE_URL  = process.env.MOOV_URL;
-const USERNAME  = process.env.MOOV_USERNAME;
-const PASSWORD  = process.env.MOOV_PASSWORD;
+const auth = {
+  username: process.env.MOOV_USERNAME,
+  password: process.env.MOOV_PASSWORD,
+};
+const getUrl = () => process.env.MOOV_URL;
 
-// Moov utilise un certificat auto-signé en UAT — on désactive la vérification SSL
-const agent = new https.Agent({ rejectUnauthorized: false });
-
-// Initier un paiement Moov Money (envoi OTP au client)
-async function initiatePayment({ phoneNumber, amount, orderId }) {
-  const res = await axios.post(
-    BASE_URL,
-    {
-      username:    USERNAME,
-      password:    PASSWORD,
-      msisdn:      phoneNumber,
-      amount:      String(amount),
-      reference:   orderId,
-      description: `Paiement LinguaLearn #${orderId}`,
+// Étape 1 — Envoyer l'OTP au client (SMS automatique)
+async function sendOtp({ transactionId, phoneNumber, amount }) {
+  const response = await axios.post(getUrl(), {
+    'request-id': transactionId,
+    destination:  phoneNumber,
+    amount:       String(amount),
+    remarks:      'OTP Merchant',
+    'extended-data': { module: 'MERCHOTPPAY' },
+  }, {
+    auth,
+    headers: {
+      'Content-Type': 'application/json',
+      'command-id':   'process-create-mror-otp',
     },
-    {
-      httpsAgent: agent,
-      headers: { 'Content-Type': 'application/json' },
-    }
-  );
+    timeout: 30000,
+  });
 
-  // Moov retourne { status, message, otpReference, ... }
-  const { status, message, otpReference } = res.data;
+  const { status, message } = response.data;
   if (status !== '0' && status !== 0) {
-    throw new Error(`Moov Money: ${message || 'Erreur inconnue'}`);
+    throw new Error(message || 'Moov Money: envoi OTP échoué');
   }
 
-  return { otpReference, raw: res.data };
+  // trans-id Moov à conserver pour l'étape de confirmation
+  return {
+    moovTransId: response.data['trans-id'],
+    raw: response.data,
+  };
 }
 
-// Confirmer le paiement avec le code OTP saisi par l'utilisateur
-async function confirmPayment({ phoneNumber, amount, orderId, otpCode, otpReference }) {
-  const res = await axios.post(
-    BASE_URL.replace('otpRequest', 'otpValidation'),
-    {
-      username:     USERNAME,
-      password:     PASSWORD,
-      msisdn:       phoneNumber,
-      amount:       String(amount),
-      reference:    orderId,
-      otpCode,
-      otpReference,
+// Étape 2 (optionnel) — Renvoyer l'OTP
+async function resendOtp({ moovTransId, requestId, phoneNumber, amount }) {
+  const response = await axios.post(getUrl(), {
+    'request-id': moovTransId,
+    destination:  phoneNumber,
+    amount:       String(amount),
+    remarks:      'RESEND OTP',
+    'extended-data': { module: 'MERCHOTPPAY', ext1: requestId },
+  }, {
+    auth,
+    headers: {
+      'Content-Type': 'application/json',
+      'command-id':   'process-mror-resend-otp',
     },
-    {
-      httpsAgent: agent,
-      headers: { 'Content-Type': 'application/json' },
-    }
-  );
+    timeout: 30000,
+  });
 
-  const { status, message } = res.data;
+  return response.data;
+}
+
+// Étape 3 — Confirmer le paiement avec l'OTP saisi
+async function confirmPayment({ newRequestId, moovTransId, requestId, phoneNumber, amount, otp }) {
+  const response = await axios.post(getUrl(), {
+    'request-id': newRequestId,
+    destination:  phoneNumber,
+    amount:       String(amount),
+    remarks:      'Payment',
+    'extended-data': {
+      module:     'MERCHOTPPAY',
+      'trans-id': moovTransId,
+      ext1:       requestId,
+      ext2:       requestId,
+      otp,
+    },
+  }, {
+    auth,
+    headers: {
+      'Content-Type': 'application/json',
+      'command-id':   'process-commit-otppay',
+    },
+    timeout: 30000,
+  });
+
+  const { status, message } = response.data;
   if (status !== '0' && status !== 0) {
-    throw new Error(`Moov Money: ${message || 'OTP invalide ou expiré'}`);
+    throw new Error(message || 'Moov Money: confirmation OTP échouée');
   }
 
-  return res.data;
+  return response.data;
 }
 
-module.exports = { initiatePayment, confirmPayment };
+module.exports = { sendOtp, resendOtp, confirmPayment };
