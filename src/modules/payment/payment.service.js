@@ -51,10 +51,16 @@ async function initiatePayment({ userId, planId, billingCycle, paymentMethod, ph
   let instructions = null;
 
   // ── Orange Money ─────────────────────────────────────────────────────────────
-  // L'OTP est généré côté client via USSD — pas d'appel API ici
   if (paymentMethod === 'orange_money') {
-    providerRef  = orderId;
-    instructions = `Composez *144*4*6*${Number(amount)}# sur votre téléphone pour obtenir votre code OTP, puis saisissez-le ici.`;
+    providerRef = orderId;
+    if (IS_DEV) {
+      // Mode test : OTP généré localement, pas d'appel API Orange
+      otpCode = generateOtp();
+      devOtp  = otpCode;
+    } else {
+      // Production : le client compose *144*4*6*{montant}# pour obtenir son OTP
+      instructions = `Composez *144*4*6*${Number(amount)}# sur votre téléphone pour obtenir votre code OTP, puis saisissez-le ici.`;
+    }
   }
 
   // ── Moov Money ───────────────────────────────────────────────────────────────
@@ -132,19 +138,27 @@ async function confirmPayment({ paymentRequestId, otpCode }) {
 
   // ── Vérification selon l'opérateur ───────────────────────────────────────
   if (paymentRequest.paymentMethod === 'orange_money') {
-    try {
-      await orange.confirmPayment({
-        phoneNumber: paymentRequest.phoneNumber,
-        amount:      Number(paymentRequest.amount),
-        otp:         otpCode,
-        orderId:     paymentRequest.providerRef,
-      });
-    } catch (err) {
-      await prisma.paymentRequest.update({
-        where: { id: paymentRequestId },
-        data: { status: 'failed', failureReason: err.message },
-      });
-      throw new AppError(400, err.message);
+    if (IS_DEV) {
+      // Mode test : vérification locale de l'OTP (pas d'appel API Orange)
+      if (paymentRequest.otpCode !== otpCode) {
+        throw new AppError(400, 'Code OTP incorrect.');
+      }
+    } else {
+      // Production : vérification via l'API Orange (XML + SSL)
+      try {
+        await orange.confirmPayment({
+          phoneNumber: paymentRequest.phoneNumber,
+          amount:      Number(paymentRequest.amount),
+          otp:         otpCode,
+          orderId:     paymentRequest.providerRef,
+        });
+      } catch (err) {
+        await prisma.paymentRequest.update({
+          where: { id: paymentRequestId },
+          data: { status: 'failed', failureReason: err.message },
+        });
+        throw new AppError(400, err.message);
+      }
     }
   } else if (paymentRequest.paymentMethod === 'moov_money') {
     // providerRef format : "orderId|moovTransId"
