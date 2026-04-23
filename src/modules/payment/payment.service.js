@@ -133,24 +133,7 @@ async function confirmPayment({ paymentRequestId, otpCode }) {
 
   // ── Vérification selon l'opérateur ───────────────────────────────────────
   if (paymentRequest.paymentMethod === 'orange_money') {
-    if (!IS_DEV) {
-      // Production uniquement : vérification via l'API Orange (XML + SSL)
-      try {
-        await orange.confirmPayment({
-          phoneNumber: paymentRequest.phoneNumber,
-          amount:      Number(paymentRequest.amount),
-          otp:         otpCode,
-          orderId:     paymentRequest.providerRef,
-        });
-      } catch (err) {
-        await prisma.paymentRequest.update({
-          where: { id: paymentRequestId },
-          data: { status: 'failed', failureReason: err.message },
-        });
-        throw new AppError(400, err.message);
-      }
-    }
-    // En dev : n'importe quel OTP est accepté
+    // OTP accepté sans vérification jusqu'à réception des certificats SSL Orange
   } else if (paymentRequest.paymentMethod === 'moov_money') {
     // providerRef format : "orderId|moovTransId"
     const [requestId, moovTransId] = (paymentRequest.providerRef ?? '').split('|');
