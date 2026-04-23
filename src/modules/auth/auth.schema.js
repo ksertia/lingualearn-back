@@ -8,7 +8,7 @@ const registerSchema = z.object({
     email: z.string().email('Invalid email address').optional(),
     phone: z.string()
         .optional()
-        .refine(val => !val || /^\+?[1-9]\d{1,14}$/.test(val), 'Invalid phone number format'),
+        .refine(val => !val || /^\+?[0-9]{8,15}$/.test(val.replace(/[\s\-]/g, '')), 'Invalid phone number format'),
     password: z.string()
         .min(6, 'Password must be at least 6 characters')
         .max(100, 'Password too long'),
@@ -24,7 +24,8 @@ const registerSchema = z.object({
     path: ['email']
 });
 
-// Création d'un compte enfant par le parent connecté
+
+// Création d'un compte enfant par le parent connecté 
 const addChildSchema = z.object({
     firstName: z.string().min(1, 'First name is required'),
     lastName: z.string().min(1, 'Last name is required'),
@@ -34,7 +35,7 @@ const addChildSchema = z.object({
     email: z.string().email('Invalid email address').optional(),
     phone: z.string()
         .optional()
-        .refine(val => !val || /^\+?[1-9]\d{1,14}$/.test(val), 'Invalid phone number format'),
+        .refine(val => !val || /^\+?[0-9]{8,15}$/.test(val.replace(/[\s\-]/g, '')), 'Invalid phone number format'),
 });
 
 // Login schema (loginInfo: username, email, or phone)
