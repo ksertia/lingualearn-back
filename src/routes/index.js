@@ -43,9 +43,9 @@ router.use('/subscriptions', subscriptionRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/messages-ws', messageWsRoutes);
 
-// ─── Routes auth seule (languages et levels : libres après connexion) ────────
-router.use('/levels',        authMiddleware, levelRoutes);
-router.use('/languages',     authMiddleware, languageRoutes);
+// ─── Routes publiques : languages et levels (pas de token requis) ────────────
+router.use('/levels',    levelRoutes);
+router.use('/languages', languageRoutes);
 
 // ─── Routes nécessitant authentification + abonnement actif ───────────────────
 router.use('/modules',       authMiddleware, requireSubscription, moduleRoutes);
@@ -59,11 +59,11 @@ router.use('/evaluation',    authMiddleware, requireSubscription, evaluationRout
 router.use('/progression',   authMiddleware, requireSubscription, progressionRoutes);
 router.use('/gamification',  authMiddleware, requireSubscription, gamificationRoutes);
 
-// ─── Routes utilisateur : languages et levels sans abonnement ────────────────
-router.get('/users/:userId/languages',                          authMiddleware, languageController.getByUserId);
-router.post('/users/:userId/languages/:languageId/select',      authMiddleware, languageController.selectLanguage);
-router.get('/users/:userId/levels',                             authMiddleware, levelController.getByUserId);
-router.post('/users/:userId/levels/:levelId/select',            authMiddleware, levelController.selectLevel);
+// ─── Routes utilisateur : languages et levels publiques ──────────────────────
+router.get('/users/:userId/languages',                       languageController.getByUserId);
+router.post('/users/:userId/languages/:languageId/select',   languageController.selectLanguage);
+router.get('/users/:userId/levels',                          levelController.getByUserId);
+router.post('/users/:userId/levels/:levelId/select',         levelController.selectLevel);
 
 router.get('/users/:userId/modules',                            authMiddleware, requireSubscription, moduleController.getByUserId);
 router.post('/users/:userId/modules/:moduleId/start',           authMiddleware, requireSubscription, moduleController.startModule);
