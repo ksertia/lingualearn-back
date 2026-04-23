@@ -50,6 +50,27 @@ async function getSubscriptionById(id) {
   });
 }
 
+async function getMyStatus(userId) {
+  const subscription = await prisma.subscription.findFirst({
+    where: { userId },
+    include: { plan: true },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const now = new Date();
+  const isActive =
+    subscription &&
+    subscription.status === 'active' &&
+    new Date(subscription.currentPeriodEnd) > now;
+
+  return {
+    hasSubscription: !!subscription,
+    isActive: !!isActive,
+    subscription: subscription ?? null,
+    expiresAt: subscription?.currentPeriodEnd ?? null,
+  };
+}
+
 async function updateSubscription(id, data) {
   const existing = await prisma.subscription.findUnique({ where: { id } });
   if (!existing) return null;
@@ -93,6 +114,7 @@ module.exports = {
   createSubscription,
   getAllSubscriptions,
   getSubscriptionById,
+  getMyStatus,
   updateSubscription,
   deleteSubscription,
 };

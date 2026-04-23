@@ -53,4 +53,14 @@ async function remove(req, res, next) {
   }
 }
 
-module.exports = { create, getAll, getById, update, remove };
+async function myStatus(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const status = await service.getMyStatus(userId);
+    res.json(status);
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { create, getAll, getById, myStatus, update, remove };

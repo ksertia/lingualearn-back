@@ -170,6 +170,41 @@ router.post('/', controller.create);
 
 /**
  * @swagger
+ * /api/v1/subscriptions/my-status:
+ *   get:
+ *     summary: Statut d'abonnement de l'utilisateur connecté
+ *     description: |
+ *       Retourne le statut d'abonnement de l'utilisateur identifié par le token JWT.
+ *       Indique si l'abonnement est actif, sa date d'expiration et le plan souscrit.
+ *     tags: [Subscriptions]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Statut d'abonnement
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 hasSubscription:
+ *                   type: boolean
+ *                   example: true
+ *                 isActive:
+ *                   type: boolean
+ *                   example: true
+ *                 expiresAt:
+ *                   type: string
+ *                   format: date-time
+ *                   nullable: true
+ *                   example: "2026-05-23T13:30:00.000Z"
+ *                 subscription:
+ *                   $ref: '#/components/schemas/SubscriptionResponse'
+ */
+router.get('/my-status', controller.myStatus);
+
+/**
+ * @swagger
  * /api/v1/subscriptions:
  *   get:
  *     summary: Récupérer tous les abonnements
