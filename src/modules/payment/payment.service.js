@@ -69,7 +69,7 @@ async function initiatePayment({ userId, planId, billingCycle, paymentMethod, ph
       // moovTransId = trans-id Moov, nécessaire à la confirmation
       providerRef = `${orderId}|${result.moovTransId}`;
     } catch (err) {
-      throw new AppError(502, `Moov Money: ${err.message}`);
+      throw new AppError(400, err.message);
     }
   }
 
@@ -144,7 +144,7 @@ async function confirmPayment({ paymentRequestId, otpCode }) {
         where: { id: paymentRequestId },
         data: { status: 'failed', failureReason: err.message },
       });
-      throw new AppError(400, `Orange Money: ${err.message}`);
+      throw new AppError(400, err.message);
     }
   } else if (paymentRequest.paymentMethod === 'moov_money') {
     // providerRef format : "orderId|moovTransId"

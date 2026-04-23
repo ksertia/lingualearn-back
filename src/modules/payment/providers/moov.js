@@ -31,10 +31,9 @@ async function sendOtp({ transactionId, phoneNumber, amount }) {
   }
 
   const { status, message } = response.data;
-  console.log('[Moov sendOtp] response:', JSON.stringify(response.data));
 
   if (status !== '0' && status !== 0) {
-    throw new Error(message || 'Moov Money: envoi OTP échoué');
+    throw new Error(message || 'Échec de l\'envoi OTP Moov Money.');
   }
 
   return {
