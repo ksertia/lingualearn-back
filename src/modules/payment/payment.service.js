@@ -1,8 +1,11 @@
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../middleware/errorHandler');
+const orangeProvider = require('./providers/orange');
+const moovProvider   = require('./providers/moov');
 
 const OTP_EXPIRY_MINUTES = 5;
-const SUPPORTED_METHODS = ['orange_money', 'moov_money', 'coris_money'];
+const SUPPORTED_METHODS  = ['orange_money', 'moov_money', 'coris_money'];
+const IS_DEV = process.env.NODE_ENV !== 'production';
 
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -26,8 +29,49 @@ async function initiatePayment({ userId, planId, billingCycle, paymentMethod, ph
     data: { status: 'failed', failureReason: 'Remplacé par une nouvelle demande' },
   });
 
-  const otpCode = generateOtp();
   const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+  let otpCode = null;
+  let providerRef = null;
+  let devOtp = null;
+
+  // ── Orange Money ──────────────────────────────────────────────────────────────
+  if (paymentMethod === 'orange_money') {
+    const orderId = `LL-${Date.now()}`;
+    try {
+      const result = await orangeProvider.initiatePayment({
+        phoneNumber,
+        amount: Number(amount),
+        currency: plan.currency ?? 'XOF',
+        orderId,
+      });
+      providerRef = result.payToken;
+      // Orange envoie l'OTP directement au téléphone — on ne le stocke pas
+    } catch (err) {
+      throw new AppError(502, `Orange Money: ${err.message}`);
+    }
+  }
+
+  // ── Moov Money ────────────────────────────────────────────────────────────────
+  else if (paymentMethod === 'moov_money') {
+    const orderId = `LL-${Date.now()}`;
+    try {
+      const result = await moovProvider.initiatePayment({
+        phoneNumber,
+        amount: Number(amount),
+        orderId,
+      });
+      providerRef = result.otpReference;
+      // Moov envoie aussi l'OTP au téléphone
+    } catch (err) {
+      throw new AppError(502, `Moov Money: ${err.message}`);
+    }
+  }
+
+  // ── Mode fictif (coris_money ou dev) ─────────────────────────────────────────
+  else {
+    otpCode = generateOtp();
+    devOtp  = IS_DEV ? otpCode : undefined;
+  }
 
   const paymentRequest = await prisma.paymentRequest.create({
     data: {
@@ -37,26 +81,27 @@ async function initiatePayment({ userId, planId, billingCycle, paymentMethod, ph
       paymentMethod,
       phoneNumber,
       amount,
-      currency: plan.currency ?? 'XOF',
-      otpCode,
+      currency:    plan.currency ?? 'XOF',
+      otpCode,       // null pour orange/moov (OTP géré par l'opérateur)
+      providerRef,   // pay_token Orange ou otpReference Moov
       otpExpiresAt,
       status: 'pending',
     },
     include: { plan: true },
   });
 
-  // En production : envoyer l'OTP par SMS ici
-  // Pour l'instant on le retourne directement (mode fictif)
-  return {
+  const response = {
     paymentRequestId: paymentRequest.id,
     phoneNumber,
-    amount: paymentRequest.amount,
-    currency: paymentRequest.currency,
-    plan: { id: plan.id, planName: plan.planName, planCode: plan.planCode },
+    amount:       paymentRequest.amount,
+    currency:     paymentRequest.currency,
+    plan:         { id: plan.id, planName: plan.planName, planCode: plan.planCode },
     otpExpiresAt,
-    // ⚠️ Mode fictif uniquement — à retirer en production
-    _devOtp: otpCode,
   };
+
+  if (devOtp) response._devOtp = devOtp;
+
+  return response;
 }
 
 async function confirmPayment({ paymentRequestId, otpCode }) {
@@ -76,20 +121,50 @@ async function confirmPayment({ paymentRequestId, otpCode }) {
     });
     throw new AppError(400, 'Le code OTP a expiré. Veuillez recommencer.');
   }
-  if (paymentRequest.otpCode !== otpCode) {
-    throw new AppError(400, 'Code OTP incorrect.');
+
+  // ── Vérification OTP selon l'opérateur ───────────────────────────────────────
+  if (paymentRequest.paymentMethod === 'orange_money') {
+    try {
+      const status = await orangeProvider.checkPaymentStatus(paymentRequest.providerRef);
+      if (status.status !== 'SUCCESS') {
+        throw new AppError(400, `Orange Money: paiement non confirmé (${status.status}).`);
+      }
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      throw new AppError(502, `Orange Money: ${err.message}`);
+    }
+  } else if (paymentRequest.paymentMethod === 'moov_money') {
+    try {
+      await moovProvider.confirmPayment({
+        phoneNumber:  paymentRequest.phoneNumber,
+        amount:       Number(paymentRequest.amount),
+        orderId:      paymentRequest.providerRef,
+        otpCode,
+        otpReference: paymentRequest.providerRef,
+      });
+    } catch (err) {
+      await prisma.paymentRequest.update({
+        where: { id: paymentRequestId },
+        data: { status: 'failed', failureReason: err.message },
+      });
+      throw new AppError(400, err.message);
+    }
+  } else {
+    // coris_money ou mode fictif : vérification locale du code OTP
+    if (paymentRequest.otpCode !== otpCode) {
+      throw new AppError(400, 'Code OTP incorrect.');
+    }
   }
 
-  // OTP valide → créer l'abonnement
+  // ── OTP valide → créer l'abonnement ──────────────────────────────────────────
   const periodStart = new Date();
-  const periodEnd = new Date(periodStart);
+  const periodEnd   = new Date(periodStart);
   if (paymentRequest.billingCycle === 'yearly') {
     periodEnd.setFullYear(periodEnd.getFullYear() + 1);
   } else {
     periodEnd.setMonth(periodEnd.getMonth() + 1);
   }
 
-  // Supprimer l'abonnement existant si présent (renouvellement)
   await prisma.subscription.deleteMany({ where: { userId: paymentRequest.userId } });
 
   const subscription = await prisma.subscription.create({
@@ -105,7 +180,6 @@ async function confirmPayment({ paymentRequestId, otpCode }) {
     include: { plan: true },
   });
 
-  // Synchroniser le user
   await prisma.user.update({
     where: { id: paymentRequest.userId },
     data: {
@@ -114,7 +188,6 @@ async function confirmPayment({ paymentRequestId, otpCode }) {
     },
   });
 
-  // Enregistrer la transaction
   await prisma.transaction.create({
     data: {
       userId:          paymentRequest.userId,
@@ -127,7 +200,6 @@ async function confirmPayment({ paymentRequestId, otpCode }) {
     },
   });
 
-  // Marquer la demande comme confirmée
   await prisma.paymentRequest.update({
     where: { id: paymentRequestId },
     data: { status: 'confirmed', otpVerified: true, confirmedAt: new Date() },

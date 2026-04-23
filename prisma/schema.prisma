@@ -857,6 +857,7 @@ model PaymentRequest {
   amount        Decimal   @db.Decimal(10, 2)
   currency      String    @default("XOF") @db.VarChar(3)
   otpCode       String?   @db.VarChar(10)
+  providerRef   String?   @db.VarChar(255)
   otpExpiresAt  DateTime?
   otpVerified   Boolean   @default(false)
   status        String    @default("pending") @db.VarChar(20)
