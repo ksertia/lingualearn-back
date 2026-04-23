@@ -52,13 +52,8 @@ async function initiatePayment({ userId, planId, billingCycle, paymentMethod, ph
 
   // ── Orange Money ─────────────────────────────────────────────────────────────
   if (paymentMethod === 'orange_money') {
-    providerRef = orderId;
-    if (IS_DEV) {
-      // Mode test : OTP généré localement, pas d'appel API Orange
-      otpCode = generateOtp();
-      devOtp  = otpCode;
-    } else {
-      // Production : le client compose *144*4*6*{montant}# pour obtenir son OTP
+    providerRef  = orderId;
+    if (!IS_DEV) {
       instructions = `Composez *144*4*6*${Number(amount)}# sur votre téléphone pour obtenir votre code OTP, puis saisissez-le ici.`;
     }
   }
@@ -138,13 +133,8 @@ async function confirmPayment({ paymentRequestId, otpCode }) {
 
   // ── Vérification selon l'opérateur ───────────────────────────────────────
   if (paymentRequest.paymentMethod === 'orange_money') {
-    if (IS_DEV) {
-      // Mode test : vérification locale de l'OTP (pas d'appel API Orange)
-      if (paymentRequest.otpCode !== otpCode) {
-        throw new AppError(400, 'Code OTP incorrect.');
-      }
-    } else {
-      // Production : vérification via l'API Orange (XML + SSL)
+    if (!IS_DEV) {
+      // Production uniquement : vérification via l'API Orange (XML + SSL)
       try {
         await orange.confirmPayment({
           phoneNumber: paymentRequest.phoneNumber,
@@ -160,6 +150,7 @@ async function confirmPayment({ paymentRequestId, otpCode }) {
         throw new AppError(400, err.message);
       }
     }
+    // En dev : n'importe quel OTP est accepté
   } else if (paymentRequest.paymentMethod === 'moov_money') {
     // providerRef format : "orderId|moovTransId"
     const [requestId, moovTransId] = (paymentRequest.providerRef ?? '').split('|');
