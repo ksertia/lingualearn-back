@@ -13,7 +13,7 @@ async function sendOtp({ transactionId, phoneNumber, amount }) {
     response = await axios.post(getUrl(), {
       'request-id': transactionId,
       destination:  phoneNumber,
-      amount:       String(amount),
+      amount:       Number(amount),
       remarks:      'OTP Merchant',
       'extended-data': { module: 'MERCHOTPPAY' },
     }, {
@@ -48,7 +48,7 @@ async function resendOtp({ moovTransId, requestId, phoneNumber, amount }) {
   const response = await axios.post(getUrl(), {
     'request-id': moovTransId,
     destination:  phoneNumber,
-    amount:       String(amount),
+    amount:       Number(amount),
     remarks:      'RESEND OTP',
     'extended-data': { module: 'MERCHOTPPAY', ext1: requestId },
   }, {
@@ -68,7 +68,7 @@ async function confirmPayment({ newRequestId, moovTransId, requestId, phoneNumbe
   const response = await axios.post(getUrl(), {
     'request-id': newRequestId,
     destination:  phoneNumber,
-    amount:       String(amount),
+    amount:       Number(amount),
     remarks:      'Payment',
     'extended-data': {
       module:     'MERCHOTPPAY',
