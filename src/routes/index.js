@@ -31,21 +31,20 @@ const stepController = require('../modules/step/step.controller');
 const learningPathController = require('../modules/learning_path/learning.path.controller');
 const courseController = require('../modules/course/course.controller');
 
-// ─── Routes publiques / sans abonnement ───────────────────────────────────────
-router.use('/auth', authRoutes);
-router.use('/subscription-plans', subscriptionPlanRoutes);
-router.use('/uploads', uploadRoutes);
-router.use('/admin', adminDashboardRoutes);
-
-// ─── Routes nécessitant authentification seule (pas d'abonnement requis) ──────
-router.use('/users', userRoutes);
-router.use('/subscriptions', subscriptionRoutes);
-router.use('/notifications', notificationRoutes);
-router.use('/messages-ws', messageWsRoutes);
-
-// ─── Routes publiques : languages et levels (pas de token requis) ────────────
-router.use('/levels',    levelRoutes);
+// ─── Route publique (aucun token requis) ─────────────────────────────────────
 router.use('/languages', languageRoutes);
+
+// ─── Routes nécessitant authentification seule (token, sans abonnement) ───────
+router.use('/auth',               authRoutes);
+router.use('/subscription-plans', authMiddleware, subscriptionPlanRoutes);
+router.use('/subscriptions',      authMiddleware, subscriptionRoutes);
+router.use('/uploads',            authMiddleware, uploadRoutes);
+router.use('/admin',              authMiddleware, adminDashboardRoutes);
+router.use('/users',              authMiddleware, userRoutes);
+router.use('/notifications',      authMiddleware, notificationRoutes);
+router.use('/messages-ws',        authMiddleware, messageWsRoutes);
+router.use('/levels',             authMiddleware, levelRoutes);
+router.use('/discover',           authMiddleware, discoverRoutes);
 
 // ─── Routes nécessitant authentification + abonnement actif ───────────────────
 router.use('/modules',       authMiddleware, requireSubscription, moduleRoutes);
@@ -54,7 +53,6 @@ router.use('/exercises',     authMiddleware, requireSubscription, exerciseRoutes
 router.use('/courses',       authMiddleware, requireSubscription, courseRoutes);
 router.use('/step-quizzes',  authMiddleware, requireSubscription, stepQuizRoutes);
 router.use('/learning-paths',authMiddleware, requireSubscription, learningPathsRoutes);
-router.use('/discover',      authMiddleware, requireSubscription, discoverRoutes);
 router.use('/evaluation',    authMiddleware, requireSubscription, evaluationRoutes);
 router.use('/progression',   authMiddleware, requireSubscription, progressionRoutes);
 router.use('/gamification',  authMiddleware, requireSubscription, gamificationRoutes);
