@@ -4,9 +4,16 @@ const fs = require('fs');
 const { parseStringPromise } = require('xml2js');
 
 function getAgent() {
+  const certPath = process.env.OM_CERT_PATH;
+  const keyPath  = process.env.OM_KEY_PATH;
+
+  if (!certPath || !keyPath || !fs.existsSync(certPath) || !fs.existsSync(keyPath)) {
+    throw new Error('Certificats SSL Orange Money introuvables. Vérifiez OM_CERT_PATH et OM_KEY_PATH dans .env');
+  }
+
   return new https.Agent({
-    cert: fs.readFileSync(process.env.OM_CERT_PATH),
-    key:  fs.readFileSync(process.env.OM_KEY_PATH),
+    cert: fs.readFileSync(certPath),
+    key:  fs.readFileSync(keyPath),
     rejectUnauthorized: true,
   });
 }
