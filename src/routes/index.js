@@ -50,8 +50,10 @@ router.use('/levels',             authMiddleware, levelRoutes);
 router.use('/payment',            authMiddleware, paymentRoutes);
 router.use('/transactions',       authMiddleware, transactionRoutes);
 
+// ─── Modules : visibles sans abonnement, mais parcours bloqués ───────────────
+router.use('/modules',       authMiddleware, moduleRoutes);
+
 // ─── Routes nécessitant authentification + abonnement actif ───────────────────
-router.use('/modules',       authMiddleware, requireSubscription, moduleRoutes);
 router.use('/steps',         authMiddleware, requireSubscription, stepRoutes);
 router.use('/exercises',     authMiddleware, requireSubscription, exerciseRoutes);
 router.use('/courses',       authMiddleware, requireSubscription, courseRoutes);
@@ -67,7 +69,7 @@ router.post('/users/:userId/languages/:languageId/select',   languageController.
 router.get('/users/:userId/levels',                          levelController.getByUserId);
 router.post('/users/:userId/levels/:levelId/select',         levelController.selectLevel);
 
-router.get('/users/:userId/modules',                            authMiddleware, requireSubscription, moduleController.getByUserId);
+router.get('/users/:userId/modules',                            authMiddleware, moduleController.getByUserId);
 router.post('/users/:userId/modules/:moduleId/start',           authMiddleware, requireSubscription, moduleController.startModule);
 router.post('/users/:userId/modules/:moduleId/complete',        authMiddleware, requireSubscription, moduleController.completeModule);
 
