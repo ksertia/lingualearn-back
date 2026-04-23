@@ -1,5 +1,5 @@
 const service = require('./subscription.service');
-const { createSubscriptionSchema } = require('./subscription.schema');
+const { createSubscriptionSchema, updateSubscriptionSchema } = require('./subscription.schema');
 
 async function create(req, res, next) {
   try {
@@ -33,9 +33,10 @@ async function getById(req, res, next) {
 
 async function update(req, res, next) {
   try {
-    const { error, value } = createSubscriptionSchema.validate(req.body);
+    const { error, value } = updateSubscriptionSchema.validate(req.body);
     if (error) return res.status(400).json({ error: error.details[0].message });
     const subscription = await service.updateSubscription(req.params.id, value);
+    if (!subscription) return res.status(404).json({ error: 'Subscription not found' });
     res.json(subscription);
   } catch (err) {
     next(err);
@@ -44,17 +45,12 @@ async function update(req, res, next) {
 
 async function remove(req, res, next) {
   try {
-    await service.deleteSubscription(req.params.id);
+    const deleted = await service.deleteSubscription(req.params.id);
+    if (!deleted) return res.status(404).json({ error: 'Subscription not found' });
     res.status(204).send();
   } catch (err) {
     next(err);
   }
 }
 
-module.exports = {
-  create,
-  getAll,
-  getById,
-  update,
-  remove
-};
+module.exports = { create, getAll, getById, update, remove };

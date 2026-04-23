@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 
+const { authMiddleware } = require('../middleware/authMiddleware');
+const { requireSubscription } = require('../middleware/requireSubscription');
+
 const adminDashboardRoutes = require('../modules/admin_dashboard/admin_dashboard.routes');
 const authRoutes = require('../modules/auth/auth.routes');
 const userRoutes = require('../modules/user/user.routes');
@@ -16,7 +19,7 @@ const messageWsRoutes = require('../modules/message_ws/message_ws.routes');
 const gamificationRoutes = require('../modules/gamification/gamification.routes');
 const notificationRoutes = require('../modules/notification/notification.routes');
 const moduleRoutes = require('../modules/module/module.routes');
-const languageRoutes = require('../modules/language/language.routes');  
+const languageRoutes = require('../modules/language/language.routes');
 const discoverRoutes = require('../modules/discover/discover.routes');
 const evaluationRoutes = require('../modules/evaluation/evaluation.routes');
 const progressionRoutes = require('../modules/progression/progression.routes');
@@ -28,68 +31,60 @@ const stepController = require('../modules/step/step.controller');
 const learningPathController = require('../modules/learning_path/learning.path.controller');
 const courseController = require('../modules/course/course.controller');
 
-
-// Mounting module routes
-router.use('/notifications', notificationRoutes);
-router.use('/admin', adminDashboardRoutes);
-router.use('/levels', levelRoutes);
-router.use('/steps', stepRoutes);
-router.use('/exercises', exerciseRoutes);
-router.use('/courses', courseRoutes);
-router.use('/uploads', uploadRoutes);
-router.use('/step-quizzes', stepQuizRoutes);
-router.use('/subscription-plans', subscriptionPlanRoutes);
-router.use('/subscriptions', subscriptionRoutes);
-router.use('/messages-ws', messageWsRoutes);
-router.use('/gamification', gamificationRoutes);
+// ─── Routes publiques / sans abonnement ───────────────────────────────────────
 router.use('/auth', authRoutes);
+router.use('/subscription-plans', subscriptionPlanRoutes);
+router.use('/uploads', uploadRoutes);
+router.use('/admin', adminDashboardRoutes);
+
+// ─── Routes nécessitant authentification seule (pas d'abonnement requis) ──────
 router.use('/users', userRoutes);
-router.use('/learning-paths', learningPathsRoutes);
-router.use('/modules', moduleRoutes);
+router.use('/subscriptions', subscriptionRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/messages-ws', messageWsRoutes);
 
-router.use('/languages', languageRoutes);
-router.use('/discover', discoverRoutes);
-router.use('/evaluation', evaluationRoutes);
-router.use('/progression', progressionRoutes);
+// ─── Routes nécessitant authentification + abonnement actif ───────────────────
+router.use('/levels',        authMiddleware, requireSubscription, levelRoutes);
+router.use('/modules',       authMiddleware, requireSubscription, moduleRoutes);
+router.use('/steps',         authMiddleware, requireSubscription, stepRoutes);
+router.use('/exercises',     authMiddleware, requireSubscription, exerciseRoutes);
+router.use('/courses',       authMiddleware, requireSubscription, courseRoutes);
+router.use('/step-quizzes',  authMiddleware, requireSubscription, stepQuizRoutes);
+router.use('/learning-paths',authMiddleware, requireSubscription, learningPathsRoutes);
+router.use('/languages',     authMiddleware, requireSubscription, languageRoutes);
+router.use('/discover',      authMiddleware, requireSubscription, discoverRoutes);
+router.use('/evaluation',    authMiddleware, requireSubscription, evaluationRoutes);
+router.use('/progression',   authMiddleware, requireSubscription, progressionRoutes);
+router.use('/gamification',  authMiddleware, requireSubscription, gamificationRoutes);
 
-// User language and level selection routes (mounted under /api/v1)
-router.get('/users/:userId/languages', languageController.getByUserId);
-router.post('/users/:userId/languages/:languageId/select', languageController.selectLanguage);
-router.get('/users/:userId/levels', levelController.getByUserId);
-router.post('/users/:userId/levels/:levelId/select', levelController.selectLevel);
+// ─── Routes utilisateur avec abonnement (progression individuelle) ─────────────
+router.get('/users/:userId/languages',                          authMiddleware, requireSubscription, languageController.getByUserId);
+router.post('/users/:userId/languages/:languageId/select',      authMiddleware, requireSubscription, languageController.selectLanguage);
+router.get('/users/:userId/levels',                             authMiddleware, requireSubscription, levelController.getByUserId);
+router.post('/users/:userId/levels/:levelId/select',            authMiddleware, requireSubscription, levelController.selectLevel);
 
-// User module progression routes (mounted under /api/v1)
-router.get('/users/:userId/modules', moduleController.getByUserId);
-router.post('/users/:userId/modules/:moduleId/start', moduleController.startModule);
-router.post('/users/:userId/modules/:moduleId/complete', moduleController.completeModule);
+router.get('/users/:userId/modules',                            authMiddleware, requireSubscription, moduleController.getByUserId);
+router.post('/users/:userId/modules/:moduleId/start',           authMiddleware, requireSubscription, moduleController.startModule);
+router.post('/users/:userId/modules/:moduleId/complete',        authMiddleware, requireSubscription, moduleController.completeModule);
 
-// User learning path progression routes (mounted under /api/v1)
-router.get('/users/:userId/learning-paths', learningPathController.getByUserId);
-router.post('/users/:userId/learning-paths/:pathId/start', learningPathController.startPath);
-router.post('/users/:userId/learning-paths/:pathId/complete', learningPathController.completePath);
+router.get('/users/:userId/learning-paths',                     authMiddleware, requireSubscription, learningPathController.getByUserId);
+router.post('/users/:userId/learning-paths/:pathId/start',      authMiddleware, requireSubscription, learningPathController.startPath);
+router.post('/users/:userId/learning-paths/:pathId/complete',   authMiddleware, requireSubscription, learningPathController.completePath);
+router.get('/users/:userId/paths',                              authMiddleware, requireSubscription, learningPathController.getByUserId);
+router.post('/users/:userId/paths/:pathId/start',               authMiddleware, requireSubscription, learningPathController.startPath);
+router.post('/users/:userId/paths/:pathId/complete',            authMiddleware, requireSubscription, learningPathController.completePath);
+router.get('/users/:userId/modules/:moduleId/paths',            authMiddleware, requireSubscription, learningPathController.getPathsByModuleId);
+router.get('/users/:userId/modules/:moduleId/learning-paths',   authMiddleware, requireSubscription, learningPathController.getPathsByModuleId);
 
-// Alias routes pour /paths (raccourci)
-router.get('/users/:userId/paths', learningPathController.getByUserId);
-router.post('/users/:userId/paths/:pathId/start', learningPathController.startPath);
-router.post('/users/:userId/paths/:pathId/complete', learningPathController.completePath);
+router.get('/users/:userId/steps',                              authMiddleware, requireSubscription, stepController.getByUserId);
+router.post('/users/:userId/steps/:stepId/start',               authMiddleware, requireSubscription, stepController.startStep);
+router.post('/users/:userId/steps/:stepId/complete',            authMiddleware, requireSubscription, stepController.completeStep);
+router.get('/users/:userId/paths/:pathId/steps',                authMiddleware, requireSubscription, stepController.getStepsByPathId);
+router.get('/users/:userId/learning-paths/:pathId/steps',       authMiddleware, requireSubscription, stepController.getStepsByPathId);
 
-// Routes pour récupérer les parcours d'un module spécifique
-router.get('/users/:userId/modules/:moduleId/paths', learningPathController.getPathsByModuleId);
-router.get('/users/:userId/modules/:moduleId/learning-paths', learningPathController.getPathsByModuleId);
-
-// User step progression routes (mounted under /api/v1)
-router.get('/users/:userId/steps', stepController.getByUserId);
-router.post('/users/:userId/steps/:stepId/start', stepController.startStep);
-router.post('/users/:userId/steps/:stepId/complete', stepController.completeStep);
-
-// Routes pour récupérer les étapes d'un parcours spécifique
-router.get('/users/:userId/paths/:pathId/steps', stepController.getStepsByPathId);
-router.get('/users/:userId/learning-paths/:pathId/steps', stepController.getStepsByPathId);
-
-// User course progression routes (mounted under /api/v1)
-router.get('/users/:userId/courses', courseController.getCoursesByUserId);
-router.post('/users/:userId/courses/:courseId/start', courseController.startCourse);
-router.post('/users/:userId/courses/:courseId/complete', courseController.completeCourse);
+router.get('/users/:userId/courses',                            authMiddleware, requireSubscription, courseController.getCoursesByUserId);
+router.post('/users/:userId/courses/:courseId/start',           authMiddleware, requireSubscription, courseController.startCourse);
+router.post('/users/:userId/courses/:courseId/complete',        authMiddleware, requireSubscription, courseController.completeCourse);
 
 router.get('/', (req, res) => {
   res.json({
