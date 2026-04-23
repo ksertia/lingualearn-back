@@ -24,6 +24,8 @@ const discoverRoutes = require('../modules/discover/discover.routes');
 const evaluationRoutes = require('../modules/evaluation/evaluation.routes');
 const progressionRoutes = require('../modules/progression/progression.routes');
 const uploadRoutes = require('../modules/upload/upload.routes');
+const paymentRoutes = require('../modules/payment/payment.routes');
+const transactionRoutes = require('../modules/transaction/transaction.routes');
 const languageController = require('../modules/language/language.controller');
 const levelController = require('../modules/Level/Level.controller');
 const moduleController = require('../modules/module/module.controller');
@@ -45,6 +47,8 @@ router.use('/users',              authMiddleware, userRoutes);
 router.use('/notifications',      authMiddleware, notificationRoutes);
 router.use('/messages-ws',        authMiddleware, messageWsRoutes);
 router.use('/levels',             authMiddleware, levelRoutes);
+router.use('/payment',            authMiddleware, paymentRoutes);
+router.use('/transactions',       authMiddleware, transactionRoutes);
 
 // ─── Routes nécessitant authentification + abonnement actif ───────────────────
 router.use('/modules',       authMiddleware, requireSubscription, moduleRoutes);
