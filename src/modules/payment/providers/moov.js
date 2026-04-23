@@ -8,27 +8,35 @@ const getUrl = () => process.env.MOOV_URL;
 
 // Étape 1 — Envoyer l'OTP au client (SMS automatique)
 async function sendOtp({ transactionId, phoneNumber, amount }) {
-  const response = await axios.post(getUrl(), {
-    'request-id': transactionId,
-    destination:  phoneNumber,
-    amount:       String(amount),
-    remarks:      'OTP Merchant',
-    'extended-data': { module: 'MERCHOTPPAY' },
-  }, {
-    auth,
-    headers: {
-      'Content-Type': 'application/json',
-      'command-id':   'process-create-mror-otp',
-    },
-    timeout: 30000,
-  });
+  let response;
+  try {
+    response = await axios.post(getUrl(), {
+      'request-id': transactionId,
+      destination:  phoneNumber,
+      amount:       String(amount),
+      remarks:      'OTP Merchant',
+      'extended-data': { module: 'MERCHOTPPAY' },
+    }, {
+      auth,
+      headers: {
+        'Content-Type': 'application/json',
+        'command-id':   'process-create-mror-otp',
+      },
+      timeout: 30000,
+    });
+  } catch (err) {
+    const body = err.response?.data;
+    console.error('[Moov sendOtp] HTTP', err.response?.status, JSON.stringify(body));
+    throw new Error(body?.message || body?.description || `HTTP ${err.response?.status}`);
+  }
 
   const { status, message } = response.data;
+  console.log('[Moov sendOtp] response:', JSON.stringify(response.data));
+
   if (status !== '0' && status !== 0) {
     throw new Error(message || 'Moov Money: envoi OTP échoué');
   }
 
-  // trans-id Moov à conserver pour l'étape de confirmation
   return {
     moovTransId: response.data['trans-id'],
     raw: response.data,
