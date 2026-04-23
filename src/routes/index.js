@@ -31,8 +31,9 @@ const stepController = require('../modules/step/step.controller');
 const learningPathController = require('../modules/learning_path/learning.path.controller');
 const courseController = require('../modules/course/course.controller');
 
-// ─── Route publique (aucun token requis) ─────────────────────────────────────
+// ─── Routes publiques (aucun token requis) ────────────────────────────────────
 router.use('/languages', languageRoutes);
+router.use('/discover',  discoverRoutes);
 
 // ─── Routes nécessitant authentification seule (token, sans abonnement) ───────
 router.use('/auth',               authRoutes);
@@ -44,7 +45,6 @@ router.use('/users',              authMiddleware, userRoutes);
 router.use('/notifications',      authMiddleware, notificationRoutes);
 router.use('/messages-ws',        authMiddleware, messageWsRoutes);
 router.use('/levels',             authMiddleware, levelRoutes);
-router.use('/discover',           authMiddleware, discoverRoutes);
 
 // ─── Routes nécessitant authentification + abonnement actif ───────────────────
 router.use('/modules',       authMiddleware, requireSubscription, moduleRoutes);
