@@ -15,6 +15,7 @@ const ensureUserActiveDefaults = require('./middleware/ensureUserActiveDefaults'
 const { appConfig } = require('./config/appConfig');
 const swaggerSpec = require('./config/swagger');
 const router = require('./routes');
+require('./utils/cron');
 
 const app = express();
 
