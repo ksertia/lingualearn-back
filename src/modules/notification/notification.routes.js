@@ -6,25 +6,78 @@ const router = express.Router();
  * @swagger
  * tags:
  *   name: Notifications
- *   description: Gestion des notifications (REST + WebSocket)
+ *   description: Notifications in-app + Push FCM (Flutter)
  */
 
 /**
  * @swagger
- * /api/v1/notifications:
+ * /api/v1/notifications/device-token:
  *   post:
- *     summary: Créer une notification (envoie aussi via WebSocket)
+ *     summary: Enregistrer un device token FCM (Flutter)
+ *     description: À appeler au démarrage de l'app Flutter pour activer les push notifications.
  *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - userId
- *               - title
- *               - message
+ *             required: [token]
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 example: "fcm_token_ici"
+ *               platform:
+ *                 type: string
+ *                 enum: [android, ios]
+ *                 default: android
+ *     responses:
+ *       201:
+ *         description: Token enregistré
+ */
+router.post('/device-token', controller.registerToken);
+
+/**
+ * @swagger
+ * /api/v1/notifications/device-token:
+ *   delete:
+ *     summary: Supprimer un device token (déconnexion)
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [token]
+ *             properties:
+ *               token:
+ *                 type: string
+ *     responses:
+ *       204:
+ *         description: Token supprimé
+ */
+router.delete('/device-token', controller.removeToken);
+
+/**
+ * @swagger
+ * /api/v1/notifications:
+ *   post:
+ *     summary: Créer et envoyer une notification (WebSocket + Push FCM)
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [userId, title, message]
  *             properties:
  *               userId:
  *                 type: string
@@ -34,17 +87,12 @@ const router = express.Router();
  *                 type: string
  *               notificationType:
  *                 type: string
- *               iconUrl:
- *                 type: string
+ *                 example: info
  *               actionUrl:
  *                 type: string
- *               isRead:
- *                 type: boolean
  *     responses:
  *       201:
- *         description: Notification créée
- *       400:
- *         description: Données invalides
+ *         description: Notification créée et envoyée
  */
 router.post('/', controller.create);
 
@@ -52,17 +100,29 @@ router.post('/', controller.create);
  * @swagger
  * /api/v1/notifications/user/{userId}:
  *   get:
- *     summary: Récupérer les notifications d'un utilisateur
+ *     summary: Notifications d'un utilisateur (paginées)
  *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: userId
  *         required: true
  *         schema:
  *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
  *     responses:
  *       200:
- *         description: Liste des notifications
+ *         description: Liste paginée avec unreadCount
  */
 router.get('/user/:userId', controller.getUserNotifications);
 
@@ -72,6 +132,8 @@ router.get('/user/:userId', controller.getUserNotifications);
  *   put:
  *     summary: Marquer une notification comme lue
  *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -86,10 +148,32 @@ router.put('/:id/read', controller.markAsRead);
 
 /**
  * @swagger
+ * /api/v1/notifications/user/{userId}/read-all:
+ *   put:
+ *     summary: Marquer toutes les notifications comme lues
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Toutes marquées comme lues
+ */
+router.put('/user/:userId/read-all', controller.markAllAsRead);
+
+/**
+ * @swagger
  * /api/v1/notifications/{id}:
  *   delete:
  *     summary: Supprimer une notification
  *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -98,7 +182,7 @@ router.put('/:id/read', controller.markAsRead);
  *           type: string
  *     responses:
  *       204:
- *         description: Notification supprimée
+ *         description: Supprimée
  */
 router.delete('/:id', controller.remove);
 

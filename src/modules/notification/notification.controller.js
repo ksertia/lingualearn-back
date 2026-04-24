@@ -1,15 +1,18 @@
 const service = require('./notification.service');
 const { createNotificationSchema } = require('./notification.schema');
+const Joi = require('joi');
+
+const deviceTokenSchema = Joi.object({
+  token:    Joi.string().required(),
+  platform: Joi.string().valid('android', 'ios').default('android'),
+});
 
 async function create(req, res, next) {
   try {
     const { error, value } = createNotificationSchema.validate(req.body);
     if (error) return res.status(400).json({ error: error.details[0].message });
     const notification = await service.createNotification(value);
-    // WebSocket: notifier le client ici (voir ws.js)
-    if (req.io) {
-      req.io.to(value.userId).emit('notification', notification);
-    }
+    if (req.io) req.io.to(value.userId).emit('notification', notification);
     res.status(201).json(notification);
   } catch (err) {
     next(err);
@@ -18,8 +21,10 @@ async function create(req, res, next) {
 
 async function getUserNotifications(req, res, next) {
   try {
-    const notifications = await service.getUserNotifications(req.params.userId);
-    res.json(notifications);
+    const page  = parseInt(req.query.page)  || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const result = await service.getUserNotifications(req.params.userId, { page, limit });
+    res.json(result);
   } catch (err) {
     next(err);
   }
@@ -34,6 +39,15 @@ async function markAsRead(req, res, next) {
   }
 }
 
+async function markAllAsRead(req, res, next) {
+  try {
+    await service.markAllAsRead(req.params.userId);
+    res.json({ message: 'Toutes les notifications marquées comme lues.' });
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function remove(req, res, next) {
   try {
     await service.deleteNotification(req.params.id);
@@ -43,9 +57,26 @@ async function remove(req, res, next) {
   }
 }
 
-module.exports = {
-  create,
-  getUserNotifications,
-  markAsRead,
-  remove
-};
+async function registerToken(req, res, next) {
+  try {
+    const { error, value } = deviceTokenSchema.validate(req.body);
+    if (error) return res.status(400).json({ error: error.details[0].message });
+    const dt = await service.registerDeviceToken(req.user.id, value.token, value.platform);
+    res.status(201).json(dt);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function removeToken(req, res, next) {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: 'token requis' });
+    await service.removeDeviceToken(req.user.id, token);
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { create, getUserNotifications, markAsRead, markAllAsRead, remove, registerToken, removeToken };

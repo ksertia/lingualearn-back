@@ -16,6 +16,7 @@ const { appConfig } = require('./config/appConfig');
 const swaggerSpec = require('./config/swagger');
 const router = require('./routes');
 require('./utils/cron');
+require('./config/firebase');
 
 const app = express();
 
@@ -84,6 +85,15 @@ app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
 app.get('/api-docs/swagger.json', (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.send(swaggerSpec);
+});
+
+// =====================
+// Injecter io dans req pour les controllers
+// =====================
+const { getIo } = require('./ws');
+app.use((req, res, next) => {
+  req.io = getIo();
+  next();
 });
 
 // =====================
