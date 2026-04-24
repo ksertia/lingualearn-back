@@ -55,8 +55,9 @@ async function remove(req, res, next) {
 
 async function myStatus(req, res, next) {
   try {
-    const userId = req.user.id;
-    const status = await service.getMyStatus(userId);
+    const { id, accountType, parentId } = req.user;
+    const ownerId = (accountType === 'sub_account_learner' && parentId) ? parentId : id;
+    const status = await service.getMyStatus(ownerId);
     res.json(status);
   } catch (err) {
     next(err);
