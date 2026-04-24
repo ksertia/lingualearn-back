@@ -1,11 +1,5 @@
 const service = require('./notification.service');
 const { createNotificationSchema } = require('./notification.schema');
-const Joi = require('joi');
-
-const deviceTokenSchema = Joi.object({
-  token:    Joi.string().required(),
-  platform: Joi.string().valid('android', 'ios').default('android'),
-});
 
 async function create(req, res, next) {
   try {
@@ -57,26 +51,4 @@ async function remove(req, res, next) {
   }
 }
 
-async function registerToken(req, res, next) {
-  try {
-    const { error, value } = deviceTokenSchema.validate(req.body);
-    if (error) return res.status(400).json({ error: error.details[0].message });
-    const dt = await service.registerDeviceToken(req.user.id, value.token, value.platform);
-    res.status(201).json(dt);
-  } catch (err) {
-    next(err);
-  }
-}
-
-async function removeToken(req, res, next) {
-  try {
-    const { token } = req.body;
-    if (!token) return res.status(400).json({ error: 'token requis' });
-    await service.removeDeviceToken(req.user.id, token);
-    res.status(204).send();
-  } catch (err) {
-    next(err);
-  }
-}
-
-module.exports = { create, getUserNotifications, markAsRead, markAllAsRead, remove, registerToken, removeToken };
+module.exports = { create, getUserNotifications, markAsRead, markAllAsRead, remove };
