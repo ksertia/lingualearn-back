@@ -51,8 +51,18 @@ async function getSubscriptionById(id) {
 }
 
 async function getMyStatus(userId) {
+  // Si c'est un sous-compte, remonter au parent
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { accountType: true, parentId: true },
+  });
+
+  const ownerId = (user?.accountType === 'sub_account_learner' && user?.parentId)
+    ? user.parentId
+    : userId;
+
   const subscription = await prisma.subscription.findFirst({
-    where: { userId },
+    where: { userId: ownerId },
     include: { plan: true },
     orderBy: { createdAt: 'desc' },
   });
