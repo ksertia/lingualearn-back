@@ -16,17 +16,14 @@ async function resolveActiveSubscription(user) {
   let ownerId = user.id;
 
   if (user.accountType === 'sub_account_learner') {
-    // Récupérer le parentId du sous-compte
-    const subAccount = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { parentId: true },
-    });
+    // parentId disponible directement depuis req.user (chargé par authMiddleware)
+    const parentId = user.parentId;
 
-    if (!subAccount?.parentId) {
+    if (!parentId) {
       throw new AppError(403, 'Sous-compte sans parent associé.');
     }
 
-    ownerId = subAccount.parentId;
+    ownerId = parentId;
   }
 
   const subscription = await prisma.subscription.findUnique({

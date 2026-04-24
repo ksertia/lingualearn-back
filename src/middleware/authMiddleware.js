@@ -27,6 +27,7 @@ const authMiddleware = async (req, res, next) => {
                 phone: true,
                 username: true,
                 accountType: true,
+                parentId: true,
                 isVerified: true,
                 isActive: true,
                 lastLogin: true
