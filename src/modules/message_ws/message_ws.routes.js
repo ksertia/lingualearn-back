@@ -6,21 +6,7 @@ const router = express.Router();
  * @swagger
  * tags:
  *   name: Messages
- *   description: |
- *     Messagerie temps réel — WebSocket + REST.
- *
- *     **Scénario plateforme :**
- *
- *     1. Apprenant envoie un message à l'admin : `POST /messages-ws`
- *     2. Admin consulte toutes les conversations : `GET /messages-ws/conversations`
- *     3. Admin répond à l'apprenant : `POST /messages-ws`
- *     4. Apprenant ouvre l'historique : `GET /messages-ws/conversation?userA=&userB=`
- *     5. Apprenant marque les messages comme lus : `PUT /messages-ws/read`
- *
- *     **Temps réel (Socket.IO) :**
- *     - Connexion avec token JWT dans `socket.handshake.auth.token`.
- *     - Chaque utilisateur rejoint une room avec son propre `userId`.
- *     - Événements : `send_message`, `receive_message`, `typing`, `stop_typing`, `mark_read`, `messages_read`.
+ *   description: Messagerie temps réel — WebSocket + REST
  */
 
 /**
