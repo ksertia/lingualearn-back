@@ -32,8 +32,8 @@ async function getConversation(req, res, next) {
 
 async function getConversations(req, res, next) {
   try {
-    const userId = req.user.id;
-    const conversations = await service.getConversations(userId);
+    const { id: userId, accountType } = req.user;
+    const conversations = await service.getConversations(userId, accountType);
     res.json(conversations);
   } catch (err) {
     next(err);
