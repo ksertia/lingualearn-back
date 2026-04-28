@@ -99,7 +99,7 @@ class AuthService {
         return {
             success: true,
             message: 'User registered successfully',
-            username: generatedUsername,
+            username: user.username,
             email: user.email
         };
     }
