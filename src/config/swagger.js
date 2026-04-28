@@ -310,6 +310,10 @@ const options = {
         name: 'Progression',
         description: 'Gestion de la progression utilisateur - déblocage automatique, complétion, statistiques'
       },
+      {
+        name: 'AppSettings',
+        description: 'Paramètres globaux de la plateforme — durée du trial, etc. (admin uniquement)'
+      },
     //   {
     //     name: 'Authentication',
     //     description: 'Endpoints d\'authentification (inscription, connexion, etc.)',
@@ -434,6 +438,7 @@ const options = {
     './src/modules/evaluation/evaluation.routes.js',
     './src/modules/discover/discover.routes.js',
     './src/modules/progression/progression.routes.js',
+    './src/modules/app_setting/app_setting.routes.js',
   ],
 };
 

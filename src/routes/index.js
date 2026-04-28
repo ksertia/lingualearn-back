@@ -5,6 +5,7 @@ const { authMiddleware } = require('../middleware/authMiddleware');
 const { requireSubscription } = require('../middleware/requireSubscription');
 
 const adminDashboardRoutes = require('../modules/admin_dashboard/admin_dashboard.routes');
+const appSettingRoutes = require('../modules/app_setting/app_setting.routes');
 const authRoutes = require('../modules/auth/auth.routes');
 const userRoutes = require('../modules/user/user.routes');
 const learningPathsRoutes = require('../modules/learning_path/learning.path.routes');
@@ -43,6 +44,7 @@ router.use('/subscription-plans', authMiddleware, subscriptionPlanRoutes);
 router.use('/subscriptions',      authMiddleware, subscriptionRoutes);
 router.use('/uploads',            authMiddleware, uploadRoutes);
 router.use('/admin',              authMiddleware, adminDashboardRoutes);
+router.use('/admin',              authMiddleware, appSettingRoutes);
 router.use('/users',              authMiddleware, userRoutes);
 router.use('/notifications',      authMiddleware, notificationRoutes);
 router.use('/messages-ws',        authMiddleware, messageWsRoutes);

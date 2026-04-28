@@ -176,6 +176,26 @@ class EmailService {
     }
 
     /* =========================
+       BIENVENUE LEARNER (inscription publique)
+    ========================== */
+    async sendWelcomeLearnerEmail(email, username, trialDays = 14) {
+        const html = this.emailTemplate({
+            title: 'Bienvenue sur Tibi !',
+            message: `
+                <p>Votre compte a bien été créé. Vous bénéficiez d'un accès gratuit de <strong>${trialDays} jours</strong> pour découvrir la plateforme.</p>
+                <p>Voici vos informations de connexion :</p>
+                <ul>
+                  <li><strong>Nom d'utilisateur :</strong> <span style="color:#2563eb;">${username}</span></li>
+                </ul>
+                <p>Bonne apprentissage !</p>
+            `,
+            color: '#2563eb',
+            footerNote: 'Pour toute question, contactez notre support.'
+        });
+        return this.sendEmail(email, 'Bienvenue sur Tibi', html);
+    }
+
+    /* =========================
        BIENVENUE & INSCRIPTION ENFANT
     ========================== */
     async sendWelcomeChildEmail(email, username) {

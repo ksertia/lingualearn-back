@@ -43,43 +43,54 @@ class AuthService {
             if (existingPhone) throw new AppError(400, 'A user already exists with this phone number');
         }
 
-        let generatedUsername = username ?? null;
-        if (finalAccountType === 'learner') {
-            const now = new Date();
-            const day = String(now.getDate()).padStart(2, '0');
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const year = now.getFullYear();
-            const baseUsername = `EDU-${day}${month}${year}`;
-            let uniqueUsername = baseUsername;
-            let suffix = 1;
-            while (await prisma.user.findUnique({ where: { username: uniqueUsername } })) {
-                uniqueUsername = `${baseUsername}-${suffix}`;
-                suffix++;
-            }
-            generatedUsername = uniqueUsername;
-        }
-
-        if (generatedUsername) {
-            const existingUsername = await prisma.user.findUnique({ where: { username: generatedUsername } });
-            if (existingUsername) throw new AppError(400, 'Username already taken');
-        }
-
         const passwordHash = await bcrypt.hash(password, 12);
 
-        const user = await prisma.user.create({
-            data: {
-                email,
-                phone,
-                username: generatedUsername,
-                passwordHash,
-                accountType: finalAccountType,
-                profile: { create: { firstName, lastName } }
-            },
-            include: { profile: true }
+        // Créer le user + trial dans une transaction atomique
+        // La génération du username est dans la transaction pour éviter les race conditions
+        const user = await prisma.$transaction(async (tx) => {
+            let finalUsername = username ?? null;
+
+            if (finalAccountType === 'learner') {
+                const now = new Date();
+                const day   = String(now.getDate()).padStart(2, '0');
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const year  = now.getFullYear();
+                const baseUsername = `EDU-${day}${month}${year}`;
+                let uniqueUsername = baseUsername;
+                let suffix = 1;
+                while (await tx.user.findUnique({ where: { username: uniqueUsername } })) {
+                    uniqueUsername = `${baseUsername}-${suffix}`;
+                    suffix++;
+                }
+                finalUsername = uniqueUsername;
+            } else if (finalUsername) {
+                const existing = await tx.user.findUnique({ where: { username: finalUsername } });
+                if (existing) throw new AppError(400, 'Username already taken');
+            }
+
+            const created = await tx.user.create({
+                data: {
+                    email,
+                    phone,
+                    username: finalUsername,
+                    passwordHash,
+                    accountType: finalAccountType,
+                    profile: { create: { firstName, lastName } }
+                },
+                include: { profile: true }
+            });
+
+            if (finalAccountType === 'learner') {
+                await this._createTrialSubscription(created.id, tx);
+            }
+
+            return created;
         });
 
-        if (finalAccountType === 'learner' && email && generatedUsername) {
-            await emailService.sendWelcomeChildEmail(email, generatedUsername);
+        if (finalAccountType === 'learner' && email && user.username) {
+            const setting = await prisma.appSetting.findUnique({ where: { key: 'trial_duration_days' } });
+            const trialDays = setting ? parseInt(setting.value, 10) : 14;
+            await emailService.sendWelcomeLearnerEmail(email, user.username, trialDays);
         }
 
         return {
@@ -706,6 +717,38 @@ class AuthService {
                 codeHash,
                 type,
                 expiresAt: new Date(Date.now() + appConfig.tokens.verificationTokenExpiry * 1000),
+            },
+        });
+    }
+
+    // Créer un abonnement trial pour un nouveau learner
+    async _createTrialSubscription(userId, tx = prisma) {
+        const trialPlan = await tx.subscriptionPlan.findUnique({ where: { planCode: 'TRIAL' } });
+        if (!trialPlan) throw new AppError(500, 'Plan TRIAL introuvable. Contactez un administrateur.');
+
+        const setting = await tx.appSetting.findUnique({ where: { key: 'trial_duration_days' } });
+        const trialDays = setting ? parseInt(setting.value, 10) : 14;
+
+        const now = new Date();
+        const periodEnd = new Date(now);
+        periodEnd.setDate(periodEnd.getDate() + trialDays);
+
+        const subscription = await tx.subscription.create({
+            data: {
+                userId,
+                planId: trialPlan.id,
+                status: 'active',
+                billingCycle: 'trial',
+                currentPeriodStart: now,
+                currentPeriodEnd: periodEnd,
+            },
+        });
+
+        await tx.user.update({
+            where: { id: userId },
+            data: {
+                subscriptionId: subscription.id,
+                subscriptionEndsAt: periodEnd,
             },
         });
     }
