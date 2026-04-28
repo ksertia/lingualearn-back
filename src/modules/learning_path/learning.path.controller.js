@@ -58,7 +58,7 @@ function pickPathFields(body) {
 		title: body.title,
 		description: body.description,
 		index: body.index,
-		tempResaListime: body.tempResaListime,
+		estimatedMinutes: body.estimatedMinutes,
 		thumbnailUrl: body.thumbnailUrl,
 		difficulty: body.difficulty,
 		estimatedHours: body.estimatedHours,
