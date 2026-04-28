@@ -722,18 +722,25 @@ class AuthService {
     }
 
     // Créer un abonnement trial pour un nouveau learner
-    async _createTrialSubscription(userId, tx = prisma) {
-        const trialPlan = await tx.subscriptionPlan.findUnique({ where: { planCode: 'TRIAL' } });
+    async _createTrialSubscription(userId, tx) {
+        // Lectures hors transaction (lecture seule, pas besoin d'atomicité)
+        const [trialPlan, setting] = await Promise.all([
+            prisma.subscriptionPlan.findUnique({ where: { planCode: 'TRIAL' } }),
+            prisma.appSetting.findUnique({ where: { key: 'trial_duration_days' } }),
+        ]);
+
         if (!trialPlan) throw new AppError(500, 'Plan TRIAL introuvable. Contactez un administrateur.');
 
-        const setting = await tx.appSetting.findUnique({ where: { key: 'trial_duration_days' } });
         const trialDays = setting ? parseInt(setting.value, 10) : 14;
 
         const now = new Date();
         const periodEnd = new Date(now);
         periodEnd.setDate(periodEnd.getDate() + trialDays);
 
-        const subscription = await tx.subscription.create({
+        // Écritures dans la transaction
+        const db = tx ?? prisma;
+
+        const subscription = await db.subscription.create({
             data: {
                 userId,
                 planId: trialPlan.id,
@@ -744,7 +751,7 @@ class AuthService {
             },
         });
 
-        await tx.user.update({
+        await db.user.update({
             where: { id: userId },
             data: {
                 subscriptionId: subscription.id,
