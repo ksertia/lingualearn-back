@@ -88,8 +88,11 @@ class AuthService {
         });
 
         if (finalAccountType === 'learner' && email && user.username) {
-            const setting = await prisma.appSetting.findUnique({ where: { key: 'trial_duration_days' } });
-            const trialDays = setting ? parseInt(setting.value, 10) : 14;
+            let trialDays = 14;
+            try {
+                const setting = await prisma.appSetting.findUnique({ where: { key: 'trial_duration_days' } });
+                if (setting) trialDays = parseInt(setting.value, 10);
+            } catch (_) {}
             await emailService.sendWelcomeLearnerEmail(email, user.username, trialDays);
         }
 
