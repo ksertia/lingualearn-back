@@ -153,7 +153,7 @@ async function computeCurrentProgress(userId) {
 async function _computeCurrentProgress(userId) {
     const pct = (val) => Math.round(Number(val ?? 0));
 
-    // Toutes les langues assignées à l'utilisateur
+    // 1 query — all assigned languages
     const allLangs = await prisma.userLanguageProgress.findMany({
         where: { userId },
         orderBy: { lastAccessedAt: 'desc' },
@@ -161,103 +161,142 @@ async function _computeCurrentProgress(userId) {
     });
     if (!allLangs.length) return null;
 
-    const languages = await Promise.all(allLangs.map(async (lp) => {
-        const languageId = lp.languageId;
+    const languageIds = allLangs.map(l => l.languageId);
 
-        // Niveau en cours pour cette langue
-        const currentLevel = await prisma.userLevelProgress.findFirst({
-            where: { userId, status: { in: ['started', 'unlocked'] }, level: { languageId } },
+    // Batch load active level/module/path/step progress for all languages at once
+    const [allLevelProgs, allModuleProgs, allPathProgs, allStepProgs] = await Promise.all([
+        prisma.userLevelProgress.findMany({
+            where: { userId, status: { in: ['started', 'unlocked'] }, level: { languageId: { in: languageIds } } },
             orderBy: { lastAccessedAt: 'desc' },
-            include: { level: { select: { id: true, name: true, code: true } } }
-        });
-        let levelRate = 0, totalModules = 0, completedModules = 0;
-        if (currentLevel) {
-            totalModules = await prisma.module.count({ where: { levelId: currentLevel.levelId } });
-            completedModules = await prisma.userModuleProgress.count({
-                where: { userId, module: { levelId: currentLevel.levelId }, status: 'completed' }
-            });
-            levelRate = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
-        }
-
-        // Module en cours pour cette langue
-        const currentModule = currentLevel ? await prisma.userModuleProgress.findFirst({
-            where: { userId, status: { in: ['started', 'unlocked'] }, module: { levelId: currentLevel.levelId } },
+            include: { level: { select: { id: true, name: true, code: true, languageId: true } } }
+        }),
+        prisma.userModuleProgress.findMany({
+            where: { userId, status: { in: ['started', 'unlocked'] } },
             orderBy: { lastAccessedAt: 'desc' },
-            include: { module: { select: { id: true, title: true } } }
-        }) : null;
-        let moduleRate = 0, totalPaths = 0, completedPaths = 0;
-        if (currentModule) {
-            totalPaths = await prisma.path.count({ where: { moduleId: currentModule.moduleId } });
-            completedPaths = await prisma.userPathProgress.count({
-                where: { userId, path: { moduleId: currentModule.moduleId }, status: 'completed' }
-            });
-            moduleRate = totalPaths > 0 ? Math.round((completedPaths / totalPaths) * 100) : 0;
-        }
-
-        // Parcours en cours pour cette langue
-        const currentPath = currentModule ? await prisma.userPathProgress.findFirst({
-            where: { userId, status: { in: ['started', 'unlocked'] }, path: { moduleId: currentModule.moduleId } },
+            include: { module: { select: { id: true, title: true, levelId: true } } }
+        }),
+        prisma.userPathProgress.findMany({
+            where: { userId, status: { in: ['started', 'unlocked'] } },
             orderBy: { lastAccessedAt: 'desc' },
-            include: { path: { select: { id: true, title: true } } }
-        }) : null;
-        let pathRate = 0, totalSteps = 0, completedSteps = 0;
-        if (currentPath) {
-            totalSteps = await prisma.step.count({ where: { pathId: currentPath.pathId } });
-            completedSteps = await prisma.userStepProgress.count({
-                where: { userId, step: { pathId: currentPath.pathId }, status: 'completed' }
-            });
-            pathRate = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
-        }
-
-        // Étape en cours pour cette langue
-        const currentStep = currentPath ? await prisma.userStepProgress.findFirst({
-            where: { userId, status: { notIn: ['completed'] }, step: { pathId: currentPath.pathId } },
+            include: { path: { select: { id: true, title: true, moduleId: true } } }
+        }),
+        prisma.userStepProgress.findMany({
+            where: { userId, status: { notIn: ['completed'] } },
             orderBy: { updatedAt: 'desc' },
-            include: { step: { select: { id: true, title: true, stepType: true } } }
-        }) : null;
+            include: { step: { select: { id: true, title: true, stepType: true, pathId: true } } }
+        }),
+    ]);
+
+    // Build maps for O(1) lookup per language/level/module/path
+    const levelByLang   = new Map(); // languageId → first active level
+    const moduleByLevel = new Map(); // levelId    → first active module
+    const pathByModule  = new Map(); // moduleId   → first active path
+    const stepByPath    = new Map(); // pathId     → first active step
+
+    for (const lp of allLevelProgs)  if (!levelByLang.has(lp.level.languageId))   levelByLang.set(lp.level.languageId, lp);
+    for (const mp of allModuleProgs) if (!moduleByLevel.has(mp.module.levelId))   moduleByLevel.set(mp.module.levelId, mp);
+    for (const pp of allPathProgs)   if (!pathByModule.has(pp.path.moduleId))     pathByModule.set(pp.path.moduleId, pp);
+    for (const sp of allStepProgs)   if (!stepByPath.has(sp.step.pathId))         stepByPath.set(sp.step.pathId, sp);
+
+    // Collect all IDs we need counts for, then batch-fetch counts
+    const levelIds  = [...new Set(allLevelProgs.map(l => l.levelId))];
+    const moduleIds = [...new Set(allModuleProgs.map(m => m.moduleId))];
+    const pathIds   = [...new Set(allPathProgs.map(p => p.pathId))];
+
+    const [modCountByLevel, completedModByLevel, pathCountByModule, completedPathByModule, stepCountByPath, completedStepByPath] = await Promise.all([
+        // total modules per level
+        prisma.module.groupBy({ by: ['levelId'], where: { levelId: { in: levelIds } }, _count: { id: true } }),
+        // completed modules per level for this user
+        prisma.userModuleProgress.groupBy({ by: ['moduleId'], where: { userId, status: 'completed', module: { levelId: { in: levelIds } } }, _count: { id: true },
+            // we need levelId too — join via module
+        }).then(async rows => {
+            const mods = await prisma.module.findMany({ where: { id: { in: rows.map(r => r.moduleId) } }, select: { id: true, levelId: true } });
+            const levelMap = new Map(mods.map(m => [m.id, m.levelId]));
+            const acc = new Map();
+            for (const r of rows) {
+                const lid = levelMap.get(r.moduleId);
+                if (lid) acc.set(lid, (acc.get(lid) ?? 0) + r._count.id);
+            }
+            return acc;
+        }),
+        // total paths per module
+        prisma.path.groupBy({ by: ['moduleId'], where: { moduleId: { in: moduleIds } }, _count: { id: true } }),
+        // completed paths per module for this user
+        prisma.userPathProgress.groupBy({ by: ['pathId'], where: { userId, status: 'completed', path: { moduleId: { in: moduleIds } } }, _count: { id: true } })
+            .then(async rows => {
+                const paths = await prisma.path.findMany({ where: { id: { in: rows.map(r => r.pathId) } }, select: { id: true, moduleId: true } });
+                const modMap = new Map(paths.map(p => [p.id, p.moduleId]));
+                const acc = new Map();
+                for (const r of rows) {
+                    const mid = modMap.get(r.pathId);
+                    if (mid) acc.set(mid, (acc.get(mid) ?? 0) + r._count.id);
+                }
+                return acc;
+            }),
+        // total steps per path
+        prisma.step.groupBy({ by: ['pathId'], where: { pathId: { in: pathIds } }, _count: { id: true } }),
+        // completed steps per path for this user
+        prisma.userStepProgress.groupBy({ by: ['stepId'], where: { userId, status: 'completed', step: { pathId: { in: pathIds } } }, _count: { id: true } })
+            .then(async rows => {
+                const steps = await prisma.step.findMany({ where: { id: { in: rows.map(r => r.stepId) } }, select: { id: true, pathId: true } });
+                const pathMap = new Map(steps.map(s => [s.id, s.pathId]));
+                const acc = new Map();
+                for (const r of rows) {
+                    const pid = pathMap.get(r.stepId);
+                    if (pid) acc.set(pid, (acc.get(pid) ?? 0) + r._count.id);
+                }
+                return acc;
+            }),
+    ]);
+
+    // Convert groupBy arrays to Maps
+    const totalModMap  = new Map(modCountByLevel.map(r => [r.levelId, r._count.id]));
+    const totalPathMap = new Map(pathCountByModule.map(r => [r.moduleId, r._count.id]));
+    const totalStepMap = new Map(stepCountByPath.map(r => [r.pathId, r._count.id]));
+
+    // Build per-language result from pre-fetched data (zero extra DB queries)
+    const languages = allLangs.map(lp => {
+        const languageId    = lp.languageId;
+        const currentLevel  = levelByLang.get(languageId) || null;
+        const currentModule = currentLevel ? moduleByLevel.get(currentLevel.levelId) || null : null;
+        const currentPath   = currentModule ? pathByModule.get(currentModule.moduleId) || null : null;
+        const currentStep   = currentPath ? stepByPath.get(currentPath.pathId) || null : null;
+
+        const totalModules    = currentLevel  ? (totalModMap.get(currentLevel.levelId)       ?? 0) : 0;
+        const completedMods   = currentLevel  ? (completedModByLevel.get(currentLevel.levelId) ?? 0) : 0;
+        const totalPaths      = currentModule ? (totalPathMap.get(currentModule.moduleId)    ?? 0) : 0;
+        const completedPaths  = currentModule ? (completedPathByModule.get(currentModule.moduleId) ?? 0) : 0;
+        const totalSteps      = currentPath   ? (totalStepMap.get(currentPath.pathId)        ?? 0) : 0;
+        const completedSteps  = currentPath   ? (completedStepByPath.get(currentPath.pathId) ?? 0) : 0;
 
         return {
             language: {
-                id: lp.language.id,
-                name: lp.language.name,
-                code: lp.language.code,
-                flagUrl: lp.language.flagUrl,
-                status: lp.status,
-                progressPercentage: pct(lp.overallProgress),
-                lastAccessedAt: lp.lastAccessedAt,
+                id: lp.language.id, name: lp.language.name, code: lp.language.code, flagUrl: lp.language.flagUrl,
+                status: lp.status, progressPercentage: pct(lp.overallProgress), lastAccessedAt: lp.lastAccessedAt,
             },
             level: currentLevel ? {
-                id: currentLevel.level.id,
-                name: currentLevel.level.name,
-                code: currentLevel.level.code,
-                status: currentLevel.status,
-                totalModules, completedModules,
-                progressPercentage: levelRate,
+                id: currentLevel.level.id, name: currentLevel.level.name, code: currentLevel.level.code,
+                status: currentLevel.status, totalModules, completedModules: completedMods,
+                progressPercentage: totalModules > 0 ? Math.round((completedMods / totalModules) * 100) : 0,
             } : null,
             module: currentModule ? {
-                id: currentModule.module.id,
-                title: currentModule.module.title,
-                status: currentModule.status,
-                totalPaths, completedPaths,
-                progressPercentage: moduleRate,
+                id: currentModule.module.id, title: currentModule.module.title,
+                status: currentModule.status, totalPaths, completedPaths,
+                progressPercentage: totalPaths > 0 ? Math.round((completedPaths / totalPaths) * 100) : 0,
             } : null,
             path: currentPath ? {
-                id: currentPath.path.id,
-                title: currentPath.path.title,
-                status: currentPath.status,
-                totalSteps, completedSteps,
-                progressPercentage: pathRate,
+                id: currentPath.path.id, title: currentPath.path.title,
+                status: currentPath.status, totalSteps, completedSteps,
+                progressPercentage: totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0,
             } : null,
             step: currentStep ? {
-                id: currentStep.step.id,
-                title: currentStep.step.title,
-                stepType: currentStep.step.stepType,
+                id: currentStep.step.id, title: currentStep.step.title, stepType: currentStep.step.stepType,
                 status: currentStep.status,
                 progressPercentage: pct(currentStep.progressPercentage),
                 score: currentStep.score != null ? pct(currentStep.score) : null,
             } : null,
         };
-    }));
+    });
 
     return languages;
 }

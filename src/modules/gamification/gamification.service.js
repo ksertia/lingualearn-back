@@ -278,16 +278,19 @@ async function updateDailyStreak(userId) {
     streakBonus = 5; // Bonus XP pour maintenir le streak
   }
 
-  // Mettre à jour les stats
-  await prisma.userStats.update({
-    where: { userId },
-    data: {
-      currentStreak: newStreak,
-      longestStreak: Math.max(newStreak, stats.longestStreak),
-      totalXp: { increment: streakBonus },
-      totalCoins: { increment: Math.floor(streakBonus / 2) }
-    }
-  });
+  // Mettre à jour les stats + invalider le cache en parallèle
+  await Promise.all([
+    prisma.userStats.update({
+      where: { userId },
+      data: {
+        currentStreak: newStreak,
+        longestStreak: Math.max(newStreak, stats.longestStreak),
+        totalXp: { increment: streakBonus },
+        totalCoins: { increment: Math.floor(streakBonus / 2) }
+      }
+    }),
+    cacheDel(`gamification:user:${userId}:stats`, `gamification:user:${userId}:rank`, 'gamification:leaderboard'),
+  ]);
 
   // Vérifier les badges de streak
   await checkAndAwardBadges(userId);
@@ -302,50 +305,50 @@ async function updateDailyStreak(userId) {
  */
 async function checkAndAwardBadges(userId) {
   const stats = await getOrCreateUserStats(userId);
-  const newBadges = [];
 
-  for (const [key, badgeConfig] of Object.entries(BADGES)) {
-    // Vérifier si le badge est déjà attribué
-    const existingBadge = await prisma.userBadge.findFirst({
-      where: {
-        userId,
-        badge: {
-          badgeKey: badgeConfig.id
-        }
-      }
-    });
+  // 1 requête : tous les badges déjà attribués à l'utilisateur
+  const existingUserBadges = await prisma.userBadge.findMany({
+    where: { userId },
+    include: { badge: { select: { badgeKey: true } } }
+  });
+  const earnedKeys = new Set(existingUserBadges.map(ub => ub.badge.badgeKey));
 
-    if (!existingBadge && badgeConfig.condition(stats)) {
-      // Créer ou récupérer le badge
-      let badge = await prisma.badge.findUnique({
-        where: { badgeKey: badgeConfig.id }
+  // Filtrer les badges à attribuer (condition remplie + pas encore gagné)
+  const toAward = Object.values(BADGES).filter(
+    b => !earnedKeys.has(b.id) && b.condition(stats)
+  );
+  if (toAward.length === 0) return [];
+
+  // 1 requête : récupérer tous les badges DB existants en une fois
+  const badgeKeys = toAward.map(b => b.id);
+  const existingBadges = await prisma.badge.findMany({
+    where: { badgeKey: { in: badgeKeys } }
+  });
+  const badgeMap = new Map(existingBadges.map(b => [b.badgeKey, b]));
+
+  // Créer les badges manquants en DB (upsert groupé)
+  for (const b of toAward) {
+    if (!badgeMap.has(b.id)) {
+      const created = await prisma.badge.create({
+        data: { badgeKey: b.id, name: b.name, description: b.description, icon: b.icon }
       });
-
-      if (!badge) {
-        badge = await prisma.badge.create({
-          data: {
-            badgeKey: badgeConfig.id,
-            name: badgeConfig.name,
-            description: badgeConfig.description,
-            icon: badgeConfig.icon
-          }
-        });
-      }
-
-      // Attribuer le badge à l'utilisateur
-      await prisma.userBadge.create({
-        data: {
-          userId,
-          badgeId: badge.id,
-          earnedAt: new Date()
-        }
-      });
-
-      newBadges.push(badgeConfig);
+      badgeMap.set(b.id, created);
     }
   }
 
-  return newBadges;
+  // 1 createMany : attribuer tous les nouveaux badges en une requête
+  await prisma.userBadge.createMany({
+    data: toAward.map(b => ({
+      userId,
+      badgeId: badgeMap.get(b.id).id,
+      earnedAt: new Date()
+    })),
+    skipDuplicates: true
+  });
+
+  await cacheDel(`gamification:user:${userId}:stats`);
+
+  return toAward;
 }
 
 /**

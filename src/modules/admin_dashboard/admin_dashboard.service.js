@@ -1,132 +1,98 @@
 const { prisma } = require('../../config/prisma');
+const { cacheWrap, cacheDel, TTL } = require('../../utils/cache');
 
-
-async function getDashboardStats(filters = {}) {
-  // Préparation des filtres dynamiques
-  const userWhere = {};
-  if (filters.userType) userWhere.accountType = filters.userType;
-  if (filters.isActive !== undefined) userWhere.isActive = filters.isActive;
-  if (filters.isVerified !== undefined) userWhere.isVerified = filters.isVerified;
-  if (filters.withSubscription) userWhere.subscriptionId = { not: null };
-  if (filters.startDate || filters.endDate) {
-    userWhere.createdAt = {};
-    if (filters.startDate) userWhere.createdAt.gte = new Date(filters.startDate);
-    if (filters.endDate) userWhere.createdAt.lte = new Date(filters.endDate);
-  }
-
-  // Utilisateurs
-  const totalUsers = await prisma.user.count({ where: userWhere });
-  const activeUsers = await prisma.user.count({ where: { ...userWhere, isActive: true } });
-  const verifiedUsers = await prisma.user.count({ where: { ...userWhere, isVerified: true } });
-  const adminUsers = await prisma.user.count({ where: { ...userWhere, accountType: 'admin' } });
-  const subAccounts = await prisma.user.count({ where: { ...userWhere, accountType: 'sub_account' } });
-  const usersWithSubscription = await prisma.user.count({ where: { ...userWhere, subscriptionId: { not: null } } });
-
-  // Parcours
-  const totalLearningPaths = await prisma.learningPath.count();
-  // Niveaux
-  const totalLevels = await prisma.level.count();
-  // Étapes
-  const totalSteps = await prisma.step.count();
-  // Leçons
-  const totalLessons = await prisma.lesson.count();
-  // Exercices
-  const totalExercises = await prisma.exercise.count();
-  // Quiz d'étape
-  const totalStepQuizzes = await prisma.stepQuiz.count();
-
-  return {
-    users: {
-      total: totalUsers,
-      active: activeUsers,
-      verified: verifiedUsers,
-      admin: adminUsers,
-      subAccounts,
-      withSubscription: usersWithSubscription
-    },
-    learningPaths: totalLearningPaths,
-    levels: totalLevels,
-    steps: totalSteps,
-    lessons: totalLessons,
-    exercises: totalExercises,
-    stepQuizzes: totalStepQuizzes
-  };
-}
-
-
-// Fonction utilitaire pour convertir les filtres
-function parseBoolean(value) {
-  if (value === 'true') return true;
-  if (value === 'false') return false;
-  return value; // garde la valeur originale si ce n'est pas "true"/"false"
-}
-
-async function getTotalUsers(filters = {}) {
+function _buildUserWhere(filters = {}) {
   const where = {};
-
-  // Conversion explicite des booléens
-  if (filters.userType) where.accountType = filters.userType;
-  if (filters.isActive !== undefined) where.isActive = parseBoolean(filters.isActive);
-  if (filters.isVerified !== undefined) where.isVerified = parseBoolean(filters.isVerified);
-  if (filters.withSubscription !== undefined) {
-    const withSub = parseBoolean(filters.withSubscription);
-    if (withSub === true) where.subscriptionId = { not: null };
-  }
-  if (filters.startDate || filters.endDate) {
-    where.createdAt = {};
-    if (filters.startDate) where.createdAt.gte = new Date(filters.startDate);
-    if (filters.endDate) where.createdAt.lte = new Date(filters.endDate);
-  }
-
-  return await prisma.user.count({ where });
-}
-
-// Total utilisateurs (avec filtres optionnels)
-async function getTotalUsers(filters = {}) {
-  const where = {};
-  if (filters.userType) where.accountType = filters.userType;
-  if (filters.isActive !== undefined) where.isActive = filters.isActive;
+  if (filters.userType)  where.accountType = filters.userType;
+  if (filters.isActive  !== undefined) where.isActive  = filters.isActive;
   if (filters.isVerified !== undefined) where.isVerified = filters.isVerified;
   if (filters.withSubscription) where.subscriptionId = { not: null };
   if (filters.startDate || filters.endDate) {
     where.createdAt = {};
     if (filters.startDate) where.createdAt.gte = new Date(filters.startDate);
-    if (filters.endDate) where.createdAt.lte = new Date(filters.endDate);
+    if (filters.endDate)   where.createdAt.lte = new Date(filters.endDate);
   }
-  return await prisma.user.count({ where });
+  return where;
 }
 
-// Total des parcours
-async function getTotalLearningPaths() {
-  return await prisma.Path.count();
+// Cache key changes with filters — stable JSON stringify as suffix
+function _dashboardCacheKey(filters) {
+  const suffix = Object.keys(filters).length ? ':' + JSON.stringify(filters) : '';
+  return `admin:dashboard:stats${suffix}`;
 }
 
-// Total des étapes
-async function getTotalSteps() {
-  return await prisma.step.count();
+async function getDashboardStats(filters = {}) {
+  return cacheWrap(_dashboardCacheKey(filters), async () => {
+    const userWhere = _buildUserWhere(filters);
+
+    // All 12 counts run in parallel — single round-trip per query, none sequential
+    const [
+      totalUsers, activeUsers, verifiedUsers, adminUsers, subAccounts, usersWithSubscription,
+      totalLevels, totalSteps, totalLessons, totalExercises,
+      totalPaths, totalModules
+    ] = await Promise.all([
+      prisma.user.count({ where: userWhere }),
+      prisma.user.count({ where: { ...userWhere, isActive: true } }),
+      prisma.user.count({ where: { ...userWhere, isVerified: true } }),
+      prisma.user.count({ where: { ...userWhere, accountType: 'admin' } }),
+      prisma.user.count({ where: { ...userWhere, accountType: 'sub_account' } }),
+      prisma.user.count({ where: { ...userWhere, subscriptionId: { not: null } } }),
+      prisma.level.count(),
+      prisma.step.count(),
+      prisma.lesson.count(),
+      prisma.exercise.count(),
+      prisma.path.count(),
+      prisma.module.count(),
+    ]);
+
+    return {
+      users: { total: totalUsers, active: activeUsers, verified: verifiedUsers, admin: adminUsers, subAccounts, withSubscription: usersWithSubscription },
+      levels: totalLevels,
+      steps: totalSteps,
+      lessons: totalLessons,
+      exercises: totalExercises,
+      paths: totalPaths,
+      modules: totalModules,
+    };
+  }, TTL.MEDIUM);
 }
 
-// Total des leçons
-async function getTotalLessons() {
-  return await prisma.lesson.count();
+// Called externally when users/content are mutated — invalidates all dashboard caches
+async function invalidateDashboardCache() {
+  await cacheDel('admin:dashboard:stats');
 }
 
-// Total des quiz d'étape
-async function getTotalStepQuizzes() {
-  return await prisma.Quiz.count();
+function parseBoolean(value) {
+  if (value === 'true')  return true;
+  if (value === 'false') return false;
+  return value;
 }
 
-// Total des niveaux (optionnel)
-async function getTotalLevels() {
-  return await prisma.level.count();
+async function getTotalUsers(filters = {}) {
+  const where = _buildUserWhere({
+    userType:         filters.userType,
+    isActive:         filters.isActive  !== undefined ? parseBoolean(filters.isActive)  : undefined,
+    isVerified:       filters.isVerified !== undefined ? parseBoolean(filters.isVerified) : undefined,
+    withSubscription: filters.withSubscription,
+    startDate:        filters.startDate,
+    endDate:          filters.endDate,
+  });
+  return prisma.user.count({ where });
 }
+
+async function getTotalLearningPaths() { return prisma.path.count(); }
+async function getTotalSteps()         { return prisma.step.count(); }
+async function getTotalLessons()       { return prisma.lesson.count(); }
+async function getTotalStepQuizzes()   { return prisma.quiz.count(); }
+async function getTotalLevels()        { return prisma.level.count(); }
 
 module.exports = {
   getDashboardStats,
+  invalidateDashboardCache,
   getTotalUsers,
   getTotalLearningPaths,
   getTotalSteps,
   getTotalLessons,
   getTotalStepQuizzes,
-  getTotalLevels 
+  getTotalLevels,
 };

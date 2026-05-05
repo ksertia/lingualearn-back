@@ -1,33 +1,27 @@
-const { redis } = require('../config/redis');
+const { redis, isRedisAvailable } = require('../config/redis');
 const { logger } = require('./logger');
 
 // TTL constants (en secondes)
 const TTL = {
-    SHORT: 60 * 5,        // 5 min  — données utilisateur fréquentes
-    MEDIUM: 60 * 15,      // 15 min — contenu semi-statique
-    LONG: 60 * 60,        // 1h     — contenu statique
-    DAY: 60 * 60 * 24,    // 24h    — référence stable (plans, badges)
+    SHORT:  60 * 5,        // 5 min  — données utilisateur fréquentes
+    MEDIUM: 60 * 15,       // 15 min — contenu semi-statique
+    LONG:   60 * 60,       // 1h     — contenu statique
+    DAY:    60 * 60 * 24,  // 24h    — référence stable (plans, badges)
 };
 
-/**
- * Récupère une valeur depuis Redis.
- * Retourne null si clé absente, Redis indisponible, ou erreur.
- */
 async function cacheGet(key) {
+    if (!isRedisAvailable()) return null;
     try {
         const value = await redis.get(key);
-        if (value === null) return null;
-        return JSON.parse(value);
+        return value === null ? null : JSON.parse(value);
     } catch (err) {
         logger.warn(`cache.get [${key}]: ${err.message}`);
         return null;
     }
 }
 
-/**
- * Stocke une valeur dans Redis avec un TTL.
- */
 async function cacheSet(key, data, ttl = TTL.MEDIUM) {
+    if (!isRedisAvailable()) return;
     try {
         await redis.set(key, JSON.stringify(data), 'EX', ttl);
     } catch (err) {
@@ -35,22 +29,17 @@ async function cacheSet(key, data, ttl = TTL.MEDIUM) {
     }
 }
 
-/**
- * Supprime une ou plusieurs clés.
- */
 async function cacheDel(...keys) {
+    if (!isRedisAvailable() || keys.length === 0) return;
     try {
-        if (keys.length > 0) await redis.del(...keys);
+        await redis.del(...keys);
     } catch (err) {
         logger.warn(`cache.del [${keys.join(',')}]: ${err.message}`);
     }
 }
 
-/**
- * Supprime toutes les clés qui correspondent à un pattern (ex: "user:42:*").
- * Utilise SCAN pour ne pas bloquer Redis.
- */
 async function cacheInvalidatePattern(pattern) {
+    if (!isRedisAvailable()) return;
     try {
         let cursor = '0';
         do {
@@ -63,10 +52,7 @@ async function cacheInvalidatePattern(pattern) {
     }
 }
 
-/**
- * Cache-aside helper : si la clé existe on retourne la valeur,
- * sinon on exécute fn(), on stocke le résultat et on le retourne.
- */
+// Cache-aside : retourne le cache si présent, sinon exécute fn() et met en cache
 async function cacheWrap(key, fn, ttl = TTL.MEDIUM) {
     const cached = await cacheGet(key);
     if (cached !== null) return cached;

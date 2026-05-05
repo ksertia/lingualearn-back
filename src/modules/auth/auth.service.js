@@ -7,6 +7,14 @@ const { AppError } = require('../../middleware/errorHandler');
 const {allowRoles} = require('../../middleware/authMiddleware');
 const { emailService } = require('../../utils/emailService');
 const { logger } = require('../../utils/logger');
+const { cacheGet, cacheSet, cacheDel, TTL } = require('../../utils/cache');
+
+// Recherche utilisateur par loginInfo (email / phone / username) — 1 requête
+async function findUserByLoginInfo(loginInfo, select) {
+    if (loginInfo.includes('@')) return prisma.user.findUnique({ where: { email: loginInfo }, select });
+    if (/^\+?\d+$/.test(loginInfo)) return prisma.user.findFirst({ where: { phone: loginInfo }, select });
+    return prisma.user.findUnique({ where: { username: loginInfo }, select });
+}
 
 class AuthService {
     // ============ INSCRIPTION (publique — learner, admin, teacher, platform_manager) ============
@@ -239,167 +247,104 @@ class AuthService {
     // ============ CONNEXION ============
     async login(data, req) {
         const { loginInfo, password } = data;
-        let user = null;
+
+        // Rate limiting login via Redis (5 tentatives / 15 min par loginInfo)
+        const rateLimitKey = `auth:login:attempts:${loginInfo}`;
+        const attempts = await cacheGet(rateLimitKey) || 0;
+        if (attempts >= 5) throw new AppError(429, 'Too many login attempts. Try again in 15 minutes.');
 
         const userSelect = {
-            id: true,
-            email: true,
-            phone: true,
-            username: true,
-            passwordHash: true,
-            accountType: true,
-            parentId: true,
-            isVerified: true,
-            isActive: true,
-            firstLogin: true,
-            lastLogin: true,
-            languageProgress: {
-                select: {
-                    status: true,
-                    overallProgress: true,
-                    language: { select: { id: true, name: true, code: true, flagUrl: true } }
-                }
-            },
-            levelProgress: {
-                select: {
-                    status: true,
-                    progressPercentage: true,
-                    level: { select: { id: true, name: true, code: true } }
-                }
-            }
+            id: true, email: true, phone: true, username: true, passwordHash: true,
+            accountType: true, parentId: true, isVerified: true, isActive: true,
+            firstLogin: true, lastLogin: true,
+            languageProgress: { select: { status: true, overallProgress: true, language: { select: { id: true, name: true, code: true, flagUrl: true } } } },
+            levelProgress: { select: { status: true, progressPercentage: true, level: { select: { id: true, name: true, code: true } } } }
         };
 
-        if (loginInfo.includes('@')) {
-            user = await prisma.user.findUnique({ where: { email: loginInfo }, select: userSelect });
-        } else if (/^\+?\d+$/.test(loginInfo)) {
-            user = await prisma.user.findFirst({ where: { phone: loginInfo }, select: userSelect });
-        } else {
-            user = await prisma.user.findUnique({ where: { username: loginInfo }, select: userSelect });
-        }
-
-        // Vérifications
+        const user = await findUserByLoginInfo(loginInfo, userSelect);
 
         if (!user) {
-            await this.logLoginAttempt(loginInfo, null, false);
+            await Promise.all([
+                cacheSet(rateLimitKey, attempts + 1, 15 * 60),
+                this.logLoginAttempt(loginInfo, null, false)
+            ]);
             throw new AppError(401, 'Invalid credentials');
         }
 
         if (!user.isActive) {
-            await this.logLoginAttempt(loginInfo, user.id, false);
+            this.logLoginAttempt(loginInfo, user.id, false).catch(() => {});
             throw new AppError(401, 'Your account is not active');
         }
 
         if (!user.isVerified) {
-            await this.logLoginAttempt(loginInfo, user.id, false);
+            this.logLoginAttempt(loginInfo, user.id, false).catch(() => {});
             throw new AppError(401, 'Your account is not verified. Please check your email for the activation code.');
         }
 
-        // Vérifier le mot de passe
         const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
         if (!isPasswordValid) {
-            await this.logLoginAttempt(loginInfo, user.id, false);
+            await Promise.all([
+                cacheSet(rateLimitKey, attempts + 1, 15 * 60),
+                this.logLoginAttempt(loginInfo, user.id, false)
+            ]);
             throw new AppError(401, 'Invalid credentials');
         }
 
-        // Vérifier la première connexion
-        let firstLogin = user.firstLogin;
-        if (firstLogin) {
-            // Mettre à jour le flag firstLogin à false
-            await prisma.user.update({
-                where: { id: user.id },
-                data: { firstLogin: false, lastLogin: new Date(), lastActive: new Date() },
-            });
-        } else {
-            await prisma.user.update({
-                where: { id: user.id },
-                data: { lastLogin: new Date(), lastActive: new Date() },
-            });
-        }
-
-        // Générer les tokens
-        const tokens = await this.generateTokens(user.id, user.accountType);
-        
-
-        // Créer une session
-        await this.createSession(user.id, req);
+        // Reset rate limit + MAJ lastLogin + génération tokens + session — en parallèle
+        const firstLogin = user.firstLogin;
+        const [tokens] = await Promise.all([
+            this.generateTokens(user.id, user.accountType),
+            cacheDel(rateLimitKey),
+            prisma.user.update({ where: { id: user.id }, data: { firstLogin: false, lastLogin: new Date(), lastActive: new Date() } }),
+            this.createSession(user.id, req),
+            this.logLoginAttempt(loginInfo, user.id, true),
+            // Invalider le cache profil utilisateur
+            cacheDel(`user:${user.id}:current`, `user:${user.id}:base`),
+        ]);
 
         const { passwordHash, ...userWithoutPassword } = user;
-
-        await this.logLoginAttempt(loginInfo, user.id, true);
-
-        return {
-            user: { ...userWithoutPassword, firstLogin },
-            tokens,
-        };
+        return { user: { ...userWithoutPassword, firstLogin }, tokens };
     }
 
     // ============ MOT DE PASSE OUBLIÉ ============
     async forgotPassword(loginInfo) {
-        let user;
+        // Rate limiting via Redis — évite la requête DB inutile
+        const rateLimitKey = `auth:otp:${loginInfo}`;
+        const otpCount = await cacheGet(rateLimitKey) || 0;
+        if (otpCount >= 3) throw new AppError(429, 'Too many reset requests. Try again later.');
 
-        if (loginInfo.includes('@')) {
-            user = await prisma.user.findUnique({ where: { email: loginInfo } });
-        } else if (/^\+?\d+$/.test(loginInfo)) {
-            user = await prisma.user.findFirst({ where: { phone: loginInfo } });
-        } else {
-            user = await prisma.user.findUnique({ where: { username: loginInfo } });
-        }
+        const user = await findUserByLoginInfo(loginInfo, { id: true, email: true, phone: true });
 
-        // Toujours réponse générique (sécurité)
-        if (!user) {
-            return { success: true, message: 'If an account exists, a code has been sent' };
-        }
+        // Réponse générique (sécurité — ne pas révéler si le compte existe)
+        if (!user) return { success: true, message: 'If an account exists, a code has been sent' };
 
-        const MAX_REQUESTS_PER_HOUR = 3;
         const OTP_EXPIRATION_MINUTES = 5;
-
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-
-        const requestCount = await prisma.verificationCode.count({
-            where: {
-                userId: user.id,
-                type: "RESET_PASSWORD",
-                createdAt: { gte: oneHourAgo }
-            }
-        });
-
-        if (requestCount >= MAX_REQUESTS_PER_HOUR) {
-            throw new AppError(429, 'Too many reset requests. Try again later.');
-        }
-
-        // Générer OTP 6 chiffres
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + OTP_EXPIRATION_MINUTES * 60 * 1000);
+
+        // Stocker l'OTP haché dans Redis (évite une requête DB à chaque vérification)
+        // Format : { hash, expiresAt, attempts }
         const codeHash = await bcrypt.hash(otp, 10);
+        await cacheSet(`auth:otp:code:${user.id}`, { hash: codeHash, expiresAt: expiresAt.getTime(), attempts: 0 }, OTP_EXPIRATION_MINUTES * 60);
 
-        const expiresAt = new Date(
-            Date.now() + OTP_EXPIRATION_MINUTES * 60 * 1000
-        );
+        // Incrémenter le compteur rate limit
+        await cacheSet(rateLimitKey, otpCount + 1, 60 * 60);
 
-        // Supprimer anciens codes non utilisés
-        await prisma.verificationCode.deleteMany({
-            where: {
-                userId: user.id,
-                type: "RESET_PASSWORD",
-                isUsed: false
-            }
-        });
-
-        await prisma.verificationCode.create({
-            data: {
-                user: {
-                    connect: { id: user.id }
-                },
-                contactType: user.email ? "EMAIL" : "PHONE",
-                contactValue: user.email || user.phone,
-                codeHash,
-                type: "RESET_PASSWORD",
-                expiresAt
-            }
-        });
-
-        if (user.email) {
-            await emailService.sendPasswordResetOTP(user.email, otp);
-        }
+        // Supprimer anciens codes DB + créer le nouveau — en parallèle
+        await Promise.all([
+            prisma.verificationCode.deleteMany({ where: { userId: user.id, type: 'RESET_PASSWORD', isUsed: false } }),
+            prisma.verificationCode.create({
+                data: {
+                    user: { connect: { id: user.id } },
+                    contactType: user.email ? 'EMAIL' : 'PHONE',
+                    contactValue: user.email || user.phone,
+                    codeHash,
+                    type: 'RESET_PASSWORD',
+                    expiresAt
+                }
+            }),
+            user.email ? emailService.sendPasswordResetOTP(user.email, otp) : Promise.resolve()
+        ]);
 
         return { success: true, message: 'If an account exists, a code has been sent' };
     }
@@ -407,50 +352,32 @@ class AuthService {
 
     // ============ Verify code  ============
     async verifyCode(loginInfo, inputOTP) {
+        const user = await findUserByLoginInfo(loginInfo, { id: true });
+        if (!user) throw new AppError(400, 'Invalid or expired code');
 
-        let user;
+        // Vérifier depuis Redis d'abord (0 requête DB si présent)
+        const cached = await cacheGet(`auth:otp:code:${user.id}`);
+        if (cached) {
+            if (Date.now() > cached.expiresAt) throw new AppError(400, 'Code expired');
+            if (cached.attempts >= 5) throw new AppError(429, 'Too many attempts');
 
-        if (loginInfo.includes('@')) {
-            user = await prisma.user.findUnique({ where: { email: loginInfo } });
-        } else if (/^\+?\d+$/.test(loginInfo)) {
-            user = await prisma.user.findFirst({ where: { phone: loginInfo } });
-        } else {
-            user = await prisma.user.findUnique({ where: { username: loginInfo } });
+            const valid = await bcrypt.compare(inputOTP, cached.hash);
+            if (!valid) {
+                await cacheSet(`auth:otp:code:${user.id}`, { ...cached, attempts: cached.attempts + 1 }, Math.ceil((cached.expiresAt - Date.now()) / 1000));
+                throw new AppError(400, 'Invalid code');
+            }
+            return { success: true, message: 'Code verified successfully' };
         }
 
-        if (!user) {
-            throw new AppError(400, 'Invalid or expired code');
-        }
-
-        const record = await prisma.verificationCode.findFirst({
-            where: {
-                userId: user.id,
-                type: "RESET_PASSWORD",
-                isUsed: false
-            },
-            orderBy: { createdAt: "desc" }
-        });
-
-        if (!record) {
-            throw new AppError(400, 'Invalid or expired code');
-        }
-
-        if (record.expiresAt < new Date()) {
-            throw new AppError(400, 'Code expired');
-        }
-
-        if (record.attempts >= 5) {
-            throw new AppError(429, 'Too many attempts');
-        }
+        // Fallback DB si Redis n'a pas le code
+        const record = await prisma.verificationCode.findFirst({ where: { userId: user.id, type: 'RESET_PASSWORD', isUsed: false }, orderBy: { createdAt: 'desc' } });
+        if (!record) throw new AppError(400, 'Invalid or expired code');
+        if (record.expiresAt < new Date()) throw new AppError(400, 'Code expired');
+        if (record.attempts >= 5) throw new AppError(429, 'Too many attempts');
 
         const valid = await bcrypt.compare(inputOTP, record.codeHash);
-
         if (!valid) {
-            await prisma.verificationCode.update({
-                where: { id: record.id },
-                data: { attempts: { increment: 1 } }
-            });
-
+            await prisma.verificationCode.update({ where: { id: record.id }, data: { attempts: { increment: 1 } } });
             throw new AppError(400, 'Invalid code');
         }
 
@@ -459,63 +386,36 @@ class AuthService {
 
 
     async resetPassword(loginInfo, otp, password) {
+        const user = await findUserByLoginInfo(loginInfo, { id: true, email: true });
+        if (!user) throw new AppError(400, 'Invalid request');
 
-        let user;
+        // Vérifier OTP depuis Redis
+        const cached = await cacheGet(`auth:otp:code:${user.id}`);
+        let valid = false;
 
-        if (loginInfo.includes('@')) {
-            user = await prisma.user.findUnique({ where: { email: loginInfo } });
-        } else if (/^\+?\d+$/.test(loginInfo)) {
-            user = await prisma.user.findFirst({ where: { phone: loginInfo } });
+        if (cached) {
+            if (Date.now() > cached.expiresAt) throw new AppError(400, 'Code expired');
+            valid = await bcrypt.compare(otp, cached.hash);
         } else {
-            user = await prisma.user.findUnique({ where: { username: loginInfo } });
+            // Fallback DB
+            const record = await prisma.verificationCode.findFirst({ where: { userId: user.id, type: 'RESET_PASSWORD', isUsed: false }, orderBy: { createdAt: 'desc' } });
+            if (!record || record.expiresAt < new Date()) throw new AppError(400, 'Invalid or expired code');
+            valid = await bcrypt.compare(otp, record.codeHash);
+            if (valid) await prisma.verificationCode.update({ where: { id: record.id }, data: { isUsed: true } });
         }
 
-        if (!user) {
-            throw new AppError(400, 'Invalid request');
-        }
-
-        const record = await prisma.verificationCode.findFirst({
-            where: {
-                userId: user.id,
-                type: "RESET_PASSWORD",
-                isUsed: false
-            },
-            orderBy: { createdAt: "desc" }
-        });
-
-        if (!record) {
-            throw new AppError(400, 'Invalid or expired code');
-        }
-
-        if (record.expiresAt < new Date()) {
-            throw new AppError(400, 'Code expired');
-        }
-
-        const valid = await bcrypt.compare(otp, record.codeHash);
-
-        if (!valid) {
-            throw new AppError(400, 'Invalid code');
-        }
+        if (!valid) throw new AppError(400, 'Invalid code');
 
         const passwordHash = await bcrypt.hash(password, 12);
 
-        await prisma.user.update({
-            where: { id: user.id },
-            data: { passwordHash }
-        });
-
-        await prisma.verificationCode.update({
-            where: { id: record.id },
-            data: { isUsed: true }
-        });
-
-        // Invalider sessions
-        await prisma.session.deleteMany({ where: { userId: user.id } });
-        await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
-
-        if (user.email) {
-            await emailService.sendPasswordChangedEmail(user.email);
-        }
+        // Toutes les opérations en parallèle
+        await Promise.all([
+            prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
+            prisma.session.deleteMany({ where: { userId: user.id } }),
+            prisma.refreshToken.deleteMany({ where: { userId: user.id } }),
+            cacheDel(`auth:otp:code:${user.id}`, `auth:otp:${loginInfo}`, `user:${user.id}:current`, `user:${user.id}:base`),
+            user.email ? emailService.sendPasswordChangedEmail(user.email) : Promise.resolve()
+        ]);
 
         return { success: true, message: 'Password reset successfully' };
     }
@@ -556,46 +456,22 @@ class AuthService {
     async changePassword(userId, data) {
         const { currentPassword, newPassword } = data;
 
-        // Récupérer l'utilisateur avec le mot de passe
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { passwordHash: true },
-        });
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true, email: true } });
+        if (!user) throw new AppError(404, 'User not found');
 
-        if (!user) {
-            throw new AppError(404, 'User not found');
-        }
-
-        // Vérifier l'ancien mot de passe
         const isPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
-        if (!isPasswordValid) {
-            throw new AppError(400, 'Current password is incorrect');
-        }
+        if (!isPasswordValid) throw new AppError(400, 'Current password is incorrect');
 
-        // Hasher le nouveau mot de passe
         const newPasswordHash = await bcrypt.hash(newPassword, 12);
 
-        // Mettre à jour le mot de passe
-        await prisma.user.update({
-            where: { id: userId },
-            data: { passwordHash: newPasswordHash },
-        });
-
-        // Invalider toutes les sessions existantes (sécurité)
-        await prisma.session.deleteMany({ where: { userId } });
-
-        // Invalider tous les refresh tokens
-        await prisma.refreshToken.deleteMany({ where: { userId } });
-
-        // Envoyer un email de notification
-        const userDetails = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { email: true },
-        });
-
-        if (userDetails.email) {
-            await emailService.sendPasswordChangedEmail(userDetails.email);
-        }
+        // Tout en parallèle
+        await Promise.all([
+            prisma.user.update({ where: { id: userId }, data: { passwordHash: newPasswordHash } }),
+            prisma.session.deleteMany({ where: { userId } }),
+            prisma.refreshToken.deleteMany({ where: { userId } }),
+            cacheDel(`user:${userId}:current`, `user:${userId}:base`),
+            user.email ? emailService.sendPasswordChangedEmail(user.email) : Promise.resolve()
+        ]);
 
         return { success: true, message: 'Password changed successfully' };
     }

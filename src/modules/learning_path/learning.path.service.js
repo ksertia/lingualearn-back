@@ -1,239 +1,160 @@
 const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
+const { cacheWrap, cacheDel, TTL } = require('../../utils/cache');
 
-// Récupérer tous les parcours liés à un utilisateur (via userPathProgress)
-async function getPathsByUserId(userId) {
-	// 1. Trouver le module actuel de l'utilisateur
-	const userModuleProgress = await prisma.userModuleProgress.findFirst({
-		where: { 
-			userId,
-			status: { in: ['unlocked', 'started'] }  // Module actif
-		},
-		orderBy: { lastAccessedAt: 'desc' }
-	});
+const PATH_SELECT = {
+  id: true, title: true, description: true, index: true, moduleId: true,
+  thumbnailUrl: true, difficulty: true, estimatedHours: true, isActive: true
+};
 
-	if (!userModuleProgress) {
-		return [];  // Aucun module actif
-	}
-
-	// 2. Récupérer TOUS les parcours du module avec leur progression
-	const paths = await prisma.path.findMany({
-		where: { moduleId: userModuleProgress.moduleId },
-		orderBy: { index: 'asc' },
-		include: {
-			userProgress: {
-				where: { userId }  // Progression si elle existe
-			}
-		}
-	});
-
-	// 3. Formater la réponse avec le statut
-	return paths.map(path => ({
-		id: path.id,
-		title: path.title,
-		description: path.description,
-		index: path.index,
-		moduleId: path.moduleId,
-		thumbnailUrl: path.thumbnailUrl,
-		difficulty: path.difficulty,
-		estimatedHours: path.estimatedHours,
-		isActive: path.isActive,
-		
-		// Progression (peut être null si jamais touché)
-		progress: path.userProgress[0] || null,
-		
-		// Statut calculé
-		status: path.userProgress[0]?.status || 'locked',
-		progressPercentage: path.userProgress[0]?.progressPercentage || 0,
-		currentStepIndex: path.userProgress[0]?.currentStepIndex || 0,
-		totalXp: path.userProgress[0]?.totalXp || 0,
-		timeSpentMinutes: path.userProgress[0]?.timeSpentMinutes || 0,
-		quizScore: path.userProgress[0]?.quizScore || null,
-		unlockedAt: path.userProgress[0]?.unlockedAt || null,
-		startedAt: path.userProgress[0]?.startedAt || null,
-		completedAt: path.userProgress[0]?.completedAt || null,
-		lastAccessedAt: path.userProgress[0]?.lastAccessedAt || null
-	}));
+function _formatPath(path, progressMap) {
+  const prog = progressMap.get(path.id) || null;
+  return {
+    ...path,
+    progress: prog,
+    status: prog?.status || 'locked',
+    progressPercentage: prog?.progressPercentage || 0,
+    currentStepIndex: prog?.currentStepIndex || 0,
+    totalXp: prog?.totalXp || 0,
+    timeSpentMinutes: prog?.timeSpentMinutes || 0,
+    quizScore: prog?.quizScore || null,
+    unlockedAt: prog?.unlockedAt || null,
+    startedAt: prog?.startedAt || null,
+    completedAt: prog?.completedAt || null,
+    lastAccessedAt: prog?.lastAccessedAt || null
+  };
 }
 
-// Récupérer tous les parcours d'un module spécifique pour un utilisateur
-async function getPathsByModuleId(userId, moduleId) {
-	// Récupérer TOUS les parcours du module avec leur progression
-	const paths = await prisma.path.findMany({
-		where: { moduleId },
-		orderBy: { index: 'asc' },
-		include: {
-			userProgress: {
-				where: { userId }  // Progression si elle existe
-			}
-		}
-	});
+async function getPathsByUserId(userId) {
+  // Find active module + all paths + all user progress in 3 parallel queries
+  const userModuleProgress = await prisma.userModuleProgress.findFirst({
+    where: { userId, status: { in: ['unlocked', 'started'] } },
+    orderBy: { lastAccessedAt: 'desc' },
+    select: { moduleId: true }
+  });
 
-	// Formater la réponse avec le statut
-	return paths.map(path => ({
-		id: path.id,
-		title: path.title,
-		description: path.description,
-		index: path.index,
-		moduleId: path.moduleId,
-		thumbnailUrl: path.thumbnailUrl,
-		difficulty: path.difficulty,
-		estimatedHours: path.estimatedHours,
-		isActive: path.isActive,
-		
-		// Progression (peut être null si jamais touché)
-		progress: path.userProgress[0] || null,
-		
-		// Statut calculé
-		status: path.userProgress[0]?.status || 'locked',
-		progressPercentage: path.userProgress[0]?.progressPercentage || 0,
-		currentStepIndex: path.userProgress[0]?.currentStepIndex || 0,
-		totalXp: path.userProgress[0]?.totalXp || 0,
-		timeSpentMinutes: path.userProgress[0]?.timeSpentMinutes || 0,
-		quizScore: path.userProgress[0]?.quizScore || null,
-		unlockedAt: path.userProgress[0]?.unlockedAt || null,
-		startedAt: path.userProgress[0]?.startedAt || null,
-		completedAt: path.userProgress[0]?.completedAt || null,
-		lastAccessedAt: path.userProgress[0]?.lastAccessedAt || null
-	}));
+  if (!userModuleProgress) return [];
+
+  const [paths, userProgressList] = await Promise.all([
+    prisma.path.findMany({
+      where: { moduleId: userModuleProgress.moduleId },
+      orderBy: { index: 'asc' },
+      select: PATH_SELECT
+    }),
+    prisma.userPathProgress.findMany({
+      where: { userId, path: { moduleId: userModuleProgress.moduleId } },
+      select: { pathId: true, status: true, progressPercentage: true, currentStepIndex: true, totalXp: true, timeSpentMinutes: true, quizScore: true, unlockedAt: true, startedAt: true, completedAt: true, lastAccessedAt: true }
+    })
+  ]);
+
+  const progressMap = new Map(userProgressList.map(p => [p.pathId, p]));
+  return paths.map(path => _formatPath(path, progressMap));
+}
+
+async function getPathsByModuleId(userId, moduleId) {
+  // Cache static path list; user progress always fresh
+  const [paths, userProgressList] = await Promise.all([
+    cacheWrap(`paths:module:${moduleId}`, () =>
+      prisma.path.findMany({ where: { moduleId }, orderBy: { index: 'asc' }, select: PATH_SELECT }),
+      TTL.MEDIUM
+    ),
+    prisma.userPathProgress.findMany({
+      where: { userId, path: { moduleId } },
+      select: { pathId: true, status: true, progressPercentage: true, currentStepIndex: true, totalXp: true, timeSpentMinutes: true, quizScore: true, unlockedAt: true, startedAt: true, completedAt: true, lastAccessedAt: true }
+    })
+  ]);
+
+  const progressMap = new Map(userProgressList.map(p => [p.pathId, p]));
+  return paths.map(path => _formatPath(path, progressMap));
 }
 
 async function startPathForUser(userId, pathId) {
-	const progress = await prisma.userPathProgress.upsert({
-		where: { userId_pathId: { userId, pathId } },
-		update: { 
-			status: 'started', 
-			startedAt: new Date(),
-			lastAccessedAt: new Date()
-		},
-		create: {
-			userId,
-			pathId,
-			status: 'started',
-			startedAt: new Date(),
-			lastAccessedAt: new Date()
-		}
-	});
-	
-	// Débloquer automatiquement la première étape du parcours
-	const firstStep = await prisma.step.findFirst({
-		where: { pathId },
-		orderBy: { index: 'asc' }
-	});
-	
-	if (firstStep) {
-		// Créer la progression pour la première étape avec status 'unlocked'
-		await prisma.userStepProgress.upsert({
-			where: { userId_stepId: { userId, stepId: firstStep.id } },
-			update: { 
-				status: 'unlocked',
-				unlockedAt: new Date(),
-				lastAccessedAt: new Date()
-			},
-			create: {
-				userId,
-				stepId: firstStep.id,
-				status: 'unlocked',
-				unlockedAt: new Date(),
-				lastAccessedAt: new Date()
-			}
-		});
-	}
-	
-	return progress;
+  // Upsert path progress + find first step in parallel
+  const [progress, firstStep] = await Promise.all([
+    prisma.userPathProgress.upsert({
+      where: { userId_pathId: { userId, pathId } },
+      update: { status: 'started', startedAt: new Date(), lastAccessedAt: new Date() },
+      create: { userId, pathId, status: 'started', startedAt: new Date(), lastAccessedAt: new Date() }
+    }),
+    prisma.step.findFirst({
+      where: { pathId }, orderBy: { index: 'asc' }, select: { id: true }
+    })
+  ]);
+
+  if (firstStep) {
+    await prisma.userStepProgress.upsert({
+      where: { userId_stepId: { userId, stepId: firstStep.id } },
+      update: { status: 'unlocked', unlockedAt: new Date(), lastAccessedAt: new Date() },
+      create: { userId, stepId: firstStep.id, status: 'unlocked', unlockedAt: new Date(), lastAccessedAt: new Date() }
+    });
+  }
+
+  return progress;
 }
 
 async function completePathForUser(userId, pathId) {
-       return prisma.userPathProgress.update({
-	       where: { userId_pathId: { userId, pathId } },
-	       data: { status: 'completed', completedAt: new Date() }
-       });
+  return prisma.userPathProgress.update({
+    where: { userId_pathId: { userId, pathId } },
+    data: { status: 'completed', completedAt: new Date() }
+  });
 }
 
-// Compléter un parcours avec déblocage automatique du suivant
 async function completePathWithAutoUnlock(userId, pathId) {
-       return await progressionService.completePathAndUnlockNext(userId, pathId);
+  return progressionService.completePathAndUnlockNext(userId, pathId);
 }
 
 async function createPath(data) {
-	// Calcul automatique de l'index si non fourni, null ou undefined
-	let index = data.index;
-	if (index === undefined || index === null || typeof index !== 'number' || isNaN(index)) {
-		const max = await prisma.path.aggregate({ 
-			_max: { index: true },
-			where: data.moduleId ? { moduleId: data.moduleId } : {}
-		});
-		index = (max._max.index ?? -1) + 1; // Commence à 0 si aucun parcours n'existe
-	}
+  let index = data.index;
+  if (index === undefined || index === null || typeof index !== 'number' || isNaN(index)) {
+    const max = await prisma.path.aggregate({
+      _max: { index: true },
+      where: data.moduleId ? { moduleId: data.moduleId } : {}
+    });
+    index = (max._max.index ?? -1) + 1;
+  }
 
-	// Vérifier unicité de l'index dans le module si moduleId est fourni
-	if (data.moduleId) {
-		const existingIndex = await prisma.path.findFirst({ 
-			where: { 
-				moduleId: data.moduleId,
-				index 
-			} 
-		});
-		if (existingIndex) {
-			throw new Error('Un parcours avec ce même index existe déjà dans ce module.');
-		}
-	}
+  if (data.moduleId) {
+    const existingIndex = await prisma.path.findFirst({ where: { moduleId: data.moduleId, index } });
+    if (existingIndex) throw new Error('Un parcours avec ce même index existe déjà dans ce module.');
+  }
 
-	return prisma.path.create({ 
-		data: { 
-			...data, 
-			index 
-		} 
-	});
+  const path = await prisma.path.create({ data: { ...data, index } });
+  if (data.moduleId) await cacheDel(`paths:module:${data.moduleId}`);
+  return path;
 }
 
 async function getAllPaths() {
-	return prisma.path.findMany();
+  return prisma.path.findMany();
 }
 
 async function getPathById(id) {
-	return prisma.path.findUnique({ where: { id } });
+  return prisma.path.findUnique({ where: { id } });
 }
 
 async function updatePath(id, data) {
-	// Si l'index est fourni, vérifier l'unicité
-	if (data.index !== undefined && data.index !== null) {
-		const path = await prisma.path.findUnique({ where: { id } });
-		if (!path) {
-			throw new Error('Parcours non trouvé.');
-		}
+  if (data.index !== undefined && data.index !== null) {
+    const path = await prisma.path.findUnique({ where: { id }, select: { moduleId: true } });
+    if (!path) throw new Error('Parcours non trouvé.');
+    if (path.moduleId) {
+      const existingIndex = await prisma.path.findFirst({ where: { moduleId: path.moduleId, index: data.index, id: { not: id } } });
+      if (existingIndex) throw new Error('Un parcours avec ce même index existe déjà dans ce module.');
+    }
+  }
 
-		// Si le parcours a un moduleId, vérifier l'unicité dans ce module
-		if (path.moduleId) {
-			const existingIndex = await prisma.path.findFirst({ 
-				where: { 
-					moduleId: path.moduleId,
-					index: data.index,
-					id: { not: id }
-				} 
-			});
-			if (existingIndex) {
-				throw new Error('Un parcours avec ce même index existe déjà dans ce module.');
-			}
-		}
-	}
-
-	return prisma.path.update({ where: { id }, data });
+  const updated = await prisma.path.update({ where: { id }, data });
+  if (updated.moduleId) await cacheDel(`paths:module:${updated.moduleId}`);
+  return updated;
 }
 
 async function deletePath(id) {
-	return prisma.path.delete({ where: { id } });
+  const path = await prisma.path.findUnique({ where: { id }, select: { moduleId: true } });
+  const deleted = await prisma.path.delete({ where: { id } });
+  if (path?.moduleId) await cacheDel(`paths:module:${path.moduleId}`);
+  return deleted;
 }
 
 module.exports = {
-	createPath,
-	getAllPaths,
-	getPathById,
-	updatePath,
-	deletePath,
-	getPathsByUserId,
-	getPathsByModuleId,
-	startPathForUser,
-	completePathForUser,
-	completePathWithAutoUnlock
+  createPath, getAllPaths, getPathById, updatePath, deletePath,
+  getPathsByUserId, getPathsByModuleId,
+  startPathForUser, completePathForUser, completePathWithAutoUnlock
 };

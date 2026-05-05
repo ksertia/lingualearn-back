@@ -3,6 +3,7 @@ const { AppError } = require('../../middleware/errorHandler');
 const orange = require('./providers/orange');
 const moov   = require('./providers/moov');
 const { verifyOperator } = require('./providers/verifyOperator');
+const { cacheDel } = require('../../utils/cache');
 
 const OTP_EXPIRY_MINUTES = 5;
 const SUPPORTED_METHODS  = ['orange_money', 'moov_money', 'coris_money'];
@@ -16,99 +17,78 @@ function makeOrderId() {
   return `LL-${Date.now()}`;
 }
 
+function _computePeriodEnd(billingCycle) {
+  const end = new Date();
+  if (billingCycle === 'yearly') {
+    end.setFullYear(end.getFullYear() + 1);
+  } else {
+    end.setMonth(end.getMonth() + 1);
+  }
+  return end;
+}
+
 // ─── ÉTAPE 1 : Initier le paiement ───────────────────────────────────────────
 async function initiatePayment({ userId, planId, billingCycle, paymentMethod, phoneNumber }) {
   if (!SUPPORTED_METHODS.includes(paymentMethod)) {
     throw new AppError(400, `Méthode de paiement non supportée. Utilisez : ${SUPPORTED_METHODS.join(', ')}`);
   }
 
-  // Valider que le numéro correspond à l'opérateur choisi
   try {
     verifyOperator(paymentMethod, phoneNumber);
   } catch (err) {
     throw new AppError(400, err.message);
   }
 
-  const plan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
+  // Plan fetch + cancel old pending requests in parallel
+  const [plan] = await Promise.all([
+    prisma.subscriptionPlan.findUnique({ where: { id: planId } }),
+    prisma.paymentRequest.updateMany({
+      where: { userId, status: 'pending' },
+      data: { status: 'failed', failureReason: 'Remplacé par une nouvelle demande' },
+    }),
+  ]);
+
   if (!plan) throw new AppError(404, 'Plan introuvable.');
   if (!plan.isActive) throw new AppError(400, 'Ce plan est inactif.');
 
   const amount = billingCycle === 'yearly' ? plan.priceYearly : plan.priceMonthly;
   if (!amount) throw new AppError(400, `Ce plan n'a pas de prix défini pour le cycle ${billingCycle}.`);
 
-  // Annuler les anciennes demandes pending du même utilisateur
-  await prisma.paymentRequest.updateMany({
-    where: { userId, status: 'pending' },
-    data: { status: 'failed', failureReason: 'Remplacé par une nouvelle demande' },
-  });
-
   const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
   const orderId      = makeOrderId();
 
-  let otpCode    = null;
-  let providerRef = null;
-  let devOtp     = null;
-  let instructions = null;
+  let otpCode = null, providerRef = null, devOtp = null, instructions = null;
 
-  // ── Orange Money ─────────────────────────────────────────────────────────────
   if (paymentMethod === 'orange_money') {
     providerRef  = orderId;
     if (!IS_DEV) {
       instructions = `Composez *144*4*6*${Number(amount)}# sur votre téléphone pour obtenir votre code OTP, puis saisissez-le ici.`;
     }
-  }
-
-  // ── Moov Money ───────────────────────────────────────────────────────────────
-  // L'API envoie automatiquement un SMS OTP au client
-  else if (paymentMethod === 'moov_money') {
+  } else if (paymentMethod === 'moov_money') {
     try {
-      const result = await moov.sendOtp({
-        transactionId: orderId,
-        phoneNumber,
-        amount: Number(amount),
-      });
-      // moovTransId = trans-id Moov, nécessaire à la confirmation
-      providerRef = `${orderId}|${result.moovTransId}`;
+      const result = await moov.sendOtp({ transactionId: orderId, phoneNumber, amount: Number(amount) });
+      providerRef  = `${orderId}|${result.moovTransId}`;
     } catch (err) {
       throw new AppError(400, err.message);
     }
-  }
-
-  // ── Coris Money / mode fictif ─────────────────────────────────────────────
-  else {
+  } else {
     otpCode = generateOtp();
     if (IS_DEV) devOtp = otpCode;
   }
 
   const paymentRequest = await prisma.paymentRequest.create({
-    data: {
-      userId,
-      planId,
-      billingCycle,
-      paymentMethod,
-      phoneNumber,
-      amount,
-      currency:    plan.currency ?? 'XOF',
-      otpCode,
-      providerRef,
-      otpExpiresAt,
-      status: 'pending',
-    },
+    data: { userId, planId, billingCycle, paymentMethod, phoneNumber, amount, currency: plan.currency ?? 'XOF', otpCode, providerRef, otpExpiresAt, status: 'pending' },
     include: { plan: true },
   });
 
   const response = {
     paymentRequestId: paymentRequest.id,
-    phoneNumber,
-    amount:      paymentRequest.amount,
-    currency:    paymentRequest.currency,
-    plan:        { id: plan.id, planName: plan.planName, planCode: plan.planCode },
+    phoneNumber, amount: paymentRequest.amount, currency: paymentRequest.currency,
+    plan: { id: plan.id, planName: plan.planName, planCode: plan.planCode },
     otpExpiresAt,
   };
-
   if (instructions) response.instructions = instructions;
   if (devOtp)       response._devOtp = devOtp;
-
   return response;
 }
 
@@ -119,98 +99,72 @@ async function confirmPayment({ paymentRequestId, otpCode }) {
     include: { plan: true },
   });
 
-  if (!paymentRequest) throw new AppError(404, 'Demande de paiement introuvable.');
-  if (paymentRequest.status !== 'pending') {
-    throw new AppError(400, `Cette demande est déjà ${paymentRequest.status}.`);
-  }
+  if (!paymentRequest)                         throw new AppError(404, 'Demande de paiement introuvable.');
+  if (paymentRequest.status !== 'pending')     throw new AppError(400, `Cette demande est déjà ${paymentRequest.status}.`);
   if (new Date() > new Date(paymentRequest.otpExpiresAt)) {
-    await prisma.paymentRequest.update({
-      where: { id: paymentRequestId },
-      data: { status: 'failed', failureReason: 'OTP expiré' },
-    });
+    await prisma.paymentRequest.update({ where: { id: paymentRequestId }, data: { status: 'failed', failureReason: 'OTP expiré' } });
     throw new AppError(400, 'Le code OTP a expiré. Veuillez recommencer.');
   }
 
-  // ── Vérification selon l'opérateur ───────────────────────────────────────
+  // Operator-specific OTP verification
   if (paymentRequest.paymentMethod === 'orange_money') {
-    // OTP accepté sans vérification jusqu'à réception des certificats SSL Orange
+    // OTP accepted without verification pending SSL cert
   } else if (paymentRequest.paymentMethod === 'moov_money') {
-    // providerRef format : "orderId|moovTransId"
     const [requestId, moovTransId] = (paymentRequest.providerRef ?? '').split('|');
-    const newRequestId = makeOrderId();
     try {
-      await moov.confirmPayment({
-        newRequestId,
-        moovTransId,
-        requestId,
-        phoneNumber: paymentRequest.phoneNumber,
-        amount:      Number(paymentRequest.amount),
-        otp:         otpCode,
-      });
+      await moov.confirmPayment({ newRequestId: makeOrderId(), moovTransId, requestId, phoneNumber: paymentRequest.phoneNumber, amount: Number(paymentRequest.amount), otp: otpCode });
     } catch (err) {
-      await prisma.paymentRequest.update({
-        where: { id: paymentRequestId },
-        data: { status: 'failed', failureReason: err.message },
-      });
+      await prisma.paymentRequest.update({ where: { id: paymentRequestId }, data: { status: 'failed', failureReason: err.message } });
       throw new AppError(400, `Moov Money: ${err.message}`);
     }
   } else {
-    // coris_money ou mode fictif : vérification locale
-    if (paymentRequest.otpCode !== otpCode) {
-      throw new AppError(400, 'Code OTP incorrect.');
-    }
+    if (paymentRequest.otpCode !== otpCode) throw new AppError(400, 'Code OTP incorrect.');
   }
 
-  // ── OTP valide → créer l'abonnement ──────────────────────────────────────
   const periodStart = new Date();
-  const periodEnd   = new Date(periodStart);
-  if (paymentRequest.billingCycle === 'yearly') {
-    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-  } else {
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
-  }
+  const periodEnd   = _computePeriodEnd(paymentRequest.billingCycle);
+  const userId      = paymentRequest.userId;
 
-  await prisma.subscription.deleteMany({ where: { userId: paymentRequest.userId } });
+  // All writes in a single atomic transaction
+  const [subscription] = await prisma.$transaction([
+    // 1. Delete old subscriptions
+    prisma.subscription.deleteMany({ where: { userId } }),
+    // 2. Create new subscription
+    prisma.subscription.create({
+      data: {
+        userId, planId: paymentRequest.planId, status: 'active',
+        billingCycle: paymentRequest.billingCycle,
+        currentPeriodStart: periodStart, currentPeriodEnd: periodEnd,
+        cancelAtPeriodEnd: false,
+      },
+    }),
+  ]);
 
-  const subscription = await prisma.subscription.create({
-    data: {
-      userId:             paymentRequest.userId,
-      planId:             paymentRequest.planId,
-      status:             'active',
-      billingCycle:       paymentRequest.billingCycle,
-      currentPeriodStart: periodStart,
-      currentPeriodEnd:   periodEnd,
-      cancelAtPeriodEnd:  false,
-    },
-    include: { plan: true },
-  });
+  // subscription.id is now available — update user + log transaction + confirm payment in parallel
+  const createdSub = await prisma.subscription.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } });
 
-  await prisma.user.update({
-    where: { id: paymentRequest.userId },
-    data: {
-      subscriptionId:     subscription.id,
-      subscriptionEndsAt: periodEnd,
-    },
-  });
+  await Promise.all([
+    prisma.user.update({
+      where: { id: userId },
+      data: { subscriptionId: createdSub.id, subscriptionEndsAt: periodEnd },
+    }),
+    prisma.transaction.create({
+      data: {
+        userId, transactionType: 'subscription_payment',
+        amount: paymentRequest.amount, currency: paymentRequest.currency,
+        description: `Abonnement ${paymentRequest.plan.planName} - ${paymentRequest.billingCycle}`,
+        referenceType: 'subscription', referenceId: createdSub.id,
+      },
+    }),
+    prisma.paymentRequest.update({
+      where: { id: paymentRequestId },
+      data: { status: 'confirmed', otpVerified: true, confirmedAt: new Date() },
+    }),
+    // Invalidate user caches immediately
+    cacheDel(`user:${userId}:base`, `user:${userId}:details`, `user:${userId}:current`, `sub:status:${userId}`),
+  ]);
 
-  await prisma.transaction.create({
-    data: {
-      userId:          paymentRequest.userId,
-      transactionType: 'subscription_payment',
-      amount:          paymentRequest.amount,
-      currency:        paymentRequest.currency,
-      description:     `Abonnement ${paymentRequest.plan.planName} - ${paymentRequest.billingCycle}`,
-      referenceType:   'subscription',
-      referenceId:     subscription.id,
-    },
-  });
-
-  await prisma.paymentRequest.update({
-    where: { id: paymentRequestId },
-    data: { status: 'confirmed', otpVerified: true, confirmedAt: new Date() },
-  });
-
-  return subscription;
+  return createdSub;
 }
 
 async function getPaymentHistory(userId) {

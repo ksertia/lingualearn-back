@@ -1,36 +1,80 @@
 const Redis = require('ioredis');
 const { logger } = require('../utils/logger');
 
-const redisOptions = {
-    retryStrategy(times) {
-        if (times > 10) {
-            logger.error('Redis: impossible de se connecter après 10 tentatives');
-            return null;
-        }
-        return Math.min(times * 100, 3000);
-    },
-    lazyConnect: true,
-    enableOfflineQueue: false,
-};
+let redis = null;
+let redisAvailable = false;
 
-const redis = process.env.REDIS_URL
-    ? new Redis(process.env.REDIS_URL, redisOptions)
-    : new Redis({
-        host: process.env.REDIS_HOST || '127.0.0.1',
-        port: parseInt(process.env.REDIS_PORT) || 6379,
-        password: process.env.REDIS_PASSWORD || undefined,
-        db: parseInt(process.env.REDIS_DB) || 0,
-        ...redisOptions,
+function createRedisClient() {
+    const options = {
+        retryStrategy(times) {
+            if (times >= 3) {
+                redisAvailable = false;
+                return null; // Arrêter les tentatives — cache désactivé silencieusement
+            }
+            return Math.min(times * 500, 2000);
+        },
+        lazyConnect: true,
+        enableOfflineQueue: false,
+        connectTimeout: 5000,
+        keyPrefix: 'lingualearn:',
+    };
+
+    const client = process.env.REDIS_URL
+        ? new Redis(process.env.REDIS_URL, options)
+        : new Redis({
+            host: process.env.REDIS_HOST || '127.0.0.1',
+            port: parseInt(process.env.REDIS_PORT) || 6379,
+            password: process.env.REDIS_PASSWORD || undefined,
+            db: parseInt(process.env.REDIS_DB) || 0,
+            ...options,
+        });
+
+    client.on('connect', () => {
+        redisAvailable = true;
+        logger.info('Redis: connecté');
     });
 
-redis.on('connect', () => logger.info('Redis: connecté'));
-redis.on('error', (err) => logger.error(`Redis: erreur -> ${err.message || err.code || JSON.stringify(err)}`));
-redis.on('close', () => logger.warn('Redis: connexion fermée'));
+    client.on('ready', () => {
+        redisAvailable = true;
+    });
 
-// Connexion initiale
-redis.connect().catch((err) => logger.error(`Redis: échec de connexion initiale -> ${err.message || err.code || JSON.stringify(err)}`));
+    client.on('error', (err) => {
+        redisAvailable = false;
+        // Log une seule fois par type d'erreur pour ne pas spammer
+        if (err.code === 'ECONNREFUSED') {
+            logger.warn('Redis: serveur inaccessible — cache désactivé');
+        } else {
+            logger.error(`Redis: erreur -> ${err.message}`);
+        }
+    });
 
-process.on('SIGINT', async () => { await redis.quit(); });
-process.on('SIGTERM', async () => { await redis.quit(); });
+    client.on('close', () => {
+        redisAvailable = false;
+    });
 
-module.exports = { redis };
+    client.on('reconnecting', () => {
+        logger.info('Redis: tentative de reconnexion...');
+    });
+
+    client.on('end', () => {
+        redisAvailable = false;
+        logger.warn('Redis: connexion terminée — cache désactivé');
+    });
+
+    return client;
+}
+
+redis = createRedisClient();
+
+// Connexion initiale silencieuse
+redis.connect().then(() => {
+    redisAvailable = true;
+}).catch(() => {
+    redisAvailable = false;
+    logger.warn('Redis: non disponible au démarrage — le serveur fonctionne sans cache');
+});
+
+process.on('SIGINT', async () => { if (redis) await redis.quit(); });
+process.on('SIGTERM', async () => { if (redis) await redis.quit(); });
+
+module.exports = { redis, isRedisAvailable: () => redisAvailable };

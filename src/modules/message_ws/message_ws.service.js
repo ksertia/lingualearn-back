@@ -1,22 +1,21 @@
 const { prisma } = require('../../config/prisma');
+const { cacheWrap, cacheDel, TTL } = require('../../utils/cache');
 
 const SENDER_SELECT = {
-  id:          true,
-  username:    true,
-  accountType: true,
+  id: true, username: true, accountType: true,
   profile: { select: { firstName: true, lastName: true, avatarUrl: true } },
 };
 
 const ADMIN_ROLES = ['admin', 'plateform_manager'];
 
 async function createMessage(data) {
-  return prisma.message.create({
+  const message = await prisma.message.create({
     data,
-    include: {
-      sender:    { select: SENDER_SELECT },
-      recipient: { select: SENDER_SELECT },
-    },
+    include: { sender: { select: SENDER_SELECT }, recipient: { select: SENDER_SELECT } },
   });
+  // Invalidate unread count for recipient
+  cacheDel(`msg:unread:${data.recipientId}`).catch(() => {});
+  return message;
 }
 
 async function getMessagesBetweenUsers(userA, userB, { page = 1, limit = 30 } = {}) {
@@ -30,78 +29,82 @@ async function getMessagesBetweenUsers(userA, userB, { page = 1, limit = 30 } = 
   const [total, items] = await Promise.all([
     prisma.message.count({ where }),
     prisma.message.findMany({
-      where,
-      orderBy: { createdAt: 'asc' },
-      skip,
-      take: limit,
-      include: {
-        sender:    { select: SENDER_SELECT },
-        recipient: { select: SENDER_SELECT },
-      },
+      where, orderBy: { createdAt: 'asc' }, skip, take: limit,
+      include: { sender: { select: SENDER_SELECT }, recipient: { select: SENDER_SELECT } },
     }),
   ]);
   return { total, page, limit, items };
 }
 
-// Pour un utilisateur normal : ses propres conversations
-// Pour admin/plateform_manager : toutes les conversations de la plateforme
 async function getConversations(userId, accountType) {
   const isAdmin = ADMIN_ROLES.includes(accountType);
 
   const where = isAdmin
-    ? {}  // admin voit tout
+    ? {}
     : { OR: [{ senderId: userId }, { recipientId: userId }] };
 
+  // Fetch only the latest message per conversation — one query, no per-message COUNT
   const messages = await prisma.message.findMany({
     where,
     orderBy: { createdAt: 'desc' },
-    include: {
-      sender:    { select: SENDER_SELECT },
-      recipient: { select: SENDER_SELECT },
-    },
+    include: { sender: { select: SENDER_SELECT }, recipient: { select: SENDER_SELECT } },
   });
 
-  // Dédupliquer par paire d'interlocuteurs
-  const seen = new Set();
-  const conversations = [];
+  // Deduplicate by canonical pair key
+  const seen    = new Set();
+  const pairIds = []; // collect unique partner IDs for batch unread count
+  const rawConversations = [];
 
   for (const msg of messages) {
-    // Clé unique pour la paire (ordre canonique)
     const pairKey = [msg.senderId, msg.recipientId].sort().join('|');
     if (!seen.has(pairKey)) {
       seen.add(pairKey);
-
-      const unread = isAdmin
-        ? 0  // admin : pas de compteur non-lu personnel
-        : await prisma.message.count({
-            where: {
-              senderId:    msg.senderId === userId ? msg.recipientId : msg.senderId,
-              recipientId: userId,
-              isRead:      false,
-            },
-          });
-
-      conversations.push({
-        sender:      msg.sender,
-        recipient:   msg.recipient,
-        lastMessage: msg,
-        unreadCount: unread,
-      });
+      const partnerId = msg.senderId === userId ? msg.recipientId : msg.senderId;
+      rawConversations.push({ msg, partnerId });
+      if (!isAdmin) pairIds.push(partnerId);
     }
   }
 
-  return conversations;
+  if (isAdmin) {
+    return rawConversations.map(({ msg }) => ({
+      sender: msg.sender, recipient: msg.recipient, lastMessage: msg, unreadCount: 0,
+    }));
+  }
+
+  // Batch unread counts: 1 groupBy query instead of N COUNT queries
+  const unreadGroups = pairIds.length
+    ? await prisma.message.groupBy({
+        by: ['senderId'],
+        where: { senderId: { in: pairIds }, recipientId: userId, isRead: false },
+        _count: { id: true },
+      })
+    : [];
+
+  const unreadMap = new Map(unreadGroups.map(g => [g.senderId, g._count.id]));
+
+  return rawConversations.map(({ msg, partnerId }) => ({
+    sender:      msg.sender,
+    recipient:   msg.recipient,
+    lastMessage: msg,
+    unreadCount: unreadMap.get(partnerId) ?? 0,
+  }));
 }
 
 async function markMessagesAsRead(senderId, recipientId) {
-  return prisma.message.updateMany({
+  const result = await prisma.message.updateMany({
     where: { senderId, recipientId, isRead: false },
-    data: { isRead: true, readAt: new Date() },
+    data:  { isRead: true, readAt: new Date() },
   });
+  cacheDel(`msg:unread:${recipientId}`).catch(() => {});
+  return result;
 }
 
 async function getUnreadCount(userId) {
-  return prisma.message.count({ where: { recipientId: userId, isRead: false } });
+  return cacheWrap(
+    `msg:unread:${userId}`,
+    () => prisma.message.count({ where: { recipientId: userId, isRead: false } }),
+    TTL.SHORT
+  );
 }
 
 module.exports = {
