@@ -1,11 +1,11 @@
 const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
+const { cacheWrap, cacheDel, TTL } = require('../../utils/cache');
 
 // Récupérer tous les modules liés à un utilisateur (via userModuleProgress)
 exports.getModulesByUserId = async (userId, levelId = null) => {
   let targetLevelId = levelId;
 
-  // Si levelId non fourni, chercher le level actif de l'utilisateur
   if (!targetLevelId) {
     const userLevelProgress = await prisma.userLevelProgress.findFirst({
       where: { userId, status: { in: ['unlocked', 'started', 'completed'] } },
@@ -15,43 +15,38 @@ exports.getModulesByUserId = async (userId, levelId = null) => {
     targetLevelId = userLevelProgress.levelId;
   }
 
-  // Récupérer TOUS les modules du niveau avec leur progression
-  const modules = await prisma.module.findMany({
-    where: { levelId: targetLevelId },
-    orderBy: { index: 'asc' },
-    include: {
-      userProgress: {
-        where: { userId }  // Progression si elle existe
-      }
-    }
-  });
+  return cacheWrap(`user:${userId}:modules:level:${targetLevelId}`, async () => {
+    const modules = await prisma.module.findMany({
+      where: { levelId: targetLevelId },
+      orderBy: { index: 'asc' },
+      include: { userProgress: { where: { userId } } }
+    });
 
-  // 3. Formater la réponse avec le statut
-  return modules.map(module => ({
-    id: module.id,
-    title: module.title,
-    description: module.description,
-    index: module.index,
-    thumbnailUrl: module.thumbnailUrl,
-    estimatedHours: module.estimatedHours,
-    isActive: module.isActive,
-    
-    // Progression (peut être null si jamais touché)
-    progress: module.userProgress[0] || null,
-    
-    // Statut calculé
-    status: module.userProgress[0]?.status || 'locked',
-    progressPercentage: module.userProgress[0]?.progressPercentage || 0,
-    totalXp: module.userProgress[0]?.totalXp || 0,
-    timeSpentMinutes: module.userProgress[0]?.timeSpentMinutes || 0,
-    unlockedAt: module.userProgress[0]?.unlockedAt || null,
-    startedAt: module.userProgress[0]?.startedAt || null,
-    completedAt: module.userProgress[0]?.completedAt || null,
-    lastAccessedAt: module.userProgress[0]?.lastAccessedAt || null
-  }));
+    return modules.map(module => ({
+      id: module.id,
+      title: module.title,
+      description: module.description,
+      index: module.index,
+      thumbnailUrl: module.thumbnailUrl,
+      estimatedHours: module.estimatedHours,
+      isActive: module.isActive,
+      progress: module.userProgress[0] || null,
+      status: module.userProgress[0]?.status || 'locked',
+      progressPercentage: module.userProgress[0]?.progressPercentage || 0,
+      totalXp: module.userProgress[0]?.totalXp || 0,
+      timeSpentMinutes: module.userProgress[0]?.timeSpentMinutes || 0,
+      unlockedAt: module.userProgress[0]?.unlockedAt || null,
+      startedAt: module.userProgress[0]?.startedAt || null,
+      completedAt: module.userProgress[0]?.completedAt || null,
+      lastAccessedAt: module.userProgress[0]?.lastAccessedAt || null
+    }));
+  }, TTL.SHORT);
 };
 
 exports.startModuleForUser = async (userId, moduleId) => {
+  const mod = await prisma.module.findUnique({ where: { id: moduleId }, select: { levelId: true } });
+  if (mod) await cacheDel(`user:${userId}:modules:level:${mod.levelId}`);
+
   const progress = await prisma.userModuleProgress.upsert({
     where: { userId_moduleId: { userId, moduleId } },
     update: { 
@@ -97,6 +92,8 @@ exports.startModuleForUser = async (userId, moduleId) => {
 };
 
 exports.completeModuleForUser = async (userId, moduleId) => {
+  const mod = await prisma.module.findUnique({ where: { id: moduleId }, select: { levelId: true } });
+  if (mod) await cacheDel(`user:${userId}:modules:level:${mod.levelId}`);
   return prisma.userModuleProgress.update({
     where: { userId_moduleId: { userId, moduleId } },
     data: { status: 'completed', completedAt: new Date() }

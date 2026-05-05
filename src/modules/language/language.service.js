@@ -1,4 +1,5 @@
 const progressionService = require('../progression/progression.service');
+const { cacheWrap, cacheDel, cacheInvalidatePattern, TTL } = require('../../utils/cache');
 
 // Récupérer toutes les langues liées à un utilisateur (via userLanguageProgress)
 exports.getLanguagesByUserId = async (userId) => {
@@ -146,6 +147,10 @@ exports.getChildLanguages = async (parentId, childId) => {
 // Calcul de la progression par langue (niveau/module/parcours/étape en cours + taux)
 // Utilisé par le parent (pour son enfant) ET par l'enfant lui-même
 async function computeCurrentProgress(userId) {
+    return cacheWrap(`user:${userId}:progress`, async () => _computeCurrentProgress(userId), TTL.SHORT);
+}
+
+async function _computeCurrentProgress(userId) {
     const pct = (val) => Math.round(Number(val ?? 0));
 
     // Toutes les langues assignées à l'utilisateur
@@ -290,6 +295,7 @@ exports.switchLanguage = async (userId, languageId) => {
         data: { lastAccessedAt: new Date() }
     });
 
+    await cacheDel(`user:${userId}:progress`);
     const data = await computeCurrentProgress(userId);
     return { success: true, data };
 };
@@ -413,14 +419,10 @@ exports.create = async (data) => {
 };
 
 exports.getAll = async () => {
-	return await prisma.language.findMany({
+	return cacheWrap('languages:all', () => prisma.language.findMany({
 		orderBy: { index: 'asc' },
-		include: {
-			levels: {
-				orderBy: { index: 'asc' }
-			}
-		}
-	});
+		include: { levels: { orderBy: { index: 'asc' } } }
+	}), TTL.LONG);
 };
 
 exports.getById = async (id) => {
@@ -428,71 +430,33 @@ exports.getById = async (id) => {
 };
 
 exports.getLanguageLevels = async (languageId) => {
-	// Vérifier si la langue existe (par ID Prisma)
-	const language = await prisma.language.findUnique({ where: { id: languageId } });
-	if (!language) {
-		return null;
-	}
+	return cacheWrap(`language:${languageId}:levels`, async () => {
+		const language = await prisma.language.findUnique({ where: { id: languageId } });
+		if (!language) return null;
 
-	// Récupérer tous les niveaux de la langue (1 requête)
-	const levels = await prisma.level.findMany({
-		where: { languageId: language.id },
-		orderBy: { index: 'asc' }
-	});
+		const levels = await prisma.level.findMany({ where: { languageId: language.id }, orderBy: { index: 'asc' } });
+		if (levels.length === 0) return [];
 
-	if (levels.length === 0) return [];
+		const levelIds = levels.map(l => l.id);
+		const modules = await prisma.module.findMany({ where: { levelId: { in: levelIds } }, orderBy: { index: 'asc' } });
 
-	// Récupérer tous les modules pour ces niveaux (1 requête)
-	const levelIds = levels.map(l => l.id);
-	const modules = await prisma.module.findMany({
-		where: { levelId: { in: levelIds } },
-		orderBy: { index: 'asc' }
-	});
+		const moduleIds = modules.map(m => m.id);
+		const paths = moduleIds.length > 0 ? await prisma.path.findMany({ where: { moduleId: { in: moduleIds } }, orderBy: { index: 'asc' } }) : [];
 
-	// Récupérer tous les parcours pour ces modules (1 requête)
-	const moduleIds = modules.map(m => m.id);
-	const paths = moduleIds.length > 0 ? await prisma.path.findMany({
-		where: { moduleId: { in: moduleIds } },
-		orderBy: { index: 'asc' }
-	}) : [];
+		const pathIds = paths.map(p => p.id);
+		const steps = pathIds.length > 0 ? await prisma.step.findMany({ where: { pathId: { in: pathIds } }, orderBy: { index: 'asc' } }) : [];
 
-	// Récupérer toutes les étapes pour ces parcours (1 requête)
-	const pathIds = paths.map(p => p.id);
-	const steps = pathIds.length > 0 ? await prisma.step.findMany({
-		where: { pathId: { in: pathIds } },
-		orderBy: { index: 'asc' }
-	}) : [];
+		const stepsMap = new Map();
+		steps.forEach(step => { if (!stepsMap.has(step.pathId)) stepsMap.set(step.pathId, []); stepsMap.get(step.pathId).push(step); });
 
-	// Construire la structure hiérarchique
-	const stepsMap = new Map();
-	steps.forEach(step => {
-		if (!stepsMap.has(step.pathId)) stepsMap.set(step.pathId, []);
-		stepsMap.get(step.pathId).push(step);
-	});
+		const pathsMap = new Map();
+		paths.forEach(path => { if (!pathsMap.has(path.moduleId)) pathsMap.set(path.moduleId, []); pathsMap.get(path.moduleId).push({ ...path, steps: stepsMap.get(path.id) || [] }); });
 
-	const pathsMap = new Map();
-	paths.forEach(path => {
-		if (!pathsMap.has(path.moduleId)) pathsMap.set(path.moduleId, []);
-		pathsMap.get(path.moduleId).push({
-			...path,
-			steps: stepsMap.get(path.id) || []
-		});
-	});
+		const modulesMap = new Map();
+		modules.forEach(module => { if (!modulesMap.has(module.levelId)) modulesMap.set(module.levelId, []); modulesMap.get(module.levelId).push({ ...module, paths: pathsMap.get(module.id) || [] }); });
 
-	const modulesMap = new Map();
-	modules.forEach(module => {
-		if (!modulesMap.has(module.levelId)) modulesMap.set(module.levelId, []);
-		modulesMap.get(module.levelId).push({
-			...module,
-			paths: pathsMap.get(module.id) || []
-		});
-	});
-
-	// Assembler les niveaux avec leurs modules
-	return levels.map(level => ({
-		...level,
-		modules: modulesMap.get(level.id) || []
-	}));
+		return levels.map(level => ({ ...level, modules: modulesMap.get(level.id) || [] }));
+	}, TTL.LONG);
 };
 
 exports.getLevelModules = async (languageId, levelId) => {
@@ -782,90 +746,60 @@ exports.getStepContent = async (languageId, levelId, moduleId, pathId, stepId) =
 };
 
 exports.update = async (id, data) => {
-	return await prisma.language.update({ where: { id }, data });
+	const result = await prisma.language.update({ where: { id }, data });
+	await cacheDel('languages:all', 'languages:active', `language:${id}:levels`, `language:${id}:available-levels`);
+	return result;
 };
 
 exports.remove = async (id) => {
 	const language = await prisma.language.findUnique({ where: { id } });
 	if (!language) return null;
 	await prisma.language.delete({ where: { id } });
+	await cacheDel('languages:all', 'languages:active', `language:${id}:levels`, `language:${id}:available-levels`);
 	return true;
 };
 
 // Activer une langue
 exports.activateLanguage = async (id) => {
 	const language = await prisma.language.findUnique({ where: { id } });
-	if (!language) {
-		throw new Error('Langue introuvable');
-	}
-	return await prisma.language.update({
-		where: { id },
-		data: { isActive: true }
-	});
+	if (!language) throw new Error('Langue introuvable');
+	const result = await prisma.language.update({ where: { id }, data: { isActive: true } });
+	await cacheDel('languages:all', 'languages:active', `language:${id}:levels`, `language:${id}:available-levels`);
+	return result;
 };
 
 // Désactiver une langue
 exports.deactivateLanguage = async (id) => {
 	const language = await prisma.language.findUnique({ where: { id } });
-	if (!language) {
-		throw new Error('Langue introuvable');
-	}
-	return await prisma.language.update({
-		where: { id },
-		data: { isActive: false }
-	});
+	if (!language) throw new Error('Langue introuvable');
+	const result = await prisma.language.update({ where: { id }, data: { isActive: false } });
+	await cacheDel('languages:all', 'languages:active', `language:${id}:levels`, `language:${id}:available-levels`);
+	return result;
 };
 
 // Récupérer toutes les langues actives
 exports.getActiveLanguages = async () => {
-	return await prisma.language.findMany({
+	return cacheWrap('languages:active', () => prisma.language.findMany({
 		where: { isActive: true },
 		orderBy: { index: 'asc' },
-		include: {
-			levels: {
-				where: { isActive: true },
-				orderBy: { index: 'asc' }
-			}
-		}
-	});
+		include: { levels: { where: { isActive: true }, orderBy: { index: 'asc' } } }
+	}), TTL.LONG);
 };
 
 // Récupérer les niveaux disponibles pour une langue
 exports.getAvailableLevels = async (languageId) => {
-	const language = await prisma.language.findUnique({ 
-		where: { id: languageId },
-		include: {
-			levels: {
-				where: { isActive: true },
-				orderBy: { index: 'asc' },
-				select: {
-					id: true,
-					code: true,
-					name: true,
-					description: true,
-					index: true,
-					isActive: true,
-					_count: {
-						select: {
-							modules: true
-						}
-					}
+	return cacheWrap(`language:${languageId}:available-levels`, async () => {
+		const language = await prisma.language.findUnique({
+			where: { id: languageId },
+			include: {
+				levels: {
+					where: { isActive: true },
+					orderBy: { index: 'asc' },
+					select: { id: true, code: true, name: true, description: true, index: true, isActive: true, _count: { select: { modules: true } } }
 				}
 			}
-		}
-	});
-	
-	if (!language) {
-		throw new Error('Langue introuvable');
-	}
-	
-	return {
-		language: {
-			id: language.id,
-			code: language.code,
-			name: language.name,
-			isActive: language.isActive
-		},
-		levels: language.levels
-	};
+		});
+		if (!language) throw new Error('Langue introuvable');
+		return { language: { id: language.id, code: language.code, name: language.name, isActive: language.isActive }, levels: language.levels };
+	}, TTL.LONG);
 };

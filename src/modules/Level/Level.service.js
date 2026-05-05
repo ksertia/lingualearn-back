@@ -1,41 +1,20 @@
 const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
+const { cacheGet, cacheSet, cacheDel, TTL } = require('../../utils/cache');
 
 class LevelService {
-    constructor() {
-        this.cache = new Map();
-        this.CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-    }
-
-    // Helper cache
-    getCached(key) {
-        const cached = this.cache.get(key);
-        if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
-            return cached.data;
-        }
-        return null;
-    }
-
-    setCached(key, data) {
-        this.cache.set(key, { data, timestamp: Date.now() });
-    }
-
-    invalidateCache(levelId = null, languageId = null) {
-        if (levelId) {
-            this.cache.delete(`level:${levelId}`);
-            this.cache.delete(`level:${levelId}:full`);
-        }
-        if (languageId) {
-            this.cache.delete(`levels:language:${languageId}`);
-        }
-        this.cache.delete('all-levels');
+    async invalidateCache(levelId = null, languageId = null) {
+        const keys = ['levels:all'];
+        if (levelId) keys.push(`level:${levelId}`, `level:${levelId}:full`);
+        if (languageId) keys.push(`levels:language:${languageId}`);
+        await cacheDel(...keys);
     }
 
     // Récupérer tous les niveaux liés à un utilisateur (optimisé)
     async getLevelsByUserId(userId) {
         const cacheKey = `user-levels:${userId}`;
-        const cached = this.getCached(cacheKey);
-        if (cached) return cached;
+        const cached = await cacheGet(cacheKey);
+        if (cached !== null) return cached;
 
         // 1. Trouver la langue actuelle de l'utilisateur
         const userLanguageProgress = await prisma.userLanguageProgress.findFirst({
@@ -122,7 +101,7 @@ class LevelService {
             lastAccessedAt: level.userProgress[0]?.lastAccessedAt || null
         }));
 
-        this.setCached(cacheKey, result);
+        await cacheSet(cacheKey, result, TTL.SHORT);
         return result;
     }
 
@@ -158,14 +137,14 @@ class LevelService {
         });
         
         // Invalider le cache
-        this.invalidateCache(null, data.languageId);
+        await this.invalidateCache(null, data.languageId);
         
         return level;
     }
 
     async getAllLevels() {
-        const cached = this.getCached('all-levels');
-        if (cached) return cached;
+        const cached = await cacheGet('levels:all');
+        if (cached !== null) return cached;
 
         const levels = await prisma.level.findMany({
             orderBy: { index: 'asc' },
@@ -188,13 +167,13 @@ class LevelService {
             }
         });
 
-        this.setCached('all-levels', levels);
+        await cacheSet('levels:all', levels, TTL.LONG);
         return levels;
     }
 
     async getLevelById(id) {
-        const cached = this.getCached(`level:${id}`);
-        if (cached) return cached;
+        const cached = await cacheGet(`level:${id}`);
+        if (cached !== null) return cached;
 
         const level = await prisma.level.findUnique({ 
             where: { id },
@@ -226,7 +205,7 @@ class LevelService {
             }
         });
         
-        this.setCached(`level:${id}`, level);
+        await cacheSet(`level:${id}`, level, TTL.LONG);
         return level;
     }
 
@@ -237,7 +216,7 @@ class LevelService {
         });
         
         // Invalider le cache
-        this.invalidateCache(id, level.languageId);
+        await this.invalidateCache(id, level.languageId);
         
         return level;
     }
@@ -258,7 +237,7 @@ class LevelService {
         });
         
         // Invalider le cache
-        this.invalidateCache(id, level.languageId);
+        await this.invalidateCache(id, level.languageId);
         
         return level;
     }
@@ -300,7 +279,8 @@ class LevelService {
             }))?.id);
         }
 
-        this.invalidateCache(null, level.languageId);
+        await this.invalidateCache(null, level.languageId);
+        await cacheDel(`user-levels:${userId}`);
         return progress;
     }
 
@@ -415,7 +395,7 @@ class LevelService {
         });
         
         // Invalider le cache
-        this.invalidateCache(null);
+        await this.invalidateCache(null);
         
         return result;
     }
@@ -425,7 +405,7 @@ class LevelService {
         const result = await progressionService.completeLevelAndUnlockNext(userId, levelId);
         
         // Invalider le cache
-        this.invalidateCache(null);
+        await this.invalidateCache(null);
         
         return result;
     }
@@ -445,7 +425,7 @@ class LevelService {
             data: { isActive: true }
         });
         
-        this.invalidateCache(id, level.languageId);
+        await this.invalidateCache(id, level.languageId);
         
         return result;
     }
@@ -465,25 +445,13 @@ class LevelService {
             data: { isActive: false }
         });
         
-        this.invalidateCache(id, level.languageId);
+        await this.invalidateCache(id, level.languageId);
         
         return result;
     }
 
-    // Nettoyage du cache
-    cleanupCache() {
-        const now = Date.now();
-        for (const [key, value] of this.cache.entries()) {
-            if (now - value.timestamp > this.CACHE_TTL) {
-                this.cache.delete(key);
-            }
-        }
-    }
 }
 
 const levelService = new LevelService();
-
-// Nettoyer le cache toutes les heures
-setInterval(() => levelService.cleanupCache(), 60 * 60 * 1000);
 
 module.exports = levelService;

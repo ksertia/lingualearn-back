@@ -1,4 +1,5 @@
 const { prisma } = require('../../config/prisma');
+const { cacheWrap, cacheDel, TTL } = require('../../utils/cache');
 
 // ==================== CONFIGURATION ====================
 
@@ -109,54 +110,56 @@ async function getOrCreateUserStats(userId) {
  * Récupère les stats complètes d'un utilisateur avec niveau et badges
  */
 async function getUserStats(userId) {
-  const stats = await getOrCreateUserStats(userId);
-  const totalXp = Number(stats.totalXp);
-  const currentLevel = calculateLevel(totalXp);
-  const xpForCurrentLevel = getXpForCurrentLevel(currentLevel);
-  const xpForNextLevel = getXpForNextLevel(currentLevel);
-  const xpProgress = totalXp - xpForCurrentLevel;
-  const xpNeeded = xpForNextLevel - xpForCurrentLevel;
+  return cacheWrap(`gamification:user:${userId}:stats`, async () => {
+    const stats = await getOrCreateUserStats(userId);
+    const totalXp = Number(stats.totalXp);
+    const currentLevel = calculateLevel(totalXp);
+    const xpForCurrentLevel = getXpForCurrentLevel(currentLevel);
+    const xpForNextLevel = getXpForNextLevel(currentLevel);
+    const xpProgress = totalXp - xpForCurrentLevel;
+    const xpNeeded = xpForNextLevel - xpForCurrentLevel;
 
-  // Récupérer les badges de l'utilisateur
-  const userBadges = await prisma.userBadge.findMany({
-    where: { userId },
-    include: { badge: true },
-    orderBy: { earnedAt: 'desc' }
-  });
+    const userBadges = await prisma.userBadge.findMany({
+      where: { userId },
+      include: { badge: true },
+      orderBy: { earnedAt: 'desc' }
+    });
 
-  return {
-    userId: stats.userId,
-    level: currentLevel,
-    totalXp,
-    xpForNextLevel: xpForNextLevel,
-    xpProgress,
-    xpNeeded,
-    progressPercentage: Math.round((xpProgress / xpNeeded) * 100),
-    totalCoins: stats.totalCoins,
-    currentStreak: stats.currentStreak,
-    longestStreak: stats.longestStreak,
-    totalStudyMinutes: stats.totalStudyMinutes,
-    totalLessonsCompleted: stats.totalLessonsCompleted,
-    totalExercisesCompleted: stats.totalExercisesCompleted,
-    totalStepsCompleted: stats.totalStepsCompleted,
-    accuracyRate: stats.accuracyRate ? Number(stats.accuracyRate) : 0,
-    badges: userBadges.map(ub => ({
-      id: ub.badge.id,
-      name: ub.badge.name,
-      description: ub.badge.description,
-      icon: ub.badge.icon,
-      earnedAt: ub.earnedAt
-    })),
-    totalBadges: userBadges.length,
-    createdAt: stats.createdAt,
-    updatedAt: stats.updatedAt
-  };
+    return {
+      userId: stats.userId,
+      level: currentLevel,
+      totalXp,
+      xpForNextLevel,
+      xpProgress,
+      xpNeeded,
+      progressPercentage: Math.round((xpProgress / xpNeeded) * 100),
+      totalCoins: stats.totalCoins,
+      currentStreak: stats.currentStreak,
+      longestStreak: stats.longestStreak,
+      totalStudyMinutes: stats.totalStudyMinutes,
+      totalLessonsCompleted: stats.totalLessonsCompleted,
+      totalExercisesCompleted: stats.totalExercisesCompleted,
+      totalStepsCompleted: stats.totalStepsCompleted,
+      accuracyRate: stats.accuracyRate ? Number(stats.accuracyRate) : 0,
+      badges: userBadges.map(ub => ({
+        id: ub.badge.id,
+        name: ub.badge.name,
+        description: ub.badge.description,
+        icon: ub.badge.icon,
+        earnedAt: ub.earnedAt
+      })),
+      totalBadges: userBadges.length,
+      createdAt: stats.createdAt,
+      updatedAt: stats.updatedAt
+    };
+  }, TTL.SHORT);
 }
 
 /**
  * Ajoute de l'XP et des coins à un utilisateur
  */
 async function addRewards(userId, xp = 0, coins = 0) {
+  await cacheDel(`gamification:user:${userId}:stats`, `gamification:user:${userId}:rank`, 'gamification:leaderboard');
   const stats = await prisma.userStats.upsert({
     where: { userId },
     create: {
@@ -180,6 +183,7 @@ async function addRewards(userId, xp = 0, coins = 0) {
  * Incrémente le compteur de leçons complétées
  */
 async function incrementLessonsCompleted(userId) {
+  await cacheDel(`gamification:user:${userId}:stats`);
   const stats = await prisma.userStats.upsert({
     where: { userId },
     create: {
@@ -199,6 +203,7 @@ async function incrementLessonsCompleted(userId) {
  * Incrémente le compteur d'exercices complétés
  */
 async function incrementExercisesCompleted(userId) {
+  await cacheDel(`gamification:user:${userId}:stats`);
   const stats = await prisma.userStats.upsert({
     where: { userId },
     create: {
@@ -380,45 +385,34 @@ async function getUserBadges(userId) {
  * Récupère le classement des utilisateurs par XP
  */
 async function getLeaderboard(limit = 10) {
-  const topUsers = await prisma.userStats.findMany({
-    take: limit,
-    orderBy: { totalXp: 'desc' },
-    include: {
-      user: {
-        select: {
-          id: true,
-          username: true,
-          profilePicture: true
-        }
-      }
-    }
-  });
-
-  return topUsers.map((stats, index) => ({
-    rank: index + 1,
-    userId: stats.userId,
-    username: stats.user.username,
-    profilePicture: stats.user.profilePicture,
-    level: calculateLevel(Number(stats.totalXp)),
-    totalXp: Number(stats.totalXp),
-    totalCoins: stats.totalCoins,
-    currentStreak: stats.currentStreak
-  }));
+  return cacheWrap(`gamification:leaderboard:${limit}`, async () => {
+    const topUsers = await prisma.userStats.findMany({
+      take: limit,
+      orderBy: { totalXp: 'desc' },
+      include: { user: { select: { id: true, username: true, profilePicture: true } } }
+    });
+    return topUsers.map((stats, index) => ({
+      rank: index + 1,
+      userId: stats.userId,
+      username: stats.user.username,
+      profilePicture: stats.user.profilePicture,
+      level: calculateLevel(Number(stats.totalXp)),
+      totalXp: Number(stats.totalXp),
+      totalCoins: stats.totalCoins,
+      currentStreak: stats.currentStreak
+    }));
+  }, TTL.SHORT);
 }
 
 /**
  * Récupère la position d'un utilisateur dans le classement
  */
 async function getUserRank(userId) {
-  const userStats = await getOrCreateUserStats(userId);
-  
-  const higherRanked = await prisma.userStats.count({
-    where: {
-      totalXp: { gt: userStats.totalXp }
-    }
-  });
-
-  return higherRanked + 1;
+  return cacheWrap(`gamification:user:${userId}:rank`, async () => {
+    const userStats = await getOrCreateUserStats(userId);
+    const higherRanked = await prisma.userStats.count({ where: { totalXp: { gt: userStats.totalXp } } });
+    return higherRanked + 1;
+  }, TTL.SHORT);
 }
 
 module.exports = {
