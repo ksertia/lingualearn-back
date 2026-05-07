@@ -21,55 +21,36 @@ async function upsertSetting(key, value) {
 
 // Ajuster l'abonnement d'un learner (prolonger ou réduire)
 async function adjustUserTrial(userId, newExpiresAt) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, accountType: true },
-  });
-
-  if (!user) throw new AppError(404, 'Utilisateur introuvable');
-  if (user.accountType !== 'learner') {
-    throw new AppError(400, 'Seuls les comptes learner peuvent avoir un abonnement ajusté');
-  }
-
   const expiry = new Date(newExpiresAt);
   if (isNaN(expiry.getTime())) throw new AppError(400, 'Date invalide');
 
-  // Source de vérité : chercher directement par userId sur Subscription
-  const existing = await prisma.subscription.findUnique({ where: { userId } });
+  // Charger user + subscription existante en parallèle
+  const [user, existing] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { id: true, accountType: true } }),
+    prisma.subscription.findUnique({ where: { userId }, select: { id: true } }),
+  ]);
+
+  if (!user) throw new AppError(404, 'Utilisateur introuvable');
+  if (user.accountType !== 'learner') throw new AppError(400, 'Seuls les comptes learner peuvent avoir un abonnement ajusté');
 
   if (!existing) {
-    const trialPlan = await prisma.subscriptionPlan.findUnique({ where: { planCode: 'TRIAL' } });
+    const trialPlan = await prisma.subscriptionPlan.findUnique({ where: { planCode: 'TRIAL' }, select: { id: true } });
     if (!trialPlan) throw new AppError(500, 'Plan TRIAL introuvable');
 
+    // Créer subscription + mettre à jour user dans une transaction
     const subscription = await prisma.subscription.create({
-      data: {
-        userId,
-        planId: trialPlan.id,
-        status: 'active',
-        billingCycle: 'trial',
-        currentPeriodStart: new Date(),
-        currentPeriodEnd: expiry,
-      },
+      data: { userId, planId: trialPlan.id, status: 'active', billingCycle: 'trial', currentPeriodStart: new Date(), currentPeriodEnd: expiry },
     });
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: { subscriptionId: subscription.id, subscriptionEndsAt: expiry },
-    });
-
+    await prisma.user.update({ where: { id: userId }, data: { subscriptionId: subscription.id, subscriptionEndsAt: expiry } });
     return subscription;
   }
 
-  // Mettre à jour la date de fin (et réactiver si expiré)
-  const updated = await prisma.subscription.update({
-    where: { userId },
-    data: { currentPeriodEnd: expiry, status: 'active' },
-  });
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: { subscriptionEndsAt: expiry },
-  });
+  // Mettre à jour subscription + user en parallèle dans une transaction
+  const [updated] = await prisma.$transaction([
+    prisma.subscription.update({ where: { userId }, data: { currentPeriodEnd: expiry, status: 'active' } }),
+    prisma.user.update({ where: { id: userId }, data: { subscriptionEndsAt: expiry } }),
+  ]);
 
   return updated;
 }

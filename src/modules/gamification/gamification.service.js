@@ -326,14 +326,16 @@ async function checkAndAwardBadges(userId) {
   });
   const badgeMap = new Map(existingBadges.map(b => [b.badgeKey, b]));
 
-  // Créer les badges manquants en DB (upsert groupé)
-  for (const b of toAward) {
-    if (!badgeMap.has(b.id)) {
-      const created = await prisma.badge.create({
-        data: { badgeKey: b.id, name: b.name, description: b.description, icon: b.icon }
-      });
-      badgeMap.set(b.id, created);
-    }
+  // Créer les badges manquants en 1 seule requête createMany (pas de boucle await)
+  const missingBadges = toAward.filter(b => !badgeMap.has(b.id));
+  if (missingBadges.length > 0) {
+    await prisma.badge.createMany({
+      data: missingBadges.map(b => ({ badgeKey: b.id, name: b.name, description: b.description, icon: b.icon })),
+      skipDuplicates: true,
+    });
+    // Recharger les badges créés pour récupérer leurs IDs
+    const newlyCreated = await prisma.badge.findMany({ where: { badgeKey: { in: missingBadges.map(b => b.id) } } });
+    newlyCreated.forEach(b => badgeMap.set(b.badgeKey, b));
   }
 
   // 1 createMany : attribuer tous les nouveaux badges en une requête

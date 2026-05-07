@@ -1,12 +1,25 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const swaggerUi = require('swagger-ui-express');
 const https = require('https');
 const http = require('http');
 const fs = require('fs');
 const setupWebSocket = require('./ws');
 require('dotenv').config();
+
+// =====================
+// Crash guards — évite que le process meure sur une exception non gérée
+// =====================
+process.on('uncaughtException', (err) => {
+    console.error('[FATAL] uncaughtException:', err.message, err.stack);
+    // Laisser le process vivre — nodemon/PM2 peut le redémarrer si nécessaire
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('[WARN] unhandledRejection:', reason);
+});
 
 const { errorHandler } = require('./middleware/errorHandler');
 const { requestLogger } = require('./middleware/requestLogger');
@@ -34,10 +47,48 @@ app.use(cors({
     credentials: true
 }));
 
+// =====================
+// Rate limiting global — protège contre les attaques et surcharges
+// =====================
+const globalLimiter = rateLimit({
+    windowMs: 60 * 1000,        // 1 minute
+    max: 300,                    // 300 requêtes/min par IP (5/sec) — ajuster selon besoin
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: 'Trop de requêtes. Réessayez dans une minute.' },
+    skip: (req) => req.path.startsWith('/api-docs'), // Swagger pas limité
+});
+
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,  // 15 minutes
+    max: 20,                    // 20 tentatives auth/15min par IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: 'Trop de tentatives. Réessayez dans 15 minutes.' },
+});
+
+app.use(globalLimiter);
+// Appliquer le limiter strict sur les routes auth
+app.use('/api/v1/auth/login', authLimiter);
+app.use('/api/v1/auth/register', authLimiter);
+app.use('/api/v1/auth/forgot-password', authLimiter);
+
 // Supprimer headers qui causent des warnings Swagger
 app.use((req, res, next) => {
     res.removeHeader("Cross-Origin-Opener-Policy");
     res.removeHeader("Origin-Agent-Cluster");
+    next();
+});
+
+// =====================
+// Timeout global — tue les requêtes qui dépassent 30s (évite saturation thread pool)
+// =====================
+app.use((req, res, next) => {
+    res.setTimeout(30000, () => {
+        if (!res.headersSent) {
+            res.status(503).json({ success: false, error: 'Request timeout — le serveur est surchargé.' });
+        }
+    });
     next();
 });
 
@@ -93,6 +144,26 @@ const { getIo } = require('./ws');
 app.use((req, res, next) => {
   req.io = getIo();
   next();
+});
+
+// =====================
+// Healthcheck — utilisé par load balancer / monitoring
+// =====================
+app.get('/health', async (req, res) => {
+    const { prisma } = require('./config/prisma');
+    const { isRedisAvailable } = require('./config/redis');
+    try {
+        await prisma.$queryRaw`SELECT 1`;
+        res.json({
+            status: 'ok',
+            db: 'connected',
+            redis: isRedisAvailable() ? 'connected' : 'unavailable',
+            uptime: Math.floor(process.uptime()),
+            memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
+        });
+    } catch {
+        res.status(503).json({ status: 'error', db: 'disconnected' });
+    }
 });
 
 // =====================

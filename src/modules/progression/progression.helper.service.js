@@ -511,88 +511,68 @@ class ProgressionHelperService {
 
   /**
    * Recalcule et met à jour les pourcentages de progression
+   * Toutes les mises à jour s'exécutent en parallèle — aucune boucle await
    */
   async recalculateProgressPercentages(userId, languageId) {
     try {
       const progression = await this.getCompleteUserProgression(userId, languageId);
-      
-      if (!progression) {
-        return;
-      }
+      if (!progression) return;
 
-      // Recalculer les pourcentages pour chaque niveau
+      // Collecter tous les updates nécessaires en mémoire (zéro await dans les boucles)
+      const levelUpdates  = [];
+      const moduleUpdates = [];
+      const pathUpdates   = [];
+
       for (const level of progression.levels) {
-        await this.recalculateLevelProgress(userId, level);
+        if (level.userProgress) {
+          const completed = level.modules.filter(m => m.userProgress?.status === 'completed').length;
+          const pct = level.modules.length > 0 ? (completed / level.modules.length) * 100 : 0;
+          levelUpdates.push(prisma.userLevelProgress.update({
+            where: { userId_levelId: { userId, levelId: level.id } },
+            data: { progressPercentage: pct }
+          }));
+        }
+
+        for (const module of level.modules) {
+          if (module.userProgress) {
+            const completed = module.paths.filter(p => p.userProgress?.status === 'completed').length;
+            const pct = module.paths.length > 0 ? (completed / module.paths.length) * 100 : 0;
+            moduleUpdates.push(prisma.userModuleProgress.update({
+              where: { userId_moduleId: { userId, moduleId: module.id } },
+              data: { progressPercentage: pct }
+            }));
+          }
+
+          for (const path of module.paths) {
+            if (path.userProgress) {
+              const completed = path.steps.filter(s => s.userProgress?.status === 'completed').length;
+              const pct = path.steps.length > 0 ? (completed / path.steps.length) * 100 : 0;
+              pathUpdates.push(prisma.userPathProgress.update({
+                where: { userId_pathId: { userId, pathId: path.id } },
+                data: { progressPercentage: pct }
+              }));
+            }
+          }
+        }
       }
 
-      // Mettre à jour la progression globale
+      // Calculer overallProgress en mémoire (pas de requête supplémentaire)
       const stats = await this.calculateProgressionStats(userId, languageId);
-      await prisma.userLanguageProgress.update({
-        where: { userId_languageId: { userId, languageId } },
-        data: { overallProgress: stats.overallProgressPercentage }
-      });
+
+      // Tout envoyer en parallèle en 1 seul round
+      await Promise.all([
+        ...levelUpdates,
+        ...moduleUpdates,
+        ...pathUpdates,
+        prisma.userLanguageProgress.update({
+          where: { userId_languageId: { userId, languageId } },
+          data: { overallProgress: stats.overallProgressPercentage }
+        }),
+      ]);
 
       return { success: true, message: 'Progression recalculée avec succès' };
     } catch (error) {
       throw new Error(`Erreur lors du recalcul de la progression: ${error.message}`);
-    }
-  }
-
-  /**
-   * Recalcule la progression d'un niveau
-   */
-  async recalculateLevelProgress(userId, level) {
-    const totalModules = level.modules.length;
-    const completedModules = level.modules.filter(m => m.userProgress?.status === 'completed').length;
-    const levelProgressPercentage = totalModules > 0 ? (completedModules / totalModules) * 100 : 0;
-
-    if (level.userProgress) {
-      await prisma.userLevelProgress.update({
-        where: { userId_levelId: { userId, levelId: level.id } },
-        data: { progressPercentage: levelProgressPercentage }
-      });
-    }
-
-    // Recalculer les modules
-    for (const module of level.modules) {
-      await this.recalculateModuleProgress(userId, module);
-    }
-  }
-
-  /**
-   * Recalcule la progression d'un module
-   */
-  async recalculateModuleProgress(userId, module) {
-    const totalPaths = module.paths.length;
-    const completedPaths = module.paths.filter(p => p.userProgress?.status === 'completed').length;
-    const moduleProgressPercentage = totalPaths > 0 ? (completedPaths / totalPaths) * 100 : 0;
-
-    if (module.userProgress) {
-      await prisma.userModuleProgress.update({
-        where: { userId_moduleId: { userId, moduleId: module.id } },
-        data: { progressPercentage: moduleProgressPercentage }
-      });
-    }
-
-    // Recalculer les parcours
-    for (const path of module.paths) {
-      await this.recalculatePathProgress(userId, path);
-    }
-  }
-
-  /**
-   * Recalcule la progression d'un parcours
-   */
-  async recalculatePathProgress(userId, path) {
-    const totalSteps = path.steps.length;
-    const completedSteps = path.steps.filter(s => s.userProgress?.status === 'completed').length;
-    const pathProgressPercentage = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0;
-
-    if (path.userProgress) {
-      await prisma.userPathProgress.update({
-        where: { userId_pathId: { userId, pathId: path.id } },
-        data: { progressPercentage: pathProgressPercentage }
-      });
     }
   }
 
