@@ -152,21 +152,59 @@ class ProgressionUnlockService {
    * Initialise la progression pour un utilisateur sur une langue
    * Débloque automatiquement le premier niveau, premier module, premier parcours, première étape
    */
-  async initializeUserLanguageProgress(userId, languageId) {
+  async initializeUserLanguageProgress(userId, languageId, targetLevelId = null) {
     try {
-      // Valider l'utilisateur et la langue
       await this.validateUser(userId);
-      const language = await this.validateLanguage(languageId);
+      await this.validateLanguage(languageId);
 
-      // Créer ou récupérer la progression de la langue
       let languageProgress = await this.getOrCreateLanguageProgress(userId, languageId);
 
-      // Débloquer le premier niveau de cette langue
-      const firstLevel = await this.getFirstLevel(languageId);
-      if (firstLevel) {
-        await this.unlockLevelWithChildren(userId, firstLevel.id);
-        languageProgress = await this.updateLanguageStatus(userId, languageId, ProgressionUnlockService.STATUS.STARTED);
+      // Récupérer tous les niveaux triés par index
+      const allLevels = await this.prisma.level.findMany({
+        where: { languageId, isActive: true },
+        orderBy: { index: 'asc' }
+      });
+
+      if (!allLevels.length) {
+        return { success: true, message: 'Progression initialisée avec succès', data: languageProgress };
       }
+
+      const targetLevel = targetLevelId
+        ? allLevels.find(l => l.id === targetLevelId)
+        : allLevels[0];
+
+      if (!targetLevel) throw new Error('Niveau cible introuvable');
+
+      // Pour les niveaux inférieurs : débloquer le niveau + son premier module seulement
+      const previousLevels = allLevels.filter(l => l.index < targetLevel.index);
+      if (previousLevels.length > 0) {
+        const firstModules = await Promise.all(previousLevels.map(l => this.getFirstModule(l.id)));
+        await Promise.all(
+          previousLevels.flatMap((prevLevel, i) => {
+            const ops = [
+              this.prisma.userLevelProgress.upsert({
+                where: { userId_levelId: { userId, levelId: prevLevel.id } },
+                update: { status: ProgressionUnlockService.STATUS.UNLOCKED, unlockedAt: new Date() },
+                create: { userId, levelId: prevLevel.id, status: ProgressionUnlockService.STATUS.UNLOCKED, unlockedAt: new Date() }
+              })
+            ];
+            if (firstModules[i]) {
+              ops.push(
+                this.prisma.userModuleProgress.upsert({
+                  where: { userId_moduleId: { userId, moduleId: firstModules[i].id } },
+                  update: { status: ProgressionUnlockService.STATUS.UNLOCKED, unlockedAt: new Date() },
+                  create: { userId, moduleId: firstModules[i].id, status: ProgressionUnlockService.STATUS.UNLOCKED, unlockedAt: new Date() }
+                })
+              );
+            }
+            return ops;
+          })
+        );
+      }
+
+      // Débloquer le niveau cible + son premier module → parcours → étape
+      await this.unlockLevelWithChildren(userId, targetLevel.id);
+      languageProgress = await this.updateLanguageStatus(userId, languageId, ProgressionUnlockService.STATUS.STARTED);
 
       return {
         success: true,

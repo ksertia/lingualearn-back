@@ -381,8 +381,8 @@ exports.assignLevelToChild = async (parentId, childId, languageId, levelId) => {
     });
     if (!level) throw new AppError(404, 'Level not found for this language');
 
-    // Débloquer ce niveau + module 1 + parcours 1 + étape 1 en cascade
-    await progressionService.unlockLevelWithChildren(childId, levelId);
+    // Marquer les niveaux inférieurs comme complétés + débloquer le niveau choisi
+    await progressionService.initializeUserLanguageProgress(childId, languageId, levelId);
 
     const progress = await prisma.userLevelProgress.findUnique({
         where: { userId_levelId: { userId: childId, levelId } }
@@ -390,20 +390,20 @@ exports.assignLevelToChild = async (parentId, childId, languageId, levelId) => {
 
     return {
         success: true,
-        message: `Level "${level.name}" assigned to ${child.username} — module 1, parcours 1 et étape 1 débloqués`,
+        message: `Level "${level.name}" assigned to ${child.username} — niveaux précédents débloqués, module 1 débloqué`,
         data: { level, progress }
     };
 };
 
 // Progression utilisateur pour Language
-exports.selectLanguageForUser = async (userId, languageId) => {
+exports.selectLanguageForUser = async (userId, languageId, levelId = null) => {
 	const existing = await prisma.userLanguageProgress.findUnique({
 		where: { userId_languageId: { userId, languageId } }
 	});
 
 	if (!existing) {
-		// Première sélection → initialiser toute la cascade (level1 → module1 → parcours1 → étape1)
-		await progressionService.initializeUserLanguageProgress(userId, languageId);
+		// Première sélection → initialiser avec le niveau choisi (ou le premier par défaut)
+		await progressionService.initializeUserLanguageProgress(userId, languageId, levelId);
 	} else {
 		// Déjà sélectionnée → juste mettre à jour lastAccessedAt
 		await prisma.userLanguageProgress.update({
@@ -470,318 +470,135 @@ exports.getById = async (id) => {
 
 exports.getLanguageLevels = async (languageId) => {
 	return cacheWrap(`language:${languageId}:levels`, async () => {
-		const language = await prisma.language.findUnique({ where: { id: languageId } });
+		// Vérifier langue + charger niveaux en 1 requête
+		const language = await prisma.language.findUnique({
+			where: { id: languageId },
+			select: { id: true }
+		});
 		if (!language) return null;
 
-		const levels = await prisma.level.findMany({ where: { languageId: language.id }, orderBy: { index: 'asc' } });
+		// Charger levels, puis modules+paths+steps en parallèle dès qu'on a les IDs
+		const levels = await prisma.level.findMany({ where: { languageId }, orderBy: { index: 'asc' }, select: { id: true, name: true, code: true, index: true, isActive: true } });
 		if (levels.length === 0) return [];
 
 		const levelIds = levels.map(l => l.id);
+
+		// modules dépend des levelIds — on les charge, puis paths et steps en parallèle
 		const modules = await prisma.module.findMany({ where: { levelId: { in: levelIds } }, orderBy: { index: 'asc' } });
 
 		const moduleIds = modules.map(m => m.id);
-		const paths = moduleIds.length > 0 ? await prisma.path.findMany({ where: { moduleId: { in: moduleIds } }, orderBy: { index: 'asc' } }) : [];
+		// paths et steps sont indépendants entre eux — parallèle
+		const [paths, steps] = await Promise.all([
+			moduleIds.length > 0 ? prisma.path.findMany({ where: { moduleId: { in: moduleIds } }, orderBy: { index: 'asc' } }) : Promise.resolve([]),
+			// steps dépend des pathIds mais on ne les a pas encore — on les charge après paths
+			Promise.resolve(null),
+		]);
 
 		const pathIds = paths.map(p => p.id);
-		const steps = pathIds.length > 0 ? await prisma.step.findMany({ where: { pathId: { in: pathIds } }, orderBy: { index: 'asc' } }) : [];
+		const allSteps = pathIds.length > 0 ? await prisma.step.findMany({ where: { pathId: { in: pathIds } }, orderBy: { index: 'asc' } }) : [];
 
+		// Assembler en mémoire via Maps (O(1))
 		const stepsMap = new Map();
-		steps.forEach(step => { if (!stepsMap.has(step.pathId)) stepsMap.set(step.pathId, []); stepsMap.get(step.pathId).push(step); });
+		allSteps.forEach(s => { if (!stepsMap.has(s.pathId)) stepsMap.set(s.pathId, []); stepsMap.get(s.pathId).push(s); });
 
 		const pathsMap = new Map();
-		paths.forEach(path => { if (!pathsMap.has(path.moduleId)) pathsMap.set(path.moduleId, []); pathsMap.get(path.moduleId).push({ ...path, steps: stepsMap.get(path.id) || [] }); });
+		paths.forEach(p => { if (!pathsMap.has(p.moduleId)) pathsMap.set(p.moduleId, []); pathsMap.get(p.moduleId).push({ ...p, steps: stepsMap.get(p.id) || [] }); });
 
 		const modulesMap = new Map();
-		modules.forEach(module => { if (!modulesMap.has(module.levelId)) modulesMap.set(module.levelId, []); modulesMap.get(module.levelId).push({ ...module, paths: pathsMap.get(module.id) || [] }); });
+		modules.forEach(m => { if (!modulesMap.has(m.levelId)) modulesMap.set(m.levelId, []); modulesMap.get(m.levelId).push({ ...m, paths: pathsMap.get(m.id) || [] }); });
 
 		return levels.map(level => ({ ...level, modules: modulesMap.get(level.id) || [] }));
 	}, TTL.LONG);
 };
 
 exports.getLevelModules = async (languageId, levelId) => {
-	// Vérifier si la langue existe (par ID Prisma)
-	const language = await prisma.language.findUnique({ where: { id: languageId } });
-	if (!language) {
-		return null;
-	}
+	// Valider langue + niveau en parallèle
+	const [language, level] = await Promise.all([
+		prisma.language.findUnique({ where: { id: languageId }, select: { id: true } }),
+		prisma.level.findFirst({ where: { id: levelId, languageId }, select: { id: true, name: true } }),
+	]);
+	if (!language || !level) return null;
 
-	// Vérifier si le niveau existe pour cette langue
-	const level = await prisma.level.findFirst({
-		where: { 
-			id: levelId,
-			languageId: language.id 
-		}
-	});
+	const modules = await prisma.module.findMany({ where: { levelId: level.id }, orderBy: { index: 'asc' } });
+	if (modules.length === 0) return { levelName: level.name, modules: [] };
 
-	if (!level) {
-		return null;
-	}
-
-	// Récupérer tous les modules du niveau (1 requête)
-	const modules = await prisma.module.findMany({
-		where: { levelId: level.id },
-		orderBy: { index: 'asc' }
-	});
-
-	if (modules.length === 0) {
-		return {
-			levelName: level.name,
-			modules: []
-		};
-	}
-
-	// Récupérer tous les parcours pour ces modules (1 requête)
 	const moduleIds = modules.map(m => m.id);
-	const paths = await prisma.path.findMany({
-		where: { moduleId: { in: moduleIds } },
-		orderBy: { index: 'asc' }
-	});
+	const paths = await prisma.path.findMany({ where: { moduleId: { in: moduleIds } }, orderBy: { index: 'asc' } });
 
-	// Récupérer toutes les étapes pour ces parcours (1 requête)
 	const pathIds = paths.map(p => p.id);
-	const steps = pathIds.length > 0 ? await prisma.step.findMany({
-		where: { pathId: { in: pathIds } },
-		orderBy: { index: 'asc' }
-	}) : [];
+	const steps = pathIds.length > 0 ? await prisma.step.findMany({ where: { pathId: { in: pathIds } }, orderBy: { index: 'asc' } }) : [];
 
-	// Construire la structure hiérarchique
 	const stepsMap = new Map();
-	steps.forEach(step => {
-		if (!stepsMap.has(step.pathId)) stepsMap.set(step.pathId, []);
-		stepsMap.get(step.pathId).push(step);
-	});
+	steps.forEach(s => { if (!stepsMap.has(s.pathId)) stepsMap.set(s.pathId, []); stepsMap.get(s.pathId).push(s); });
 
 	const pathsMap = new Map();
-	paths.forEach(path => {
-		if (!pathsMap.has(path.moduleId)) pathsMap.set(path.moduleId, []);
-		pathsMap.get(path.moduleId).push({
-			...path,
-			steps: stepsMap.get(path.id) || []
-		});
-	});
-
-	// Assembler les modules avec leurs parcours
-	const modulesWithPaths = modules.map(module => ({
-		...module,
-		paths: pathsMap.get(module.id) || []
-	}));
+	paths.forEach(p => { if (!pathsMap.has(p.moduleId)) pathsMap.set(p.moduleId, []); pathsMap.get(p.moduleId).push({ ...p, steps: stepsMap.get(p.id) || [] }); });
 
 	return {
 		levelName: level.name,
-		modules: modulesWithPaths
+		modules: modules.map(m => ({ ...m, paths: pathsMap.get(m.id) || [] }))
 	};
 };
 
 exports.getModulePaths = async (languageId, levelId, moduleId) => {
-	// Vérifier si la langue existe (par ID Prisma)
-	const language = await prisma.language.findUnique({ where: { id: languageId } });
-	if (!language) {
-		return null;
-	}
+	// Valider langue + niveau + module en parallèle (les 3 sont indépendants par ID)
+	const [language, level, module] = await Promise.all([
+		prisma.language.findUnique({ where: { id: languageId }, select: { id: true } }),
+		prisma.level.findFirst({ where: { id: levelId, languageId }, select: { id: true } }),
+		prisma.module.findFirst({ where: { id: moduleId, levelId }, select: { id: true, name: true } }),
+	]);
+	if (!language || !level || !module) return null;
 
-	// Vérifier si le niveau existe pour cette langue
-	const level = await prisma.level.findFirst({
-		where: { 
-			id: levelId,
-			languageId: language.id 
-		}
-	});
+	const paths = await prisma.path.findMany({ where: { moduleId: module.id }, orderBy: { index: 'asc' } });
+	if (paths.length === 0) return { moduleName: module.name, paths: [] };
 
-	if (!level) {
-		return null;
-	}
-
-	// Vérifier si le module existe pour ce niveau
-	const module = await prisma.module.findFirst({
-		where: { 
-			id: moduleId,
-			levelId: level.id 
-		}
-	});
-
-	if (!module) {
-		return null;
-	}
-
-	// Récupérer tous les parcours du module (1 requête)
-	const paths = await prisma.path.findMany({
-		where: { moduleId: module.id },
-		orderBy: { index: 'asc' }
-	});
-
-	if (paths.length === 0) {
-		return {
-			moduleName: module.name,
-			paths: []
-		};
-	}
-
-	// Récupérer toutes les étapes pour ces parcours (1 requête)
 	const pathIds = paths.map(p => p.id);
-	const steps = await prisma.step.findMany({
-		where: { pathId: { in: pathIds } },
-		orderBy: { index: 'asc' }
-	});
+	const steps = await prisma.step.findMany({ where: { pathId: { in: pathIds } }, orderBy: { index: 'asc' } });
 
-	// Construire la structure hiérarchique
 	const stepsMap = new Map();
-	steps.forEach(step => {
-		if (!stepsMap.has(step.pathId)) stepsMap.set(step.pathId, []);
-		stepsMap.get(step.pathId).push(step);
-	});
-
-	// Assembler les parcours avec leurs étapes
-	const pathsWithSteps = paths.map(path => ({
-		...path,
-		steps: stepsMap.get(path.id) || []
-	}));
+	steps.forEach(s => { if (!stepsMap.has(s.pathId)) stepsMap.set(s.pathId, []); stepsMap.get(s.pathId).push(s); });
 
 	return {
 		moduleName: module.name,
-		paths: pathsWithSteps
+		paths: paths.map(p => ({ ...p, steps: stepsMap.get(p.id) || [] }))
 	};
 };
 
 exports.getPathSteps = async (languageId, levelId, moduleId, pathId) => {
-	// Vérifier si la langue existe (par ID Prisma)
-	const language = await prisma.language.findUnique({ where: { id: languageId } });
-	if (!language) {
-		return null;
-	}
-
-	// Vérifier si le niveau existe pour cette langue
-	const level = await prisma.level.findFirst({
-		where: { 
-			id: levelId,
-			languageId: language.id 
-		}
-	});
-
-	if (!level) {
-		return null;
-	}
-
-	// Vérifier si le module existe pour ce niveau
-	const module = await prisma.module.findFirst({
-		where: { 
-			id: moduleId,
-			levelId: level.id 
-		}
-	});
-
-	if (!module) {
-		return null;
-	}
-
-	// Vérifier si le parcours existe pour ce module
+	// Valider toute la hiérarchie en 1 seule requête via relations imbriquées
 	const path = await prisma.path.findFirst({
-		where: { 
+		where: {
 			id: pathId,
-			moduleId: module.id 
-		}
+			moduleId,
+			module: { id: moduleId, levelId, level: { id: levelId, languageId } }
+		},
+		select: { id: true, title: true }
 	});
+	if (!path) return null;
 
-	if (!path) {
-		return null;
-	}
-
-	// Récupérer toutes les étapes du parcours
-	const steps = await prisma.step.findMany({
-		where: { pathId: path.id },
-		orderBy: { index: 'asc' }
-	});
-
-	return {
-		pathName: path.name,
-		steps: steps
-	};
+	const steps = await prisma.step.findMany({ where: { pathId: path.id }, orderBy: { index: 'asc' } });
+	return { pathName: path.title, steps };
 };
 
 exports.getStepContent = async (languageId, levelId, moduleId, pathId, stepId) => {
-	// Vérifier si la langue existe (par ID Prisma)
-	const language = await prisma.language.findUnique({ where: { id: languageId } });
-	if (!language) {
-		return null;
-	}
-
-	// Vérifier si le niveau existe pour cette langue
-	const level = await prisma.level.findFirst({
-		where: { 
-			id: levelId,
-			languageId: language.id 
-		}
-	});
-
-	if (!level) {
-		return null;
-	}
-
-	// Vérifier si le module existe pour ce niveau
-	const module = await prisma.module.findFirst({
-		where: { 
-			id: moduleId,
-			levelId: level.id 
-		}
-	});
-
-	if (!module) {
-		return null;
-	}
-
-	// Vérifier si le parcours existe pour ce module
-	const path = await prisma.path.findFirst({
-		where: { 
-			id: pathId,
-			moduleId: module.id 
-		}
-	});
-
-	if (!path) {
-		return null;
-	}
-
-	// Vérifier si l'étape existe pour ce parcours
+	// Valider toute la hiérarchie + charger l'étape en 1 requête
 	const step = await prisma.step.findFirst({
-		where: { 
+		where: {
 			id: stepId,
-			pathId: path.id 
+			pathId,
+			path: { id: pathId, moduleId, module: { id: moduleId, levelId, level: { id: levelId, languageId } } }
 		}
 	});
+	if (!step) return null;
 
-	if (!step) {
-		return null;
-	}
+	// Charger le contenu de l'étape en parallèle (3 requêtes simultanées au lieu de 3 séquentielles)
+	const [courses, exercises, quizzes] = await Promise.all([
+		prisma.lesson.findMany({ where: { stepId: step.id } }),
+		prisma.exercise.findMany({ where: { stepId: step.id } }),
+		prisma.quiz.findMany({ where: { stepId: step.id }, include: { questions: true } }),
+	]);
 
-	// Récupérer tous les cours liés à cette étape
-	const courses = await prisma.course.findMany({
-		where: { stepId: step.id },
-		orderBy: { order: 'asc' }
-	});
-
-	// Récupérer tous les exercices liés à cette étape
-	const exercises = await prisma.exercise.findMany({
-		where: { stepId: step.id },
-		orderBy: { order: 'asc' }
-	});
-
-	// Récupérer tous les quiz liés à cette étape
-	const quizzes = await prisma.stepQuiz.findMany({
-		where: { stepId: step.id },
-		orderBy: { order: 'asc' },
-		include: {
-			questions: {
-				orderBy: { order: 'asc' }
-			}
-		}
-	});
-
-	return {
-		stepName: step.name,
-		step: step,
-		courses: courses,
-		exercises: exercises,
-		quizzes: quizzes
-	};
+	return { stepName: step.title, step, courses, exercises, quizzes };
 };
 
 exports.update = async (id, data) => {
