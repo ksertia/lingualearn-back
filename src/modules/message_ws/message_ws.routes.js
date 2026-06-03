@@ -49,6 +49,42 @@ router.post('/', controller.create);
 
 /**
  * @swagger
+ * /api/v1/messages-ws/support:
+ *   post:
+ *     summary: Contacter le support (learner → admin)
+ *     description: |
+ *       Permet à un learner de contacter le support sans connaître l'ID d'un admin.
+ *       Le message est automatiquement dirigé vers le premier admin actif disponible.
+ *       Réservé aux learners — les admins utilisent la messagerie directe (`POST /`).
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [content]
+ *             properties:
+ *               content:
+ *                 type: string
+ *               type:
+ *                 type: string
+ *                 enum: [text, image, file]
+ *                 default: text
+ *               metadata:
+ *                 type: object
+ *     responses:
+ *       201:
+ *         description: Message envoyé au support
+ *       503:
+ *         description: Aucun agent support disponible
+ */
+router.post('/support', controller.contactSupport);
+
+/**
+ * @swagger
  * /api/v1/messages-ws/conversations:
  *   get:
  *     summary: Liste des conversations

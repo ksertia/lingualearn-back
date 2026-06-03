@@ -1,13 +1,15 @@
 const service = require('./message_ws.service');
 const { createMessageSchema } = require('./message_ws.schema');
 
+const ADMIN_ROLES = ['admin', 'plateform_manager'];
+
 async function create(req, res, next) {
   try {
     const { error, value } = createMessageSchema.validate(req.body);
     if (error) return res.status(400).json({ error: error.details[0].message });
 
-    // senderId = utilisateur authentifié (non falsifiable)
-    const senderId = req.user.id;
+    const senderId    = req.user.id;
+    const senderRole  = req.user.accountType;
 
     if (senderId === value.recipientId) {
       return res.status(400).json({ error: 'Vous ne pouvez pas vous envoyer un message à vous-même' });
@@ -15,6 +17,13 @@ async function create(req, res, next) {
 
     const recipient = await service.userExists(value.recipientId);
     if (!recipient) return res.status(404).json({ error: 'Destinataire introuvable' });
+
+    // Un learner/parent ne peut écrire qu'à un admin ou plateform_manager
+    const senderIsAdmin = ADMIN_ROLES.includes(senderRole);
+    const recipientIsAdmin = ADMIN_ROLES.includes(recipient.accountType);
+    if (!senderIsAdmin && !recipientIsAdmin) {
+      return res.status(403).json({ error: 'Vous pouvez uniquement contacter le support (admin)' });
+    }
 
     const message = await service.createMessage({ ...value, senderId });
     if (req.io) {
@@ -80,4 +89,34 @@ async function getUnreadCount(req, res, next) {
   }
 }
 
-module.exports = { create, getConversation, getConversations, markAsRead, getUnreadCount };
+// Permet à un learner de contacter le support sans connaître l'ID d'un admin
+async function contactSupport(req, res, next) {
+  try {
+    const { error, value } = require('./message_ws.schema').createMessageSchema.validate(req.body);
+    if (error) return res.status(400).json({ error: error.details[0].message });
+
+    if (ADMIN_ROLES.includes(req.user.accountType)) {
+      return res.status(400).json({ error: 'Les admins utilisent la messagerie directe' });
+    }
+
+    // recipientId ignoré ici — on cible toujours le support
+    const admin = await service.getDefaultAdmin();
+    if (!admin) return res.status(503).json({ error: 'Aucun agent support disponible pour le moment' });
+
+    const senderId = req.user.id;
+    if (senderId === admin.id) {
+      return res.status(400).json({ error: 'Vous ne pouvez pas vous envoyer un message à vous-même' });
+    }
+
+    const message = await service.createMessage({ content: value.content, type: value.type, metadata: value.metadata, senderId, recipientId: admin.id });
+    if (req.io) {
+      req.io.to(admin.id).emit('receive_message', message);
+      req.io.to(senderId).emit('receive_message', message);
+    }
+    res.status(201).json(message);
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { create, contactSupport, getConversation, getConversations, markAsRead, getUnreadCount };

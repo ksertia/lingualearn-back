@@ -9,7 +9,16 @@ const SENDER_SELECT = {
 const ADMIN_ROLES = ['admin', 'plateform_manager'];
 
 async function userExists(userId) {
-  return prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+  return prisma.user.findUnique({ where: { id: userId }, select: { id: true, accountType: true } });
+}
+
+// Retourne le premier admin actif disponible pour recevoir les messages support
+async function getDefaultAdmin() {
+  return prisma.user.findFirst({
+    where: { accountType: { in: ADMIN_ROLES }, isActive: true },
+    select: { id: true, accountType: true },
+    orderBy: { createdAt: 'asc' },
+  });
 }
 
 async function createMessage(data) {
@@ -114,6 +123,7 @@ async function getUnreadCount(userId) {
 
 module.exports = {
   userExists,
+  getDefaultAdmin,
   createMessage,
   getMessagesBetweenUsers,
   getConversations,
