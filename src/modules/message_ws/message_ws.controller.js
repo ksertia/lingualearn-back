@@ -6,15 +6,20 @@ async function create(req, res, next) {
     const { error, value } = createMessageSchema.validate(req.body);
     if (error) return res.status(400).json({ error: error.details[0].message });
 
-    // Vérifier que le destinataire existe avant d'insérer
+    // senderId = utilisateur authentifié (non falsifiable)
+    const senderId = req.user.id;
+
+    if (senderId === value.recipientId) {
+      return res.status(400).json({ error: 'Vous ne pouvez pas vous envoyer un message à vous-même' });
+    }
+
     const recipient = await service.userExists(value.recipientId);
     if (!recipient) return res.status(404).json({ error: 'Destinataire introuvable' });
 
-    const message = await service.createMessage(value);
-    // Diffuser via WebSocket si disponible
+    const message = await service.createMessage({ ...value, senderId });
     if (req.io) {
       req.io.to(value.recipientId).emit('receive_message', message);
-      req.io.to(value.senderId).emit('receive_message', message);
+      req.io.to(senderId).emit('receive_message', message);
     }
     res.status(201).json(message);
   } catch (err) {
@@ -26,8 +31,16 @@ async function getConversation(req, res, next) {
   try {
     const { userA, userB } = req.query;
     if (!userA || !userB) return res.status(400).json({ error: 'userA et userB sont requis' });
+
+    // Un user normal ne peut lire que ses propres conversations
+    const { id: userId, accountType } = req.user;
+    const isAdmin = ['admin', 'plateform_manager'].includes(accountType);
+    if (!isAdmin && userId !== userA && userId !== userB) {
+      return res.status(403).json({ error: 'Accès refusé' });
+    }
+
     const page  = parseInt(req.query.page)  || 1;
-    const limit = parseInt(req.query.limit) || 30;
+    const limit = Math.min(parseInt(req.query.limit) || 30, 100);
     const result = await service.getMessagesBetweenUsers(userA, userB, { page, limit });
     res.json(result);
   } catch (err) {

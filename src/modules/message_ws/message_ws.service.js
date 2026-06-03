@@ -47,10 +47,11 @@ async function getConversations(userId, accountType) {
     ? {}
     : { OR: [{ senderId: userId }, { recipientId: userId }] };
 
-  // Fetch only the latest message per conversation — one query, no per-message COUNT
+  // Fetch only the latest message per conversation — capped at 500 to avoid OOM
   const messages = await prisma.message.findMany({
     where,
     orderBy: { createdAt: 'desc' },
+    take: 500,
     include: { sender: { select: SENDER_SELECT }, recipient: { select: SENDER_SELECT } },
   });
 
