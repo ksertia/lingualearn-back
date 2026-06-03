@@ -8,6 +8,10 @@ const SENDER_SELECT = {
 
 const ADMIN_ROLES = ['admin', 'plateform_manager'];
 
+async function userExists(userId) {
+  return prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+}
+
 async function createMessage(data) {
   const message = await prisma.message.create({
     data,
@@ -108,6 +112,7 @@ async function getUnreadCount(userId) {
 }
 
 module.exports = {
+  userExists,
   createMessage,
   getMessagesBetweenUsers,
   getConversations,

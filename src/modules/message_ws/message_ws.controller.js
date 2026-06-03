@@ -5,6 +5,11 @@ async function create(req, res, next) {
   try {
     const { error, value } = createMessageSchema.validate(req.body);
     if (error) return res.status(400).json({ error: error.details[0].message });
+
+    // Vérifier que le destinataire existe avant d'insérer
+    const recipient = await service.userExists(value.recipientId);
+    if (!recipient) return res.status(404).json({ error: 'Destinataire introuvable' });
+
     const message = await service.createMessage(value);
     // Diffuser via WebSocket si disponible
     if (req.io) {

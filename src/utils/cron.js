@@ -1,17 +1,19 @@
 const cron = require('node-cron');
-const { prisma } = require('../config/prisma');
+const { PrismaClient } = require('@prisma/client');
 
-// Toutes les heures : supprime les abonnements expirés et nettoie le user
+// Client dédié au CRON avec pool minimal pour ne pas concurrencer les requêtes HTTP
+const cronPrisma = new PrismaClient({
+  log: ['error'],
+  datasources: { db: { url: process.env.DATABASE_URL + '?connection_limit=2' } },
+});
+
+// Toutes les heures à HH:00 : supprime les abonnements expirés
 cron.schedule('0 * * * *', async () => {
   try {
     const now = new Date();
 
-    // Récupérer tous les abonnements expirés encore actifs
-    const expired = await prisma.subscription.findMany({
-      where: {
-        status: 'active',
-        currentPeriodEnd: { lt: now },
-      },
+    const expired = await cronPrisma.subscription.findMany({
+      where: { status: 'active', currentPeriodEnd: { lt: now } },
       select: { id: true, userId: true },
     });
 
@@ -20,16 +22,10 @@ cron.schedule('0 * * * *', async () => {
     const ids     = expired.map(s => s.id);
     const userIds = expired.map(s => s.userId);
 
-    // Supprimer les abonnements expirés
-    await prisma.subscription.deleteMany({ where: { id: { in: ids } } });
-
-    // Nettoyer les champs rapides sur chaque user
-    await prisma.user.updateMany({
+    await cronPrisma.subscription.deleteMany({ where: { id: { in: ids } } });
+    await cronPrisma.user.updateMany({
       where: { id: { in: userIds } },
-      data: {
-        subscriptionId:     null,
-        subscriptionEndsAt: null,
-      },
+      data: { subscriptionId: null, subscriptionEndsAt: null },
     });
 
     console.log(`[cron] ${expired.length} abonnement(s) expiré(s) supprimé(s)`);
@@ -38,20 +34,14 @@ cron.schedule('0 * * * *', async () => {
   }
 });
 
-// Toutes les heures : passe en failed les PaymentRequest pending avec OTP expiré
-cron.schedule('0 * * * *', async () => {
+// Toutes les heures à HH:05 (décalé pour éviter la concurrence sur le pool)
+cron.schedule('5 * * * *', async () => {
   try {
     const now = new Date();
 
-    const { count } = await prisma.paymentRequest.updateMany({
-      where: {
-        status:      'pending',
-        otpExpiresAt: { lt: now },
-      },
-      data: {
-        status:        'failed',
-        failureReason: 'OTP expiré',
-      },
+    const { count } = await cronPrisma.paymentRequest.updateMany({
+      where: { status: 'pending', otpExpiresAt: { lt: now } },
+      data: { status: 'failed', failureReason: 'OTP expiré' },
     });
 
     if (count > 0) {
@@ -62,4 +52,4 @@ cron.schedule('0 * * * *', async () => {
   }
 });
 
-console.log('[cron] Jobs planifiés : nettoyage abonnements + paiements (toutes les heures)');
+console.log('[cron] Jobs planifiés : abonnements (HH:00) + paiements (HH:05)');
