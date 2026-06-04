@@ -8,4 +8,11 @@ const createMessageSchema = Joi.object({
   metadata: Joi.object().allow(null),
 });
 
-module.exports = { createMessageSchema };
+// Pour /support : pas de recipientId (l'admin est trouvé automatiquement)
+const supportMessageSchema = Joi.object({
+  content: Joi.string().min(1).max(5000).required(),
+  type: Joi.string().valid('text', 'image', 'file').default('text'),
+  metadata: Joi.object().allow(null),
+});
+
+module.exports = { createMessageSchema, supportMessageSchema };

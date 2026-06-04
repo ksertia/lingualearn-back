@@ -12,6 +12,28 @@ async function userExists(userId) {
   return prisma.user.findUnique({ where: { id: userId }, select: { id: true, accountType: true } });
 }
 
+// Si le learner a déjà échangé avec un admin, retourner ce même admin
+async function getExistingAdminContact(learnerId) {
+  const msg = await prisma.message.findFirst({
+    where: {
+      OR: [
+        { senderId: learnerId, recipient: { accountType: { in: ADMIN_ROLES } } },
+        { recipientId: learnerId, sender:    { accountType: { in: ADMIN_ROLES } } },
+      ],
+    },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      senderId:    true,
+      recipientId: true,
+      sender:      { select: { id: true, accountType: true, isActive: true } },
+      recipient:   { select: { id: true, accountType: true, isActive: true } },
+    },
+  });
+  if (!msg) return null;
+  const admin = ADMIN_ROLES.includes(msg.sender.accountType) ? msg.sender : msg.recipient;
+  return admin.isActive ? admin : null;
+}
+
 // Retourne le premier admin actif disponible pour recevoir les messages support
 async function getDefaultAdmin() {
   return prisma.user.findFirst({
@@ -123,6 +145,7 @@ async function getUnreadCount(userId) {
 
 module.exports = {
   userExists,
+  getExistingAdminContact,
   getDefaultAdmin,
   createMessage,
   getMessagesBetweenUsers,

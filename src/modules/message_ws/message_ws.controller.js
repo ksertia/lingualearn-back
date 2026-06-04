@@ -1,5 +1,5 @@
 const service = require('./message_ws.service');
-const { createMessageSchema } = require('./message_ws.schema');
+const { createMessageSchema, supportMessageSchema } = require('./message_ws.schema');
 
 const ADMIN_ROLES = ['admin', 'plateform_manager'];
 
@@ -92,23 +92,28 @@ async function getUnreadCount(req, res, next) {
 // Permet à un learner de contacter le support sans connaître l'ID d'un admin
 async function contactSupport(req, res, next) {
   try {
-    const { error, value } = require('./message_ws.schema').createMessageSchema.validate(req.body);
+    const { error, value } = supportMessageSchema.validate(req.body);
     if (error) return res.status(400).json({ error: error.details[0].message });
 
     if (ADMIN_ROLES.includes(req.user.accountType)) {
       return res.status(400).json({ error: 'Les admins utilisent la messagerie directe' });
     }
 
-    // recipientId ignoré ici — on cible toujours le support
-    const admin = await service.getDefaultAdmin();
+    const senderId = req.user.id;
+
+    // Chercher d'abord si le learner a déjà une conversation en cours avec un admin
+    // pour continuer avec le même agent support
+    const existingAdmin = await service.getExistingAdminContact(senderId);
+    const admin = existingAdmin || await service.getDefaultAdmin();
     if (!admin) return res.status(503).json({ error: 'Aucun agent support disponible pour le moment' });
 
-    const senderId = req.user.id;
-    if (senderId === admin.id) {
-      return res.status(400).json({ error: 'Vous ne pouvez pas vous envoyer un message à vous-même' });
-    }
-
-    const message = await service.createMessage({ content: value.content, type: value.type, metadata: value.metadata, senderId, recipientId: admin.id });
+    const message = await service.createMessage({
+      content: value.content,
+      type: value.type,
+      metadata: value.metadata,
+      senderId,
+      recipientId: admin.id,
+    });
     if (req.io) {
       req.io.to(admin.id).emit('receive_message', message);
       req.io.to(senderId).emit('receive_message', message);
