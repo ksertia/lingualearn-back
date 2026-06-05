@@ -272,44 +272,46 @@ async unlockStepWithContent(userId, stepId) {
   // Débloquer l'étape
   await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.STEP, stepId);
 
-  // Récupérer les différents types de contenu de cette étape
-  const [lesson, exercises, quiz] = await Promise.all([
-    this.prisma.lesson.findFirst({ 
-      where: { stepId }, 
-      orderBy: { index: 'asc' } 
-    }),
-    this.prisma.exercise.findMany({ 
-      where: { stepId}, 
-      orderBy: { index: 'asc' } 
-    }),
-    this.prisma.quiz.findFirst({ 
-      where: { stepId }, 
-      orderBy: { index: 'asc' } 
-    })
+  // Charger tout le contenu de l'étape en parallèle
+  const [lesson, firstExercise, quiz] = await Promise.all([
+    this.prisma.lesson.findFirst({ where: { stepId }, orderBy: { index: 'asc' } }),
+    this.prisma.exercise.findFirst({ where: { stepId, isActive: true }, orderBy: { order: 'asc' } }),
+    this.prisma.quiz.findFirst({ where: { stepId }, orderBy: { index: 'asc' } }),
   ]);
 
-  // Débloquer le premier élément de chaque type trouvé (avec gestion d'erreurs)
+  // Débloquer en parallèle tous les contenus présents
+  const unlockOps = [];
+
   if (lesson) {
-    console.log(`Leçon trouvée pour l'étape ${stepId}: ${lesson.title}`);
+    // Upsert direct — pas de table userLessonProgress, on marque juste l'étape
+    // La leçon est accessible dès que l'étape est unlocked
   }
-  
-  // Débloquer le premier exercice
-  if (exercises.length > 0) {
-    try {
-      await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.EXERCISE, exercises[0].id);
-    } catch (err) {
-      console.warn(`Impossible de débloquer l'exercice ${exercises[0].id}: ${err.message}`);
-    }
+
+  if (firstExercise) {
+    unlockOps.push(
+      this.prisma.userExerciseProgress
+        ? this.prisma.userExerciseProgress.upsert({
+            where: { userId_exerciseId: { userId, exerciseId: firstExercise.id } },
+            update: { status: ProgressionUnlockService.STATUS.UNLOCKED, unlockedAt: new Date() },
+            create: { userId, exerciseId: firstExercise.id, status: ProgressionUnlockService.STATUS.UNLOCKED, unlockedAt: new Date() },
+          }).catch(() => {})
+        : Promise.resolve()
+    );
   }
-  
-  // Débloquer le premier quiz
+
   if (quiz) {
-    try {
-      await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.QUIZ, quiz.id);
-    } catch (err) {
-      console.warn(`Impossible de débloquer le quiz ${quiz.id}: ${err.message}`);
-    }
+    unlockOps.push(
+      this.prisma.userQuizProgress
+        ? this.prisma.userQuizProgress.upsert({
+            where: { userId_quizId: { userId, quizId: quiz.id } },
+            update: { status: ProgressionUnlockService.STATUS.UNLOCKED, unlockedAt: new Date() },
+            create: { userId, quizId: quiz.id, status: ProgressionUnlockService.STATUS.UNLOCKED, unlockedAt: new Date() },
+          }).catch(() => {})
+        : Promise.resolve()
+    );
   }
+
+  if (unlockOps.length > 0) await Promise.all(unlockOps);
 
   return await this.getUserProgress(userId, ProgressionUnlockService.ELEMENT_TYPES.STEP, stepId);
 }
@@ -482,19 +484,21 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
     const module = await this.prisma.module.findUnique({ where: { id: moduleId } });
     if (!module) throw new Error(`Module avec l'ID ${moduleId} introuvable`);
 
-    // Marquer le module comme complété à 100%
-    await this.prisma.userModuleProgress.updateMany({
-      where: { userId, moduleId },
-      data: { status: ProgressionUnlockService.STATUS.COMPLETED, progressPercentage: 100, completedAt: new Date() }
+    // 1. Forcer le module à 100% completed (upsert — row garantie)
+    await this.prisma.userModuleProgress.upsert({
+      where: { userId_moduleId: { userId, moduleId } },
+      update: { status: ProgressionUnlockService.STATUS.COMPLETED, progressPercentage: 100, completedAt: new Date() },
+      create: { userId, moduleId, status: ProgressionUnlockService.STATUS.COMPLETED, progressPercentage: 100, completedAt: new Date() },
     });
 
-    // Recalculer le level et la langue
-    await this.recalculateLevelAndLanguage(userId, module.levelId);
-
+    // 2. Vérifier s'il y a un module suivant
     const nextModule = await this.getNextModule(module.levelId, module.index);
+
     if (nextModule) {
+      // 3a. Recalculer level + langue (basé sur les étapes réelles)
+      await this.recalculateLevelAndLanguage(userId, module.levelId);
+      // 4a. Débloquer le module suivant et ses enfants
       await this.unlockModuleWithChildren(userId, nextModule.id);
-      // Notification : bravo + invitation à continuer
       createNotification({
         userId,
         notificationType: 'module_completed',
@@ -503,13 +507,14 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
         actionUrl: `/modules/${nextModule.id}`,
       }).catch(() => {});
     } else {
+      // 3b. Dernier module du niveau → gérer la complétion du niveau
+      // (handleLevelCompletion forcera level à 100% après recalcul)
       await this.handleLevelCompletion(userId, module.levelId);
-      // Notification : dernier module du niveau terminé
       createNotification({
         userId,
         notificationType: 'module_completed',
         title: `Bravo ! Module "${module.title}" terminé 🎉`,
-        message: `Vous avez terminé tous les modules de ce niveau. Continuez pour débloquer le niveau suivant !`,
+        message: `Vous avez terminé tous les modules de ce niveau. Le niveau suivant est débloqué !`,
         actionUrl: `/modules/${moduleId}`,
       }).catch(() => {});
     }
@@ -520,14 +525,19 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
    */
   async handleLevelCompletion(userId, levelId) {
     const level = await this.prisma.level.findUnique({ where: { id: levelId } });
+    if (!level) throw new Error(`Niveau avec l'ID ${levelId} introuvable`);
 
-    await this.prisma.userLevelProgress.updateMany({
-      where: { userId, levelId },
-      data: { status: ProgressionUnlockService.STATUS.COMPLETED, progressPercentage: 100, completedAt: new Date() }
+    // 1. Forcer le niveau à 100% completed
+    await this.prisma.userLevelProgress.upsert({
+      where: { userId_levelId: { userId, levelId } },
+      update: { status: ProgressionUnlockService.STATUS.COMPLETED, progressPercentage: 100, completedAt: new Date() },
+      create: { userId, levelId, status: ProgressionUnlockService.STATUS.COMPLETED, progressPercentage: 100, completedAt: new Date() },
     });
 
+    // 2. Recalculer la progression globale de la langue
     await this.recalculateLanguageProgress(userId, level.languageId);
 
+    // 3. Niveau suivant ?
     const nextLevel = await this.getNextLevel(level.languageId, level.index);
     if (nextLevel) {
       await this.unlockLevelWithChildren(userId, nextLevel.id);
@@ -562,25 +572,35 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
   }
 
   /**
-   * Débloque un élément spécifique
+   * Débloque un élément — upsert direct, pas de lecture préalable
+   * Passe à unlocked sauf si déjà started ou completed (on ne rétrograde pas)
    */
   async unlockElement(userId, elementType, elementId) {
-    const progress = await this.getOrCreateProgression(userId, elementType, elementId);
-    
-    if (progress.status === ProgressionUnlockService.STATUS.LOCKED) {
-      return await this.updateProgressStatus(userId, elementType, elementId, ProgressionUnlockService.STATUS.UNLOCKED);
-    }
-    
-    return progress;
+    const now = new Date();
+    const ALREADY_ACTIVE = [
+      ProgressionUnlockService.STATUS.STARTED,
+      ProgressionUnlockService.STATUS.COMPLETED,
+    ];
+
+    // Lire d'abord pour ne pas écraser un statut plus avancé
+    const existing = await this.getOrCreateProgression(userId, elementType, elementId);
+    if (existing && ALREADY_ACTIVE.includes(existing.status)) return existing;
+
+    return await this.updateProgressStatus(
+      userId, elementType, elementId,
+      ProgressionUnlockService.STATUS.UNLOCKED,
+      { unlockedAt: now }
+    );
   }
 
   /**
-   * Marque un élément comme complété
+   * Marque un élément comme complété — upsert avec completedAt garanti
    */
-  async completeElement(userId, elementType, elementId) {
+  async completeElement(userId, elementType, elementId, extra = {}) {
     return await this.updateProgressStatus(userId, elementType, elementId, ProgressionUnlockService.STATUS.COMPLETED, {
       progressPercentage: 100,
-      completedAt: new Date()
+      completedAt: new Date(),
+      ...extra,
     });
   }
 
