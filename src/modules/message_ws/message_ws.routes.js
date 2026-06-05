@@ -192,4 +192,31 @@ router.get('/conversation', controller.getConversation);
  */
 router.put('/read', controller.markAsRead);
 
+/**
+ * @swagger
+ * /api/v1/messages-ws/{id}:
+ *   delete:
+ *     summary: Supprimer un message
+ *     description: |
+ *       Supprime un message. Seul l'expéditeur peut supprimer son propre message.
+ *       Émet `message_deleted` via WebSocket aux deux participants : `{ id }`.
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Message supprimé
+ *       403:
+ *         description: Non autorisé (pas l'expéditeur)
+ *       404:
+ *         description: Message introuvable
+ */
+router.delete('/:id', controller.deleteMessage);
+
 module.exports = router;

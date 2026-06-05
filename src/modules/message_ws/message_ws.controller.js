@@ -124,4 +124,25 @@ async function contactSupport(req, res, next) {
   }
 }
 
-module.exports = { create, contactSupport, getConversation, getConversations, markAsRead, getUnreadCount };
+async function deleteMessage(req, res, next) {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: 'id du message requis' });
+
+    const deleted = await service.deleteMessage(id, req.user.id);
+    if (!deleted) return res.status(404).json({ error: 'Message introuvable' });
+
+    // Notifier les deux participants via WebSocket
+    if (req.io) {
+      req.io.to(deleted.recipientId).emit('message_deleted', { id });
+      req.io.to(deleted.senderId).emit('message_deleted', { id });
+    }
+
+    res.json({ success: true, id });
+  } catch (err) {
+    if (err.statusCode === 403) return res.status(403).json({ error: 'Vous ne pouvez supprimer que vos propres messages' });
+    next(err);
+  }
+}
+
+module.exports = { create, contactSupport, getConversation, getConversations, markAsRead, getUnreadCount, deleteMessage };

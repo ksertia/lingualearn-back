@@ -126,6 +126,29 @@ async function getConversations(userId, accountType) {
   }));
 }
 
+async function deleteMessage(messageId, requesterId) {
+  const msg = await prisma.message.findUnique({
+    where: { id: messageId },
+    select: { id: true, senderId: true, recipientId: true },
+  });
+  if (!msg) return null;
+
+  // Seul l'expéditeur peut supprimer son message
+  if (msg.senderId !== requesterId) {
+    const err = new Error('Forbidden');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  await prisma.message.delete({ where: { id: messageId } });
+  // Invalider les caches unread des deux participants
+  await Promise.all([
+    cacheDel(`msg:unread:${msg.recipientId}`).catch(() => {}),
+    cacheDel(`msg:unread:${msg.senderId}`).catch(() => {}),
+  ]);
+  return msg;
+}
+
 async function markMessagesAsRead(senderId, recipientId) {
   const result = await prisma.message.updateMany({
     where: { senderId, recipientId, isRead: false },
@@ -148,6 +171,7 @@ module.exports = {
   getExistingAdminContact,
   getDefaultAdmin,
   createMessage,
+  deleteMessage,
   getMessagesBetweenUsers,
   getConversations,
   markMessagesAsRead,
