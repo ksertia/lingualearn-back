@@ -1,4 +1,4 @@
-const { prisma } = require('../../config/prisma');
+const { prisma, serializeBigInt } = require('../../config/prisma');
 const { AppError } = require('../../middleware/errorHandler');
 const { cacheWrap, cacheDel, cacheGet, cacheSet, TTL } = require('../../utils/cache');
 
@@ -52,7 +52,7 @@ class UserService {
                 select: { ...USER_BASE, profile: { select: PROFILE_SELECT }, stats: { select: STATS_SELECT } }
             });
             if (!user) throw new AppError(404, 'User not found');
-            return user;
+            return serializeBigInt(user);
         }, TTL.SHORT);
     }
 
@@ -83,13 +83,13 @@ class UserService {
             const pathMap    = new Map(pathProgress.map(p => [p.pathId, p]));
             const stepMap    = new Map(stepProgress.map(p => [p.stepId, p]));
 
-            return {
+            return serializeBigInt({
                 user,
                 langProgressList,
                 progressMaps: { levelMap, moduleMap, pathMap, stepMap },
                 currentLanguageId: langProgressList[0]?.languageId || null,
                 totalLanguages: langProgressList.length
-            };
+            });
         }, TTL.SHORT);
     }
 
@@ -135,12 +135,12 @@ class UserService {
         // Mise à jour lastActive en arrière-plan (non bloquant)
         prisma.user.update({ where: { id: userId }, data: { lastActive: new Date() } }).catch(() => {});
 
-        const result = {
+        const result = serializeBigInt({
             user: { ...user, selectedLanguageId: langProgress?.language?.id || null, selectedLevelId: currentState?.currentLevel?.id || null },
             currentLanguage: langProgress?.language || null,
             currentLanguageProgress: langProgress,
             currentState
-        };
+        });
 
         // Mettre en cache pour 5 min
         await cacheSet(cacheKey, result, TTL.SHORT);

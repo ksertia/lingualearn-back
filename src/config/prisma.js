@@ -25,4 +25,17 @@ process.on('SIGTERM', async () => {
     process.exit(0);
 });
 
-module.exports = { prisma };
+// Convertit récursivement les BigInt en Number pour JSON.stringify
+function serializeBigInt(obj) {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj === 'bigint') return Number(obj);
+    if (Array.isArray(obj)) return obj.map(serializeBigInt);
+    if (typeof obj === 'object') {
+        const result = {};
+        for (const key of Object.keys(obj)) result[key] = serializeBigInt(obj[key]);
+        return result;
+    }
+    return obj;
+}
+
+module.exports = { prisma, serializeBigInt };
