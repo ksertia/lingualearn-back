@@ -1,6 +1,7 @@
 const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
 const { cacheWrap, cacheDel, TTL } = require('../../utils/cache');
+const { notifyLearnersNewContent } = require('../../utils/contentNotifier');
 
 const PATH_SELECT = {
   id: true, title: true, description: true, index: true, moduleId: true,
@@ -120,6 +121,7 @@ async function createPath(data) {
 
   const path = await prisma.path.create({ data: { ...data, index } });
   if (data.moduleId) await cacheDel(`paths:module:${data.moduleId}`);
+  notifyLearnersNewContent('path', { id: path.id, title: path.title }).catch(() => {});
   return path;
 }
 

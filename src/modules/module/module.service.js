@@ -1,6 +1,7 @@
 const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
 const { cacheWrap, cacheDel, TTL } = require('../../utils/cache');
+const { notifyLearnersNewContent } = require('../../utils/contentNotifier');
 
 // Récupérer tous les modules liés à un utilisateur (via userModuleProgress)
 exports.getModulesByUserId = async (userId, levelId = null) => {
@@ -101,7 +102,9 @@ exports.create = async (data) => {
     data.index = lastModule ? lastModule.index + 1 : 0;
   }
 
-  return await prisma.module.create({ data });
+  const created = await prisma.module.create({ data });
+  notifyLearnersNewContent('module', { id: created.id, title: created.title }).catch(() => {});
+  return created;
 };
 
 exports.getAll = async () => {

@@ -1,6 +1,7 @@
 const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
 const { cacheWrap, cacheDel, TTL } = require('../../utils/cache');
+const { notifyLearnersNewContent } = require('../../utils/contentNotifier');
 
 const STEP_CONTENT_SELECT = {
   id: true, title: true, description: true, index: true, pathId: true,
@@ -160,7 +161,9 @@ exports.create = async (data) => {
     estimatedMinutes: typeof data.estimatedMinutes === 'number' ? data.estimatedMinutes : 15,
     isActive: typeof data.isActive === 'boolean' ? data.isActive : true
   };
-  return prisma.step.create({ data: stepData });
+  const created = await prisma.step.create({ data: stepData });
+  notifyLearnersNewContent('step', { id: created.id, title: created.title }).catch(() => {});
+  return created;
 };
 
 exports.getAll = async () => prisma.step.findMany();

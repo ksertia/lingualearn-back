@@ -1,6 +1,7 @@
 const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
 const { cacheDel } = require('../../utils/cache');
+const { notifyLearnersNewContent } = require('../../utils/contentNotifier');
 
 exports.getCoursesByUserId = async (userId) => {
   const userPathProgress = await prisma.userPathProgress.findFirst({
@@ -158,9 +159,11 @@ exports.completeLessonForUser = async (lessonId, userId) => {
 exports.createCourse = async (data) => {
   const lastLesson = await prisma.lesson.findFirst({ where: { stepId: data.stepId }, orderBy: { index: 'desc' } });
   const lessonIndex = lastLesson ? lastLesson.index + 1 : 1;
-  return prisma.lesson.create({
+  const created = await prisma.lesson.create({
     data: { stepId: data.stepId, title: data.title, content: data.description || '', videoUrl: data.contentUrl, index: lessonIndex }
   });
+  notifyLearnersNewContent('course', { id: created.id, title: created.title }).catch(() => {});
+  return created;
 };
 
 exports.getCourses = async (filters = {}) => {
