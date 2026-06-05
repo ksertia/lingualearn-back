@@ -8,6 +8,7 @@ const {allowRoles} = require('../../middleware/authMiddleware');
 const { emailService } = require('../../utils/emailService');
 const { logger } = require('../../utils/logger');
 const { cacheGet, cacheSet, cacheDel, TTL } = require('../../utils/cache');
+const { createNotification } = require('../notification/notification.service');
 
 // Recherche utilisateur par loginInfo (email / phone / username) — 1 requête
 async function findUserByLoginInfo(loginInfo, select) {
@@ -95,13 +96,26 @@ class AuthService {
             return created;
         });
 
-        if (finalAccountType === 'learner' && email && user.username) {
-            let trialDays = 14;
+        let trialDays = 14;
+        if (finalAccountType === 'learner') {
             try {
                 const setting = await prisma.appSetting.findUnique({ where: { key: 'trial_duration_days' } });
                 if (setting) trialDays = parseInt(setting.value, 10);
             } catch (_) {}
-            await emailService.sendWelcomeLearnerEmail(email, user.username, trialDays);
+
+            // Email de bienvenue
+            if (email && user.username) {
+                await emailService.sendWelcomeLearnerEmail(email, user.username, trialDays);
+            }
+
+            // Notification in-app de bienvenue (non bloquante)
+            createNotification({
+                userId: user.id,
+                notificationType: 'welcome',
+                title: 'Bienvenue sur LinguaLearn !',
+                message: `Votre essai gratuit de ${trialDays} jours commence maintenant. Bonne découverte !`,
+                actionUrl: '/home',
+            }).catch(() => {});
         }
 
         return {
@@ -187,6 +201,23 @@ class AuthService {
                 firstName
             );
         }
+
+        // Notifications in-app (non bloquantes)
+        createNotification({
+            userId: child.id,
+            notificationType: 'welcome',
+            title: 'Bienvenue sur LinguaLearn !',
+            message: `Ton compte a été créé. Bonne découverte !`,
+            actionUrl: '/home',
+        }).catch(() => {});
+
+        createNotification({
+            userId: parentId,
+            notificationType: 'child_account_created',
+            title: 'Compte enfant créé',
+            message: `Le compte de ${firstName} (${uniqueUsername}) a été créé avec succès.`,
+            actionUrl: '/family',
+        }).catch(() => {});
 
         return {
             success: true,
