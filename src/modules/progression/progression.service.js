@@ -1,5 +1,6 @@
 const { prisma } = require('../../config/prisma');
 const { cacheWrap, cacheDel, cacheGet, cacheSet, TTL } = require('../../utils/cache');
+const { createNotification } = require('../notification/notification.service');
 
 // Cache les IDs de structure (steps d'un path/module/level/langue) — rarement modifiés
 async function getStepIdsForPath(pathId) {
@@ -493,8 +494,24 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
     const nextModule = await this.getNextModule(module.levelId, module.index);
     if (nextModule) {
       await this.unlockModuleWithChildren(userId, nextModule.id);
+      // Notification : bravo + invitation à continuer
+      createNotification({
+        userId,
+        notificationType: 'module_completed',
+        title: `Bravo ! Module "${module.title}" terminé 🎉`,
+        message: `Excellent travail ! Le module suivant "${nextModule.title}" est maintenant débloqué. Continuez sur votre lancée !`,
+        actionUrl: `/modules/${nextModule.id}`,
+      }).catch(() => {});
     } else {
       await this.handleLevelCompletion(userId, module.levelId);
+      // Notification : dernier module du niveau terminé
+      createNotification({
+        userId,
+        notificationType: 'module_completed',
+        title: `Bravo ! Module "${module.title}" terminé 🎉`,
+        message: `Vous avez terminé tous les modules de ce niveau. Continuez pour débloquer le niveau suivant !`,
+        actionUrl: `/modules/${moduleId}`,
+      }).catch(() => {});
     }
   }
 
@@ -504,18 +521,23 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
   async handleLevelCompletion(userId, levelId) {
     const level = await this.prisma.level.findUnique({ where: { id: levelId } });
 
-    // Marquer le level comme complété à 100%
     await this.prisma.userLevelProgress.updateMany({
       where: { userId, levelId },
       data: { status: ProgressionUnlockService.STATUS.COMPLETED, progressPercentage: 100, completedAt: new Date() }
     });
 
-    // Recalculer la progression globale de la langue
     await this.recalculateLanguageProgress(userId, level.languageId);
 
     const nextLevel = await this.getNextLevel(level.languageId, level.index);
     if (nextLevel) {
       await this.unlockLevelWithChildren(userId, nextLevel.id);
+      createNotification({
+        userId,
+        notificationType: 'level_completed',
+        title: `Niveau "${level.name}" complété ! 🏆`,
+        message: `Félicitations ! Le niveau "${nextLevel.name}" est maintenant disponible. Prêt pour la suite ?`,
+        actionUrl: `/levels/${nextLevel.id}`,
+      }).catch(() => {});
     } else {
       await this.handleLanguageCompletion(userId, level.languageId);
     }
@@ -529,6 +551,14 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
       where: { userId, languageId },
       data: { status: ProgressionUnlockService.STATUS.COMPLETED, overallProgress: 100, completedAt: new Date() }
     });
+    const language = await this.prisma.language.findUnique({ where: { id: languageId }, select: { name: true } });
+    createNotification({
+      userId,
+      notificationType: 'language_completed',
+      title: `Félicitations ! Vous maîtrisez le ${language?.name ?? 'langue'} ! 🌟`,
+      message: `Vous avez terminé l'intégralité du parcours. Une performance remarquable !`,
+      actionUrl: `/languages`,
+    }).catch(() => {});
   }
 
   /**
