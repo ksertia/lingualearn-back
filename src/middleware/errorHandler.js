@@ -10,17 +10,13 @@ class AppError extends Error {
 }
 
 const errorHandler = (err, req, res, next) => {
-    // Log l'erreur
-    logger.error('Error occurred:', {
-        message: err.message,
-        stack: err.stack,
-        url: req.url,
-        method: req.method,
-        ip: req.ip
-    });
-
-    // Erreur opérationnelle (prévue)
+    // Erreur opérationnelle (4xx) → warn ; erreur serveur (5xx) → error
     if (err instanceof AppError) {
+        if (err.statusCode >= 500) {
+            logger.error('Server error:', { message: err.message, stack: err.stack, url: req.url, method: req.method });
+        } else {
+            logger.warn(`${err.statusCode} ${err.message}`, { url: req.url, method: req.method });
+        }
         return res.status(err.statusCode).json({
             success: false,
             error: err.message,
@@ -28,13 +24,14 @@ const errorHandler = (err, req, res, next) => {
         });
     }
 
-    // Erreur inattendue
-    const statusCode = 500;
-    const message = process.env.NODE_ENV === 'production' 
-        ? 'Internal server error' 
+    // Erreur inattendue (toujours loggée en error avec stack)
+    logger.error('Unexpected error:', { message: err.message, stack: err.stack, url: req.url, method: req.method });
+
+    const message = process.env.NODE_ENV === 'production'
+        ? 'Internal server error'
         : err.message;
 
-    res.status(statusCode).json({
+    res.status(500).json({
         success: false,
         error: message,
         ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
