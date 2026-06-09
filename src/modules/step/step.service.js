@@ -105,7 +105,7 @@ exports.getStepContent = async (stepId, userId = null) => {
   const userProgressRow = userId
     ? await prisma.userStepProgress.findUnique({
         where: { userId_stepId: { userId, stepId } },
-        select: { status: true, progressPercentage: true, score: true, attempts: true, startedAt: true, completedAt: true }
+        select: { status: true, progressPercentage: true, score: true, startedAt: true, completedAt: true }
       })
     : null;
 
