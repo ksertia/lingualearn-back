@@ -52,8 +52,6 @@ const authController = {
 
     // Nouveau controller pour verify-otp
     verifyOTP: asyncHandler(async (req, res) => {
-    console.log("Body reçu:", req.body);
-    // Valider le body
     const { loginInfo, otp } = verifyOTPSchema.parse(req.body);
 
     // Appel du service avec le nom attendu
@@ -74,20 +72,12 @@ const authController = {
         try {
             // Valider le body avec le schéma
             const { loginInfo, otp, password } = resetPasswordSchema.parse(req.body);
-
-            console.log("Body reçu:", req.body); // Debug : vérifier loginInfo, otp et password
-
-            // Appel du service resetPassword avec loginInfo
             const result = await authService.resetPassword(loginInfo, otp, password);
-
-            console.log("Résultat du reset de mot de passe:", result);
-
-            res.json(result); // Retourner la réponse au client
+            res.json(result);
         } catch (error) {
             if (error instanceof z.ZodError) {
                 return res.status(400).json({ success: false, error: error.errors });
             }
-            console.error("Erreur lors de la réinitialisation du mot de passe:", error);
             res.status(error.status || 500).json({
                 success: false,
                 error: error.message || 'Internal Server Error'
