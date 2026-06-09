@@ -20,7 +20,7 @@ function _formatStep(step, userId) {
     lesson: step.lesson || null, exercise: step.exercise || null, quiz: step.quiz || null,
     progress: prog,
     status: prog?.status || 'locked',
-    progressValue: prog?.progress || 0,
+    progressValue: prog?.progressPercentage || 0,
     score: prog?.score || null,
     completedAt: prog?.completedAt || null
   };
@@ -47,7 +47,7 @@ exports.getStepsByPathId = async (userId, pathId) => {
     }),
     prisma.userStepProgress.findMany({
       where: { userId, step: { pathId } },
-      select: { stepId: true, status: true, progress: true, score: true, completedAt: true }
+      select: { stepId: true, status: true, progressPercentage: true, score: true, completedAt: true }
     })
   ]);
 
@@ -62,7 +62,7 @@ exports.getStepsByPathId = async (userId, pathId) => {
       lesson: step.lesson || null, exercise: step.exercise || null, quiz: step.quiz || null,
       progress: prog,
       status: prog?.status || 'locked',
-      progressValue: prog?.progress || 0,
+      progressValue: prog?.progressPercentage || 0,
       score: prog?.score || null,
       completedAt: prog?.completedAt || null
     };
@@ -105,7 +105,7 @@ exports.getStepContent = async (stepId, userId = null) => {
   const userProgressRow = userId
     ? await prisma.userStepProgress.findUnique({
         where: { userId_stepId: { userId, stepId } },
-        select: { status: true, progress: true, score: true, attempts: true, startedAt: true, completedAt: true }
+        select: { status: true, progressPercentage: true, score: true, attempts: true, startedAt: true, completedAt: true }
       })
     : null;
 
