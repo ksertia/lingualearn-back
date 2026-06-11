@@ -524,30 +524,31 @@ class AuthService {
 
     // ============ REFRESH TOKEN ============
     async refreshToken(refreshToken) {
+        // 1. Vérifier la signature JWT — erreurs JWT catchées séparément
+        let decoded;
         try {
-            // Vérifier le refresh token
-            const decoded = jwt.verify(refreshToken, appConfig.refreshTokenSecret);
-
-            // Trouver le token en base (findFirst car le champ token est de type Text)
-            const storedToken = await prisma.refreshToken.findFirst({
-                where: { token: refreshToken },
-                include: { user: true },
-            });
-
-            if (!storedToken || storedToken.expiresAt < new Date()) {
-                throw new AppError(401, 'Invalid refresh token');
-            }
-
-            // Supprimer l'ancien refresh token
-            await prisma.refreshToken.delete({ where: { id: storedToken.id } });
-
-            // Générer de nouveaux tokens
-            const tokens = await this.generateTokens(storedToken.userId, storedToken.user.accountType);
-
-            return tokens;
-        } catch (error) {
+            decoded = jwt.verify(refreshToken, appConfig.refreshTokenSecret);
+        } catch (err) {
             throw new AppError(401, 'Invalid refresh token');
         }
+
+        if (decoded.tokenType !== 'refresh') {
+            throw new AppError(401, 'Invalid refresh token');
+        }
+
+        // 2. Vérifier que le token existe en DB
+        const storedToken = await prisma.refreshToken.findFirst({
+            where: { token: refreshToken },
+            include: { user: { select: { id: true, accountType: true, isActive: true } } },
+        });
+
+        if (!storedToken) throw new AppError(401, 'Invalid refresh token');
+        if (storedToken.expiresAt < new Date()) throw new AppError(401, 'Refresh token expired');
+        if (!storedToken.user?.isActive) throw new AppError(401, 'Account disabled');
+
+        // 3. Rotation : supprimer l'ancien puis générer les nouveaux
+        await prisma.refreshToken.delete({ where: { id: storedToken.id } });
+        return this.generateTokens(storedToken.userId, storedToken.user.accountType);
     }
 
     // ============ MÉTHODES HELPER ============

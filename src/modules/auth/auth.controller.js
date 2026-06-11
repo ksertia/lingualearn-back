@@ -1,5 +1,6 @@
 const { asyncHandler } = require('../../middleware/asyncHandler');
 const { authService } = require('./auth.service');
+const { AppError } = require('../../middleware/errorHandler');
 const {
     registerSchema,
     addChildSchema,
@@ -62,27 +63,10 @@ const authController = {
 
     
     // Réinitialisation du mot de passe
-    // resetPassword: asyncHandler(async (req, res) => {
-    //     const validatedData = resetPasswordSchema.parse(req.body);
-    //     const result = await authService.resetPassword(validatedData);
-        
-    //     res.json(result);
-    // }),
     resetPassword: asyncHandler(async (req, res) => {
-        try {
-            // Valider le body avec le schéma
-            const { loginInfo, otp, password } = resetPasswordSchema.parse(req.body);
-            const result = await authService.resetPassword(loginInfo, otp, password);
-            res.json(result);
-        } catch (error) {
-            if (error instanceof z.ZodError) {
-                return res.status(400).json({ success: false, error: error.errors });
-            }
-            res.status(error.status || 500).json({
-                success: false,
-                error: error.message || 'Internal Server Error'
-            });
-        }
+        const { loginInfo, otp, password } = resetPasswordSchema.parse(req.body);
+        const result = await authService.resetPassword(loginInfo, otp, password);
+        res.json(result);
     }),
 
 
@@ -106,13 +90,14 @@ const authController = {
     
     // Rafraîchir le token
     refreshToken: asyncHandler(async (req, res) => {
-        const validatedData = refreshTokenSchema.parse(req.body);
-        const tokens = await authService.refreshToken(validatedData.refreshToken);
-        
+        const { refreshToken } = refreshTokenSchema.parse(req.body);
+        const tokens = await authService.refreshToken(refreshToken);
+        // Réponse aplatie pour que Flutter lise accessToken/refreshToken directement
         res.json({
             success: true,
-            message: 'Token refreshed successfully',
-            data: tokens
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            expiresIn: tokens.expiresIn,
         });
     }),
     
