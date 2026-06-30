@@ -50,7 +50,7 @@ async function recalculateAllProgress(userId, pathId) {
     // 1 requête pour toute la hiérarchie path → module → level → language
     const path = await prisma.path.findUnique({
       where: { id: pathId },
-      include: { module: { include: { level: true } } }
+      select: { id: true, moduleId: true, module: { select: { id: true, levelId: true, level: { select: { id: true, languageId: true } } } } }
     });
     if (!path) return;
 
@@ -413,9 +413,9 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
         await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.EXERCISE, firstExercise.id);
       }
     } else if (contentType === 'quiz') {
-      const firstQuiz = await this.prisma.stepQuiz.findFirst({
-        where: { stepId, isActive: true },
-        orderBy: { order: 'asc' }
+      const firstQuiz = await this.prisma.quiz.findFirst({
+        where: { stepId },
+        orderBy: { index: 'asc' }
       });
       if (firstQuiz) {
         await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.QUIZ, firstQuiz.id);
@@ -782,42 +782,6 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
           });
         }
         break;
-      case ProgressionUnlockService.ELEMENT_TYPES.COURSE:
-        if (this.prisma.userCourseProgress) {
-          progress = await this.prisma.userCourseProgress.findUnique({
-            where: { userId_courseId: { userId, courseId: elementId } }
-          });
-          if (!progress) {
-            progress = await this.prisma.userCourseProgress.create({
-              data: { userId, courseId: elementId, status: ProgressionUnlockService.STATUS.LOCKED }
-            });
-          }
-        }
-        break;
-      case ProgressionUnlockService.ELEMENT_TYPES.EXERCISE:
-        if (this.prisma.userExerciseProgress) {
-          progress = await this.prisma.userExerciseProgress.findUnique({
-            where: { userId_exerciseId: { userId, exerciseId: elementId } }
-          });
-          if (!progress) {
-            progress = await this.prisma.userExerciseProgress.create({
-              data: { userId, exerciseId: elementId, status: ProgressionUnlockService.STATUS.LOCKED }
-            });
-          }
-        }
-        break;
-      case ProgressionUnlockService.ELEMENT_TYPES.QUIZ:
-        if (this.prisma.userQuizProgress) {
-          progress = await this.prisma.userQuizProgress.findUnique({
-            where: { userId_quizId: { userId, quizId: elementId } }
-          });
-          if (!progress) {
-            progress = await this.prisma.userQuizProgress.create({
-              data: { userId, quizId: elementId, status: ProgressionUnlockService.STATUS.LOCKED }
-            });
-          }
-        }
-        break;
     }
 
     return progress;
@@ -851,33 +815,6 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
           update: updateData,
           create: { userId, stepId: elementId, ...updateData }
         });
-      case ProgressionUnlockService.ELEMENT_TYPES.COURSE:
-        if (this.prisma.userCourseProgress) {
-          return await this.prisma.userCourseProgress.upsert({
-            where: { userId_courseId: { userId, courseId: elementId } },
-            update: updateData,
-            create: { userId, courseId: elementId, ...updateData }
-          });
-        }
-        break;
-      case ProgressionUnlockService.ELEMENT_TYPES.EXERCISE:
-        if (this.prisma.userExerciseProgress) {
-          return await this.prisma.userExerciseProgress.upsert({
-            where: { userId_exerciseId: { userId, exerciseId: elementId } },
-            update: updateData,
-            create: { userId, exerciseId: elementId, ...updateData }
-          });
-        }
-        break;
-      case ProgressionUnlockService.ELEMENT_TYPES.QUIZ:
-        if (this.prisma.userQuizProgress) {
-          return await this.prisma.userQuizProgress.upsert({
-            where: { userId_quizId: { userId, quizId: elementId } },
-            update: updateData,
-            create: { userId, quizId: elementId, ...updateData }
-          });
-        }
-        break;
     }
   }
 
@@ -1076,11 +1013,19 @@ const progressionService = new ProgressionUnlockService();
 // pour que recalculateAllProgress recharge la structure depuis la DB.
 
 async function invalidateStructureCache({ stepId, pathId, moduleId, levelId, languageId } = {}) {
+  // Si stepId fourni sans pathId, résoudre le pathId parent
+  let resolvedPathId = pathId;
+  if (stepId && !resolvedPathId) {
+    const step = await prisma.step.findUnique({ where: { id: stepId }, select: { pathId: true } });
+    resolvedPathId = step?.pathId || null;
+  }
+
   const keys = [];
-  if (pathId)     keys.push(`struct:path:${pathId}:stepIds`);
-  if (moduleId)   keys.push(`struct:module:${moduleId}:stepIds`);
-  if (levelId)    keys.push(`struct:level:${levelId}:stepIds`);
-  if (languageId) keys.push(`struct:language:${languageId}:stepIds`);
+  if (stepId)          keys.push(`step:${stepId}:content`);
+  if (resolvedPathId)  keys.push(`struct:path:${resolvedPathId}:stepIds`);
+  if (moduleId)        keys.push(`struct:module:${moduleId}:stepIds`);
+  if (levelId)         keys.push(`struct:level:${levelId}:stepIds`);
+  if (languageId)      keys.push(`struct:language:${languageId}:stepIds`);
   if (keys.length) await cacheDel(...keys).catch(() => {});
 }
 

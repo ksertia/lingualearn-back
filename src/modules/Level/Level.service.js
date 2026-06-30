@@ -260,11 +260,14 @@ class LevelService {
 
         // Si c'est une première sélection, débloquer module1 → parcours1 → étape1
         if (!existing) {
-            await progressionService.unlockModuleWithChildren(userId, (await prisma.module.findFirst({
+            const firstModule = await prisma.module.findFirst({
                 where: { levelId, isActive: true },
                 orderBy: { index: 'asc' },
                 select: { id: true }
-            }))?.id);
+            });
+            if (firstModule) {
+                await progressionService.unlockModuleWithChildren(userId, firstModule.id);
+            }
         }
 
         await this.invalidateCache(null, level.languageId);
