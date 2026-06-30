@@ -280,7 +280,7 @@ async unlockStepWithContent(userId, stepId) {
   // Charger tout le contenu de l'étape en parallèle
   const [lesson, firstExercise, quiz] = await Promise.all([
     this.prisma.lesson.findFirst({ where: { stepId }, orderBy: { index: 'asc' } }),
-    this.prisma.exercise.findFirst({ where: { stepId, isActive: true }, orderBy: { order: 'asc' } }),
+    this.prisma.exercise.findFirst({ where: { stepId }, orderBy: { index: 'asc' } }),
     this.prisma.quiz.findFirst({ where: { stepId }, orderBy: { index: 'asc' } }),
   ]);
 

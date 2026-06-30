@@ -29,6 +29,7 @@ const { appConfig } = require('./config/appConfig');
 const swaggerSpec = require('./config/swagger');
 const router = require('./routes');
 require('./utils/cron');
+const repairMissingProgression = require('./utils/bootRepair');
 
 const app = express();
 
@@ -189,6 +190,8 @@ const httpsServer = https.createServer(httpsOptions, app);
 httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
     console.log(`✅ HTTPS server running on port ${HTTPS_PORT}`);
     console.log(`🔗 Swagger UI: https://213.32.120.11:${HTTPS_PORT}/api-docs`);
+    // Réparation auto de la progression au démarrage (fire-and-forget)
+    repairMissingProgression().catch(() => {});
 });
 // WebSocket (Socket.IO) sur HTTPS
 setupWebSocket(httpsServer);
