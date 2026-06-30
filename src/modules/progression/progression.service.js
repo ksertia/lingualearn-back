@@ -1058,4 +1058,111 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
   }
 }
 
-module.exports = new ProgressionUnlockService();
+const progressionService = new ProgressionUnlockService();
+
+// ─── Invalidation du cache structurel ────────────────────────────────────────
+// À appeler depuis module/path/step après create/update/delete
+// pour que recalculateAllProgress recharge la structure depuis la DB.
+
+async function invalidateStructureCache({ stepId, pathId, moduleId, levelId, languageId } = {}) {
+  const keys = [];
+  if (pathId)     keys.push(`struct:path:${pathId}:stepIds`);
+  if (moduleId)   keys.push(`struct:module:${moduleId}:stepIds`);
+  if (levelId)    keys.push(`struct:level:${levelId}:stepIds`);
+  if (languageId) keys.push(`struct:language:${languageId}:stepIds`);
+  if (keys.length) await cacheDel(...keys).catch(() => {});
+}
+
+// ─── Provisionnement des nouveaux contenus pour les utilisateurs existants ───
+// Quand un admin ajoute un step/path/module, les utilisateurs qui ont déjà une
+// progression sur cette langue n'ont aucune ligne UserXxxProgress → tout apparaît
+// verrouillé. Cette fonction crée les lignes manquantes avec status 'locked'.
+// Elle est non-bloquante (.catch) — ne doit jamais crasher la requête admin.
+
+async function provisionNewContent({ stepId, pathId, moduleId, levelId, languageId }) {
+  try {
+    // Trouver tous les utilisateurs ayant une progression sur cette langue
+    let targetLanguageId = languageId;
+    if (!targetLanguageId && levelId) {
+      const level = await prisma.level.findUnique({ where: { id: levelId }, select: { languageId: true } });
+      targetLanguageId = level?.languageId;
+    }
+    if (!targetLanguageId && moduleId) {
+      const mod = await prisma.module.findUnique({ where: { id: moduleId }, select: { level: { select: { languageId: true } } }, include: { level: true } });
+      targetLanguageId = mod?.level?.languageId;
+    }
+    if (!targetLanguageId && pathId) {
+      const path = await prisma.path.findUnique({ where: { id: pathId }, include: { module: { include: { level: true } } } });
+      targetLanguageId = path?.module?.level?.languageId;
+    }
+    if (!targetLanguageId && stepId) {
+      const step = await prisma.step.findUnique({ where: { id: stepId }, include: { path: { include: { module: { include: { level: true } } } } } });
+      targetLanguageId = step?.path?.module?.level?.languageId;
+    }
+    if (!targetLanguageId) return;
+
+    const affectedUsers = await prisma.userLanguageProgress.findMany({
+      where: { languageId: targetLanguageId },
+      select: { userId: true }
+    });
+    if (!affectedUsers.length) return;
+
+    const userIds = affectedUsers.map(u => u.userId);
+
+    // Créer les lignes manquantes pour chaque type de contenu nouveau
+    if (moduleId) {
+      const existing = await prisma.userModuleProgress.findMany({
+        where: { moduleId, userId: { in: userIds } }, select: { userId: true }
+      });
+      const existingSet = new Set(existing.map(e => e.userId));
+      const missing = userIds.filter(uid => !existingSet.has(uid));
+      if (missing.length) {
+        await prisma.userModuleProgress.createMany({
+          data: missing.map(uid => ({ userId: uid, moduleId, status: 'locked' })),
+          skipDuplicates: true
+        });
+      }
+    }
+
+    if (pathId) {
+      const existing = await prisma.userPathProgress.findMany({
+        where: { pathId, userId: { in: userIds } }, select: { userId: true }
+      });
+      const existingSet = new Set(existing.map(e => e.userId));
+      const missing = userIds.filter(uid => !existingSet.has(uid));
+      if (missing.length) {
+        await prisma.userPathProgress.createMany({
+          data: missing.map(uid => ({ userId: uid, pathId, status: 'locked' })),
+          skipDuplicates: true
+        });
+      }
+    }
+
+    if (stepId) {
+      const existing = await prisma.userStepProgress.findMany({
+        where: { stepId, userId: { in: userIds } }, select: { userId: true }
+      });
+      const existingSet = new Set(existing.map(e => e.userId));
+      const missing = userIds.filter(uid => !existingSet.has(uid));
+      if (missing.length) {
+        await prisma.userStepProgress.createMany({
+          data: missing.map(uid => ({ userId: uid, stepId, status: 'locked' })),
+          skipDuplicates: true
+        });
+      }
+    }
+
+    // Invalider le cache structurel pour que les recalculs utilisent la nouvelle structure
+    await invalidateStructureCache({ stepId, pathId, moduleId, levelId, languageId: targetLanguageId });
+
+    // Invalider le cache de progression de tous les utilisateurs affectés
+    if (userIds.length) await cacheDel(...userIds.map(uid => `user:${uid}:progress`)).catch(() => {});
+
+  } catch (err) {
+    // Silencieux — ne doit pas crasher la requête admin
+  }
+}
+
+module.exports = progressionService;
+module.exports.invalidateStructureCache = invalidateStructureCache;
+module.exports.provisionNewContent = provisionNewContent;

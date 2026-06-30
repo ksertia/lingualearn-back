@@ -1,6 +1,7 @@
 const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
-const { cacheWrap, cacheDel, TTL } = require('../../utils/cache');
+const { invalidateStructureCache, provisionNewContent } = require('../progression/progression.service');
+const { cacheWrap, cacheDel, cacheInvalidatePattern, TTL } = require('../../utils/cache');
 const { notifyLearnersNewContent } = require('../../utils/contentNotifier');
 
 // Récupérer tous les modules liés à un utilisateur (via userModuleProgress)
@@ -84,26 +85,27 @@ exports.completeModuleWithAutoUnlock = async (userId, moduleId) => {
 };
 
 exports.create = async (data) => {
-  // Vérifier que le levelId existe
-  if (!data.levelId) {
-    throw new Error('levelId est requis');
-  }
-  const level = await prisma.level.findUnique({ where: { id: data.levelId } });
-  if (!level) {
-    throw new Error('Le levelId fourni n\'existe pas');
-  }
+  if (!data.levelId) throw new Error('levelId est requis');
+  const level = await prisma.level.findUnique({ where: { id: data.levelId }, select: { id: true, languageId: true } });
+  if (!level) throw new Error('Le levelId fourni n\'existe pas');
 
-  // Auto-incrémenter l'index si null ou undefined
   if (data.index === null || data.index === undefined) {
     const lastModule = await prisma.module.findFirst({
-      where: { levelId: data.levelId },
-      orderBy: { index: 'desc' }
+      where: { levelId: data.levelId }, orderBy: { index: 'desc' }
     });
     data.index = lastModule ? lastModule.index + 1 : 0;
   }
 
   const created = await prisma.module.create({ data });
-  notifyLearnersNewContent('module', { id: created.id, title: created.title }).catch(() => {});
+
+  // Invalider cache structurel + créer lignes de progression pour utilisateurs existants
+  await Promise.all([
+    invalidateStructureCache({ moduleId: created.id, levelId: created.levelId, languageId: level.languageId }),
+    cacheInvalidatePattern(`user:*:modules:level:${created.levelId}`),
+    provisionNewContent({ moduleId: created.id, levelId: created.levelId, languageId: level.languageId }),
+    notifyLearnersNewContent('module', { id: created.id, title: created.title }),
+  ]).catch(() => {});
+
   return created;
 };
 
@@ -116,12 +118,24 @@ exports.getById = async (id) => {
 };
 
 exports.update = async (id, data) => {
-  return await prisma.module.update({ where: { id }, data });
+  const before = await prisma.module.findUnique({ where: { id }, select: { levelId: true } });
+  const updated = await prisma.module.update({ where: { id }, data });
+  if (before) {
+    await Promise.all([
+      invalidateStructureCache({ moduleId: id, levelId: before.levelId }),
+      cacheInvalidatePattern(`user:*:modules:level:${before.levelId}`),
+    ]).catch(() => {});
+  }
+  return updated;
 };
 
 exports.remove = async (id) => {
-  const module = await prisma.module.findUnique({ where: { id } });
+  const module = await prisma.module.findUnique({ where: { id }, select: { levelId: true } });
   if (!module) return null;
   await prisma.module.delete({ where: { id } });
+  await Promise.all([
+    invalidateStructureCache({ moduleId: id, levelId: module.levelId }),
+    cacheInvalidatePattern(`user:*:modules:level:${module.levelId}`),
+  ]).catch(() => {});
   return true;
 };

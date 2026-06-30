@@ -1,5 +1,6 @@
 const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
+const { invalidateStructureCache, provisionNewContent } = require('../progression/progression.service');
 const { cacheWrap, cacheDel, TTL } = require('../../utils/cache');
 const { notifyLearnersNewContent } = require('../../utils/contentNotifier');
 
@@ -120,8 +121,16 @@ async function createPath(data) {
   }
 
   const path = await prisma.path.create({ data: { ...data, index } });
-  if (data.moduleId) await cacheDel(`paths:module:${data.moduleId}`);
-  notifyLearnersNewContent('path', { id: path.id, title: path.title }).catch(() => {});
+
+  if (data.moduleId) {
+    await Promise.all([
+      cacheDel(`paths:module:${data.moduleId}`),
+      invalidateStructureCache({ pathId: path.id, moduleId: data.moduleId }),
+      provisionNewContent({ pathId: path.id, moduleId: data.moduleId }),
+      notifyLearnersNewContent('path', { id: path.id, title: path.title }),
+    ]).catch(() => {});
+  }
+
   return path;
 }
 
@@ -143,15 +152,26 @@ async function updatePath(id, data) {
     }
   }
 
+  const before = await prisma.path.findUnique({ where: { id }, select: { moduleId: true } });
   const updated = await prisma.path.update({ where: { id }, data });
-  if (updated.moduleId) await cacheDel(`paths:module:${updated.moduleId}`);
+  if (updated.moduleId) {
+    await Promise.all([
+      cacheDel(`paths:module:${updated.moduleId}`),
+      invalidateStructureCache({ pathId: id, moduleId: updated.moduleId }),
+    ]).catch(() => {});
+  }
   return updated;
 }
 
 async function deletePath(id) {
   const path = await prisma.path.findUnique({ where: { id }, select: { moduleId: true } });
   const deleted = await prisma.path.delete({ where: { id } });
-  if (path?.moduleId) await cacheDel(`paths:module:${path.moduleId}`);
+  if (path?.moduleId) {
+    await Promise.all([
+      cacheDel(`paths:module:${path.moduleId}`),
+      invalidateStructureCache({ pathId: id, moduleId: path.moduleId }),
+    ]).catch(() => {});
+  }
   return deleted;
 }
 

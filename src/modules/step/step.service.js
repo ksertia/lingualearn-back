@@ -1,5 +1,6 @@
 const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
+const { invalidateStructureCache, provisionNewContent } = require('../progression/progression.service');
 const { cacheWrap, cacheDel, TTL } = require('../../utils/cache');
 const { notifyLearnersNewContent } = require('../../utils/contentNotifier');
 
@@ -162,7 +163,14 @@ exports.create = async (data) => {
     isActive: typeof data.isActive === 'boolean' ? data.isActive : true
   };
   const created = await prisma.step.create({ data: stepData });
-  notifyLearnersNewContent('step', { id: created.id, title: created.title }).catch(() => {});
+
+  // Invalider cache structurel + créer lignes de progression pour utilisateurs existants
+  await Promise.all([
+    invalidateStructureCache({ stepId: created.id, pathId: created.pathId }),
+    provisionNewContent({ stepId: created.id, pathId: created.pathId }),
+    notifyLearnersNewContent('step', { id: created.id, title: created.title }),
+  ]).catch(() => {});
+
   return created;
 };
 
@@ -171,6 +179,7 @@ exports.getAll = async () => prisma.step.findMany();
 exports.getById = async (id) => prisma.step.findUnique({ where: { id } });
 
 exports.update = async (id, data) => {
+  const before = await prisma.step.findUnique({ where: { id }, select: { pathId: true } });
   await cacheDel(`step:${id}:content`);
   const stepData = {};
   if (data.pathId) stepData.pathId = data.pathId;
@@ -180,13 +189,21 @@ exports.update = async (id, data) => {
   if (typeof data.index === 'number') stepData.index = data.index;
   if (typeof data.estimatedMinutes === 'number') stepData.estimatedMinutes = data.estimatedMinutes;
   if (typeof data.isActive === 'boolean') stepData.isActive = data.isActive;
-  return prisma.step.update({ where: { id }, data: stepData });
+  const updated = await prisma.step.update({ where: { id }, data: stepData });
+  if (before?.pathId) {
+    invalidateStructureCache({ stepId: id, pathId: before.pathId }).catch(() => {});
+  }
+  return updated;
 };
 
 exports.remove = async (id) => {
   try {
+    const before = await prisma.step.findUnique({ where: { id }, select: { pathId: true } });
     await cacheDel(`step:${id}:content`);
     await prisma.step.delete({ where: { id } });
+    if (before?.pathId) {
+      invalidateStructureCache({ stepId: id, pathId: before.pathId }).catch(() => {});
+    }
     return true;
   } catch {
     return false;
