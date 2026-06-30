@@ -105,8 +105,13 @@ async function recalculateAllProgress(userId, pathId) {
       }),
     ]);
 
-    // Invalider le cache de progression utilisateur
-    await cacheDel(`user:${userId}:progress`);
+    // Invalider tous les caches utilisateur liés à la progression
+    await Promise.all([
+      cacheDel(`user:${userId}:progress`),
+      cacheDel(`user-levels:${userId}`),
+      cacheDel(`user:${userId}:modules:level:${levelId}`),
+      cacheDel(`paths:module:${moduleId}`),
+    ]).catch(() => {});
 
   } catch (err) {
     console.error('Erreur recalcul progression:', err.message);
@@ -1006,7 +1011,10 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
       }),
     ]);
 
-    await cacheDel(`user:${userId}:progress`);
+    await Promise.all([
+      cacheDel(`user:${userId}:progress`),
+      cacheDel(`user-levels:${userId}`),
+    ]).catch(() => {});
   }
 
   // Recalcule overallProgress de la langue
@@ -1018,7 +1026,10 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
     const pct = stepIds.length > 0 ? Math.round((completed / stepIds.length) * 100) : 0;
 
     await this.prisma.userLanguageProgress.updateMany({ where: { userId, languageId }, data: { overallProgress: pct } });
-    await cacheDel(`user:${userId}:progress`);
+    await Promise.all([
+      cacheDel(`user:${userId}:progress`),
+      cacheDel(`user-levels:${userId}`),
+    ]).catch(() => {});
   }
 
   /**
@@ -1088,15 +1099,21 @@ async function provisionNewContent({ stepId, pathId, moduleId, levelId, language
       targetLanguageId = level?.languageId;
     }
     if (!targetLanguageId && moduleId) {
-      const mod = await prisma.module.findUnique({ where: { id: moduleId }, select: { level: { select: { languageId: true } } }, include: { level: true } });
+      const mod = await prisma.module.findUnique({ where: { id: moduleId }, select: { levelId: true, level: { select: { languageId: true } } } });
+      levelId = levelId || mod?.levelId;
       targetLanguageId = mod?.level?.languageId;
     }
     if (!targetLanguageId && pathId) {
-      const path = await prisma.path.findUnique({ where: { id: pathId }, include: { module: { include: { level: true } } } });
+      const path = await prisma.path.findUnique({ where: { id: pathId }, select: { moduleId: true, module: { select: { levelId: true, level: { select: { languageId: true } } } } } });
+      moduleId = moduleId || path?.moduleId;
+      levelId = levelId || path?.module?.levelId;
       targetLanguageId = path?.module?.level?.languageId;
     }
     if (!targetLanguageId && stepId) {
-      const step = await prisma.step.findUnique({ where: { id: stepId }, include: { path: { include: { module: { include: { level: true } } } } } });
+      const step = await prisma.step.findUnique({ where: { id: stepId }, select: { pathId: true, path: { select: { moduleId: true, module: { select: { levelId: true, level: { select: { languageId: true } } } } } } } });
+      pathId = pathId || step?.pathId;
+      moduleId = moduleId || step?.path?.moduleId;
+      levelId = levelId || step?.path?.module?.levelId;
       targetLanguageId = step?.path?.module?.level?.languageId;
     }
     if (!targetLanguageId) return;
@@ -1155,8 +1172,15 @@ async function provisionNewContent({ stepId, pathId, moduleId, levelId, language
     // Invalider le cache structurel pour que les recalculs utilisent la nouvelle structure
     await invalidateStructureCache({ stepId, pathId, moduleId, levelId, languageId: targetLanguageId });
 
-    // Invalider le cache de progression de tous les utilisateurs affectés
-    if (userIds.length) await cacheDel(...userIds.map(uid => `user:${uid}:progress`)).catch(() => {});
+    // Invalider tous les caches utilisateur affectés (progress + niveaux + modules + parcours)
+    const cacheKeys = [];
+    for (const uid of userIds) {
+      cacheKeys.push(`user:${uid}:progress`);
+      cacheKeys.push(`user-levels:${uid}`);
+      if (levelId) cacheKeys.push(`user:${uid}:modules:level:${levelId}`);
+    }
+    if (moduleId) cacheKeys.push(`paths:module:${moduleId}`);
+    if (cacheKeys.length) await cacheDel(...cacheKeys).catch(() => {});
 
   } catch (err) {
     // Silencieux — ne doit pas crasher la requête admin

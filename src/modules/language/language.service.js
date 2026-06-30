@@ -9,7 +9,8 @@ exports.getLanguagesByUserId = async (userId) => {
 		orderBy: { createdAt: 'asc' },
 		include: {
 			userProgress: {
-				where: { userId }  // Progression si elle existe
+				where: { userId },
+				select: { status: true, overallProgress: true, totalXp: true, totalTimeMinutes: true, startedAt: true, completedAt: true, lastAccessedAt: true }
 			}
 		}
 	});
@@ -124,7 +125,7 @@ exports.getChildLanguages = async (parentId, childId) => {
         where: { isActive: true },
         orderBy: { createdAt: 'asc' },
         include: {
-            userProgress: { where: { userId: childId } }
+            userProgress: { where: { userId: childId }, select: { status: true, overallProgress: true, totalXp: true, startedAt: true } }
         }
     });
 
@@ -323,16 +324,15 @@ exports.getMyProgress = async (userId) => {
 exports.switchLanguage = async (userId, languageId) => {
     const { AppError } = require('../../middleware/errorHandler');
 
-    const progress = await prisma.userLanguageProgress.findUnique({
-        where: { userId_languageId: { userId, languageId } },
-        include: { language: { select: { id: true, name: true, code: true, flagUrl: true } } }
-    });
-    if (!progress) throw new AppError(404, 'This language is not assigned to your account');
-
-    await prisma.userLanguageProgress.update({
-        where: { userId_languageId: { userId, languageId } },
-        data: { lastAccessedAt: new Date() }
-    });
+    try {
+        await prisma.userLanguageProgress.update({
+            where: { userId_languageId: { userId, languageId } },
+            data: { lastAccessedAt: new Date() }
+        });
+    } catch (err) {
+        if (err.code === 'P2025') throw new AppError(404, 'This language is not assigned to your account');
+        throw err;
+    }
 
     await cacheDel(`user:${userId}:progress`);
     const data = await computeCurrentProgress(userId);

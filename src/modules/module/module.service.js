@@ -21,7 +21,7 @@ exports.getModulesByUserId = async (userId, levelId = null) => {
     const modules = await prisma.module.findMany({
       where: { levelId: targetLevelId },
       orderBy: { index: 'asc' },
-      include: { userProgress: { where: { userId } } }
+      include: { userProgress: { where: { userId }, select: { status: true, progressPercentage: true, totalXp: true, timeSpentMinutes: true, unlockedAt: true, startedAt: true, completedAt: true, lastAccessedAt: true } } }
     });
 
     return modules.map(module => ({

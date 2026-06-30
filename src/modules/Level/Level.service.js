@@ -1,13 +1,16 @@
 const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
-const { cacheGet, cacheSet, cacheDel, TTL } = require('../../utils/cache');
+const { cacheGet, cacheSet, cacheDel, cacheInvalidatePattern, TTL } = require('../../utils/cache');
 
 class LevelService {
     async invalidateCache(levelId = null, languageId = null) {
         const keys = ['levels:all'];
         if (levelId) keys.push(`level:${levelId}`, `level:${levelId}:full`);
-        if (languageId) keys.push(`levels:language:${languageId}`);
-        await cacheDel(...keys);
+        if (languageId) keys.push(`levels:language:${languageId}`, `language:${languageId}:levels`, `language:${languageId}:available-levels`);
+        await Promise.all([
+            cacheDel(...keys),
+            cacheInvalidatePattern('user-levels:*'),
+        ]).catch(() => {});
     }
 
     // Récupérer tous les niveaux liés à un utilisateur (optimisé)
@@ -286,102 +289,68 @@ class LevelService {
 
     // Méthode helper pour débloquer le contenu d'un niveau
     async unlockLevelContent(userId, levelId) {
-        // Débloquer automatiquement le premier module du niveau
-        const firstModule = await prisma.module.findFirst({
-            where: { levelId, isActive: true },
-            orderBy: { index: 'asc' },
-            select: { id: true }
-        });
-        
-        if (!firstModule) return;
-
-        // Créer la progression pour le premier module
-        await prisma.userModuleProgress.upsert({
-            where: { userId_moduleId: { userId, moduleId: firstModule.id } },
-            update: { 
-                status: 'unlocked',
-                unlockedAt: new Date(),
-                lastAccessedAt: new Date()
-            },
-            create: {
-                userId,
-                moduleId: firstModule.id,
-                status: 'unlocked',
-                unlockedAt: new Date(),
-                lastAccessedAt: new Date()
-            }
-        });
-
-        // Débloquer le premier parcours
-        const firstPath = await prisma.path.findFirst({
-            where: { moduleId: firstModule.id, isActive: true },
-            orderBy: { index: 'asc' },
-            select: { id: true }
-        });
-        
-        if (firstPath) {
-            await prisma.userPathProgress.upsert({
-                where: { userId_pathId: { userId, pathId: firstPath.id } },
-                update: { 
-                    status: 'unlocked',
-                    unlockedAt: new Date(),
-                    lastAccessedAt: new Date()
-                },
-                create: {
-                    userId,
-                    pathId: firstPath.id,
-                    status: 'unlocked',
-                    unlockedAt: new Date(),
-                    lastAccessedAt: new Date()
-                }
-            });
-
-            // Débloquer la première étape
-            const firstStep = await prisma.step.findFirst({
-                where: { pathId: firstPath.id, isActive: true },
+        // Charger module1 + path1 + step1 en parallèle via leurs relations imbriquées
+        const [firstModule, firstPathViaLevel, firstStepViaLevel] = await Promise.all([
+            prisma.module.findFirst({
+                where: { levelId, isActive: true },
                 orderBy: { index: 'asc' },
                 select: { id: true }
-            });
-            
-            if (firstStep) {
-                await prisma.userStepProgress.upsert({
-                    where: { userId_stepId: { userId, stepId: firstStep.id } },
-                    update: { 
-                        status: 'unlocked',
-                        unlockedAt: new Date(),
-                        lastAccessedAt: new Date()
-                    },
-                    create: {
-                        userId,
-                        stepId: firstStep.id,
-                        status: 'unlocked',
-                        unlockedAt: new Date(),
-                        lastAccessedAt: new Date()
-                    }
-                });
-            }
+            }),
+            prisma.path.findFirst({
+                where: { module: { levelId, isActive: true }, isActive: true },
+                orderBy: [{ module: { index: 'asc' } }, { index: 'asc' }],
+                select: { id: true, moduleId: true }
+            }),
+            prisma.step.findFirst({
+                where: { path: { module: { levelId, isActive: true }, isActive: true }, isActive: true },
+                orderBy: [{ path: { module: { index: 'asc' } } }, { path: { index: 'asc' } }, { index: 'asc' }],
+                select: { id: true }
+            })
+        ]);
+
+        if (!firstModule) return;
+
+        const now = new Date();
+        const unlockedData = { status: 'unlocked', unlockedAt: now, lastAccessedAt: now };
+
+        // Construire les upserts disponibles selon ce qu'on a trouvé
+        const upserts = [
+            prisma.userModuleProgress.upsert({
+                where: { userId_moduleId: { userId, moduleId: firstModule.id } },
+                update: unlockedData,
+                create: { userId, moduleId: firstModule.id, ...unlockedData }
+            })
+        ];
+
+        if (firstPathViaLevel) {
+            upserts.push(prisma.userPathProgress.upsert({
+                where: { userId_pathId: { userId, pathId: firstPathViaLevel.id } },
+                update: unlockedData,
+                create: { userId, pathId: firstPathViaLevel.id, ...unlockedData }
+            }));
         }
+
+        if (firstStepViaLevel) {
+            upserts.push(prisma.userStepProgress.upsert({
+                where: { userId_stepId: { userId, stepId: firstStepViaLevel.id } },
+                update: unlockedData,
+                create: { userId, stepId: firstStepViaLevel.id, ...unlockedData }
+            }));
+        }
+
+        await Promise.all(upserts);
     }
 
     async startLevelForUser(userId, levelId) {
-        // Vérifier que la progression existe
-        const existing = await prisma.userLevelProgress.findUnique({
-            where: { userId_levelId: { userId, levelId } },
-            select: { id: true }
-        });
-        
-        if (!existing) {
-            throw new Error('Niveau non sélectionné pour cet utilisateur');
+        try {
+            return await prisma.userLevelProgress.update({
+                where: { userId_levelId: { userId, levelId } },
+                data: { status: 'started', startedAt: new Date(), lastAccessedAt: new Date() }
+            });
+        } catch (err) {
+            if (err.code === 'P2025') throw new Error('Niveau non sélectionné pour cet utilisateur');
+            throw err;
         }
-
-        return prisma.userLevelProgress.update({
-            where: { userId_levelId: { userId, levelId } },
-            data: { 
-                status: 'started', 
-                startedAt: new Date(),
-                lastAccessedAt: new Date()
-            }
-        });
     }
 
     async completeLevelForUser(userId, levelId) {

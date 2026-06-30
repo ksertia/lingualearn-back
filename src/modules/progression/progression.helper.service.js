@@ -21,7 +21,7 @@ class ProgressionHelperService {
     const languageProgress = await prisma.userLanguageProgress.findUnique({
       where: { userId_languageId: { userId, languageId } },
       include: {
-        language: true
+        language: { select: { id: true, code: true, name: true, description: true, iconUrl: true, flagUrl: true } }
       }
     });
 
@@ -556,8 +556,17 @@ class ProgressionHelperService {
         }
       }
 
-      // Calculer overallProgress en mémoire (pas de requête supplémentaire)
-      const stats = await this.calculateProgressionStats(userId, languageId);
+      // Calculer overallProgress directement depuis progression (évite 2ème appel DB)
+      const totalSteps = progression.levels.reduce((sum, lv) =>
+        sum + lv.modules.reduce((s2, m) =>
+          s2 + m.paths.reduce((s3, p) => s3 + p.steps.length, 0), 0), 0);
+      const completedSteps = progression.levels.reduce((sum, lv) =>
+        sum + lv.modules.reduce((s2, m) =>
+          s2 + m.paths.reduce((s3, p) =>
+            s3 + p.steps.filter(s => s.userProgress?.status === 'completed').length, 0), 0), 0);
+      const overallProgress = totalSteps > 0
+        ? Math.round((completedSteps / totalSteps) * 100 * 100) / 100
+        : 0;
 
       // Tout envoyer en parallèle en 1 seul round
       await Promise.all([
@@ -566,7 +575,7 @@ class ProgressionHelperService {
         ...pathUpdates,
         prisma.userLanguageProgress.update({
           where: { userId_languageId: { userId, languageId } },
-          data: { overallProgress: stats.overallProgressPercentage }
+          data: { overallProgress }
         }),
       ]);
 
@@ -580,7 +589,7 @@ class ProgressionHelperService {
    * Méthodes de validation
    */
   async validateUser(userId) {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
     if (!user) {
       throw new Error('Utilisateur non trouvé');
     }
@@ -588,7 +597,7 @@ class ProgressionHelperService {
   }
 
   async validateLanguage(languageId) {
-    const language = await prisma.language.findUnique({ where: { id: languageId } });
+    const language = await prisma.language.findUnique({ where: { id: languageId }, select: { id: true } });
     if (!language) {
       throw new Error('Langue non trouvée');
     }
