@@ -327,15 +327,26 @@ async unlockStepWithContent(userId, stepId) {
 async completeCourseAndUnlockNext(userId, lessonId) {
   try {
     await this.validateUser(userId);
-    const lesson = await this.prisma.lesson.findUnique({ 
+    const lesson = await this.prisma.lesson.findUnique({
       where: { id: lessonId },
-      include: { step: true }
+      select: { id: true, stepId: true }
     });
     if (!lesson) throw new Error('Leçon non trouvée');
 
-    // Marquer la leçon comme complétée (si vous avez un modèle pour ça)
-    // Sinon, passez directement aux exercices
-    await this.unlockNextContentType(userId, lesson.stepId, 'exercise');
+    // Vérifier si l'étape a aussi un exercise ou un quiz
+    const [hasExercise, hasQuiz] = await Promise.all([
+      this.prisma.exercise.findFirst({ where: { stepId: lesson.stepId }, select: { id: true } }),
+      this.prisma.quiz.findFirst({ where: { stepId: lesson.stepId }, select: { id: true } }),
+    ]);
+
+    if (hasExercise) {
+      await this.unlockNextContentType(userId, lesson.stepId, 'exercise');
+    } else if (hasQuiz) {
+      await this.unlockNextContentType(userId, lesson.stepId, 'quiz');
+    } else {
+      // Leçon seule : compléter l'étape directement
+      await this.completeStepAndUnlockNext(userId, lesson.stepId);
+    }
 
     return { success: true, message: 'Leçon complétée avec succès' };
   } catch (error) {
@@ -357,8 +368,8 @@ async completeCourseAndUnlockNext(userId, lessonId) {
 
       // Récupérer l'exercise suivant
       const nextExercise = await this.prisma.exercise.findFirst({
-        where: { stepId: exercise.stepId, order: { gt: exercise.order }, isActive: true },
-        orderBy: { order: 'asc' }
+        where: { stepId: exercise.stepId, index: { gt: exercise.index } },
+        orderBy: { index: 'asc' }
       });
 
       if (nextExercise) {
@@ -380,9 +391,9 @@ async completeCourseAndUnlockNext(userId, lessonId) {
 async completeQuizAndUnlockNext(userId, quizId, score = null) {
   try {
     await this.validateUser(userId);
-    const quiz = await this.prisma.quiz.findUnique({ 
+    const quiz = await this.prisma.quiz.findUnique({
       where: { id: quizId },
-      include: { step: true }
+      select: { id: true, stepId: true, passingScore: true }
     });
     if (!quiz) throw new Error('Quiz non trouvé');
 
@@ -406,8 +417,8 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
   async unlockNextContentType(userId, stepId, contentType) {
     if (contentType === 'exercise') {
       const firstExercise = await this.prisma.exercise.findFirst({
-        where: { stepId, isActive: true },
-        orderBy: { order: 'asc' }
+        where: { stepId },
+        orderBy: { index: 'asc' }
       });
       if (firstExercise) {
         await this.unlockElement(userId, ProgressionUnlockService.ELEMENT_TYPES.EXERCISE, firstExercise.id);
@@ -465,9 +476,6 @@ async completeQuizAndUnlockNext(userId, quizId, score = null) {
   async handlePathCompletion(userId, pathId) {
     // Marquer le parcours comme complété
     await this.completeElement(userId, ProgressionUnlockService.ELEMENT_TYPES.PATH, pathId);
-
-    // Recalculer tous les pourcentages en cascade
-    await recalculateAllProgress(userId, pathId);
 
     // Récupérer le parcours suivant dans le même module
     const path = await this.prisma.path.findUnique({ where: { id: pathId } });

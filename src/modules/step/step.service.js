@@ -195,11 +195,20 @@ exports.update = async (id, data) => {
 
 exports.remove = async (id) => {
   try {
-    const before = await prisma.step.findUnique({ where: { id }, select: { pathId: true } });
+    const before = await prisma.step.findUnique({
+      where: { id },
+      select: { pathId: true, path: { select: { moduleId: true, module: { select: { levelId: true, level: { select: { languageId: true } } } } } } }
+    });
     await cacheDel(`step:${id}:content`);
     await prisma.step.delete({ where: { id } });
     if (before?.pathId) {
-      syncAllUsersProgression({ stepId: id, pathId: before.pathId }, 'delete').catch(() => {});
+      syncAllUsersProgression({
+        stepId: id,
+        pathId: before.pathId,
+        moduleId: before.path?.moduleId,
+        levelId: before.path?.module?.levelId,
+        languageId: before.path?.module?.level?.languageId
+      }, 'delete').catch(() => {});
     }
     return true;
   } catch {

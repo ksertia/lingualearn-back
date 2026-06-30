@@ -342,28 +342,20 @@ class LevelService {
     }
 
     async completeLevelForUser(userId, levelId) {
+        const levelData = await prisma.level.findUnique({ where: { id: levelId }, select: { languageId: true } });
         const result = await prisma.userLevelProgress.update({
             where: { userId_levelId: { userId, levelId } },
-            data: { 
-                status: 'completed', 
-                completedAt: new Date(),
-                progressPercentage: 100
-            }
+            data: { status: 'completed', completedAt: new Date(), progressPercentage: 100 }
         });
-        
-        // Invalider le cache
-        await this.invalidateCache(null);
-        
+        await this.invalidateCache(levelId, levelData?.languageId);
         return result;
     }
 
     // Compléter un niveau avec déblocage automatique du suivant
     async completeLevelWithAutoUnlock(userId, levelId) {
+        const levelData = await prisma.level.findUnique({ where: { id: levelId }, select: { languageId: true } });
         const result = await progressionService.completeLevelAndUnlockNext(userId, levelId);
-        
-        // Invalider le cache
-        await this.invalidateCache(null);
-        
+        await this.invalidateCache(levelId, levelData?.languageId);
         return result;
     }
 

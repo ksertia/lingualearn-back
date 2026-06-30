@@ -158,10 +158,18 @@ async function updatePath(id, data) {
 }
 
 async function deletePath(id) {
-  const path = await prisma.path.findUnique({ where: { id }, select: { moduleId: true } });
+  const path = await prisma.path.findUnique({
+    where: { id },
+    select: { moduleId: true, module: { select: { levelId: true, level: { select: { languageId: true } } } } }
+  });
   const deleted = await prisma.path.delete({ where: { id } });
   if (path?.moduleId) {
-    syncAllUsersProgression({ pathId: id, moduleId: path.moduleId }, 'delete').catch(() => {});
+    syncAllUsersProgression({
+      pathId: id,
+      moduleId: path.moduleId,
+      levelId: path.module?.levelId,
+      languageId: path.module?.level?.languageId
+    }, 'delete').catch(() => {});
   }
   return deleted;
 }

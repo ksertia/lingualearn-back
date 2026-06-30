@@ -1,3 +1,4 @@
+const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
 const { cacheWrap, cacheDel, cacheInvalidatePattern, TTL } = require('../../utils/cache');
 
@@ -167,7 +168,7 @@ async function _computeCurrentProgress(userId) {
     // Batch load active level/module/path/step progress for all languages at once
     const [allLevelProgs, allModuleProgs, allPathProgs, allStepProgs] = await Promise.all([
         prisma.userLevelProgress.findMany({
-            where: { userId, status: { in: ['started', 'unlocked'] }, level: { languageId: { in: languageIds } } },
+            where: { userId, level: { languageId: { in: languageIds } } },
             orderBy: { lastAccessedAt: 'desc' },
             include: { level: { select: { id: true, name: true, code: true, languageId: true } } }
         }),
@@ -182,7 +183,7 @@ async function _computeCurrentProgress(userId) {
             include: { path: { select: { id: true, title: true, moduleId: true } } }
         }),
         prisma.userStepProgress.findMany({
-            where: { userId, status: { notIn: ['completed'] } },
+            where: { userId, status: { in: ['unlocked', 'started'] } },
             orderBy: { updatedAt: 'desc' },
             include: { step: { select: { id: true, title: true, stepType: true, pathId: true } } }
         }),
@@ -430,7 +431,6 @@ exports.completeLanguageForUser = async (userId, languageId) => {
 	       data: { status: 'completed', completedAt: new Date() }
        });
 };
-const { prisma } = require('../../config/prisma');
 
 exports.create = async (data) => {
 	// Calcul automatique de l'index si non fourni

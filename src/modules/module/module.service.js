@@ -20,7 +20,7 @@ exports.getModulesByUserId = async (userId, levelId = null) => {
 
   return cacheWrap(`user:${userId}:modules:level:${targetLevelId}`, async () => {
     const modules = await prisma.module.findMany({
-      where: { levelId: targetLevelId },
+      where: { levelId: targetLevelId, isActive: true },
       orderBy: { index: 'asc' },
       include: { userProgress: { where: { userId }, select: { status: true, progressPercentage: true, totalXp: true, timeSpentMinutes: true, unlockedAt: true, startedAt: true, completedAt: true, lastAccessedAt: true } } }
     });
@@ -115,18 +115,24 @@ exports.getById = async (id) => {
 };
 
 exports.update = async (id, data) => {
-  const before = await prisma.module.findUnique({ where: { id }, select: { levelId: true } });
+  const before = await prisma.module.findUnique({
+    where: { id },
+    select: { levelId: true, level: { select: { languageId: true } } }
+  });
   const updated = await prisma.module.update({ where: { id }, data });
   if (before) {
-    syncAllUsersProgression({ moduleId: id, levelId: before.levelId }, 'update').catch(() => {});
+    syncAllUsersProgression({ moduleId: id, levelId: before.levelId, languageId: before.level?.languageId }, 'update').catch(() => {});
   }
   return updated;
 };
 
 exports.remove = async (id) => {
-  const module = await prisma.module.findUnique({ where: { id }, select: { levelId: true } });
+  const module = await prisma.module.findUnique({
+    where: { id },
+    select: { levelId: true, level: { select: { languageId: true } } }
+  });
   if (!module) return null;
   await prisma.module.delete({ where: { id } });
-  syncAllUsersProgression({ moduleId: id, levelId: module.levelId }, 'delete').catch(() => {});
+  syncAllUsersProgression({ moduleId: id, levelId: module.levelId, languageId: module.level?.languageId }, 'delete').catch(() => {});
   return true;
 };

@@ -26,7 +26,7 @@ async function repairMissingProgression() {
       const checks = await Promise.all(
         levelProgs.map(async ({ userId, levelId }) => {
           const hasModule = await prisma.userModuleProgress.findFirst({
-            where: { userId, module: { levelId, isActive: true } },
+            where: { userId, module: { levelId } },
             select: { id: true },
           });
           return hasModule ? null : { userId, levelId };
@@ -82,6 +82,9 @@ async function repairMissingProgression() {
       cacheInvalidatePattern('user:*:progress'),
       cacheInvalidatePattern('user-levels:*'),
       cacheInvalidatePattern('user:*:modules:level:*'),
+      cacheInvalidatePattern('paths:module:*'),
+      cacheInvalidatePattern('struct:*'),
+      cacheInvalidatePattern('step:*:content'),
     ]).catch(() => {});
 
     console.log('[bootRepair] Réparation complète terminée.');
