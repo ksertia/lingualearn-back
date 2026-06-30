@@ -1085,14 +1085,15 @@ async function invalidateStructureCache({ stepId, pathId, moduleId, levelId, lan
 }
 
 // ─── Provisionnement des nouveaux contenus pour les utilisateurs existants ───
-// Quand un admin ajoute un step/path/module, les utilisateurs qui ont déjà une
-// progression sur cette langue n'ont aucune ligne UserXxxProgress → tout apparaît
-// verrouillé. Cette fonction crée les lignes manquantes avec status 'locked'.
-// Elle est non-bloquante (.catch) — ne doit jamais crasher la requête admin.
+// Quand un admin ajoute un step/path/module :
+// 1. Crée les lignes UserXxxProgress manquantes (status 'locked') pour les utilisateurs existants
+// 2. Déclenche le déblocage automatique pour les utilisateurs qui ont le niveau actif
+//    mais aucun contenu débloqué (ex: premier module créé dans un niveau déjà assigné)
+// 3. Invalide tous les caches Redis concernés
 
 async function provisionNewContent({ stepId, pathId, moduleId, levelId, languageId }) {
   try {
-    // Trouver tous les utilisateurs ayant une progression sur cette langue
+    // ── Résoudre toute la hiérarchie depuis l'élément fourni ──────────────────
     let targetLanguageId = languageId;
     if (!targetLanguageId && levelId) {
       const level = await prisma.level.findUnique({ where: { id: levelId }, select: { languageId: true } });
@@ -1118,6 +1119,7 @@ async function provisionNewContent({ stepId, pathId, moduleId, levelId, language
     }
     if (!targetLanguageId) return;
 
+    // ── Utilisateurs ayant une progression sur cette langue ───────────────────
     const affectedUsers = await prisma.userLanguageProgress.findMany({
       where: { languageId: targetLanguageId },
       select: { userId: true }
@@ -1126,7 +1128,7 @@ async function provisionNewContent({ stepId, pathId, moduleId, levelId, language
 
     const userIds = affectedUsers.map(u => u.userId);
 
-    // Créer les lignes manquantes pour chaque type de contenu nouveau
+    // ── Créer les lignes manquantes (status 'locked') ─────────────────────────
     if (moduleId) {
       const existing = await prisma.userModuleProgress.findMany({
         where: { moduleId, userId: { in: userIds } }, select: { userId: true }
@@ -1169,10 +1171,71 @@ async function provisionNewContent({ stepId, pathId, moduleId, levelId, language
       }
     }
 
-    // Invalider le cache structurel pour que les recalculs utilisent la nouvelle structure
+    // ── Déblocage automatique pour les utilisateurs qui n'ont rien de débloqué ─
+    // Cas : admin crée le premier module d'un niveau déjà assigné à des utilisateurs
+    // → ces utilisateurs ont un UserLevelProgress actif mais aucun module débloqué
+    // → on déclenche unlockLevelWithChildren pour eux
+    if (levelId) {
+      // Trouver les utilisateurs avec ce niveau actif (unlocked/started) mais sans module débloqué
+      const [levelActive, moduleUnlocked] = await Promise.all([
+        prisma.userLevelProgress.findMany({
+          where: { levelId, userId: { in: userIds }, status: { in: ['unlocked', 'started'] } },
+          select: { userId: true }
+        }),
+        prisma.userModuleProgress.findMany({
+          where: { userId: { in: userIds }, status: { in: ['unlocked', 'started', 'completed'] }, module: { levelId } },
+          select: { userId: true }
+        })
+      ]);
+      const hasModuleUnlocked = new Set(moduleUnlocked.map(m => m.userId));
+      const usersNeedUnlock = levelActive.filter(lp => !hasModuleUnlocked.has(lp.userId));
+
+      // Déclencher le déblocage en séquence pour chaque utilisateur concerné
+      for (const { userId } of usersNeedUnlock) {
+        await progressionService.unlockLevelWithChildren(userId, levelId).catch(() => {});
+      }
+    } else if (moduleId) {
+      // Cas : admin crée le premier parcours d'un module déjà débloqué
+      const [moduleActive, pathUnlocked] = await Promise.all([
+        prisma.userModuleProgress.findMany({
+          where: { moduleId, userId: { in: userIds }, status: { in: ['unlocked', 'started'] } },
+          select: { userId: true }
+        }),
+        prisma.userPathProgress.findMany({
+          where: { userId: { in: userIds }, status: { in: ['unlocked', 'started', 'completed'] }, path: { moduleId } },
+          select: { userId: true }
+        })
+      ]);
+      const hasPathUnlocked = new Set(pathUnlocked.map(p => p.userId));
+      const usersNeedUnlock = moduleActive.filter(mp => !hasPathUnlocked.has(mp.userId));
+
+      for (const { userId } of usersNeedUnlock) {
+        await progressionService.unlockModuleWithChildren(userId, moduleId).catch(() => {});
+      }
+    } else if (pathId) {
+      // Cas : admin crée la première étape d'un parcours déjà débloqué
+      const [pathActive, stepUnlocked] = await Promise.all([
+        prisma.userPathProgress.findMany({
+          where: { pathId, userId: { in: userIds }, status: { in: ['unlocked', 'started'] } },
+          select: { userId: true }
+        }),
+        prisma.userStepProgress.findMany({
+          where: { userId: { in: userIds }, status: { in: ['unlocked', 'started', 'completed'] }, step: { pathId } },
+          select: { userId: true }
+        })
+      ]);
+      const hasStepUnlocked = new Set(stepUnlocked.map(s => s.userId));
+      const usersNeedUnlock = pathActive.filter(pp => !hasStepUnlocked.has(pp.userId));
+
+      for (const { userId } of usersNeedUnlock) {
+        await progressionService.unlockPathWithChildren(userId, pathId).catch(() => {});
+      }
+    }
+
+    // ── Invalider le cache structurel ─────────────────────────────────────────
     await invalidateStructureCache({ stepId, pathId, moduleId, levelId, languageId: targetLanguageId });
 
-    // Invalider tous les caches utilisateur affectés (progress + niveaux + modules + parcours)
+    // ── Invalider tous les caches utilisateur affectés ───────────────────────
     const cacheKeys = [];
     for (const uid of userIds) {
       cacheKeys.push(`user:${uid}:progress`);
