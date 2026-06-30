@@ -3,6 +3,7 @@ const progressionService = require('../progression/progression.service');
 const { invalidateStructureCache, provisionNewContent } = require('../progression/progression.service');
 const { cacheWrap, cacheDel, cacheInvalidatePattern, TTL } = require('../../utils/cache');
 const { notifyLearnersNewContent } = require('../../utils/contentNotifier');
+const { syncAllUsersProgression } = require('../../utils/progressionSync');
 
 // Récupérer tous les modules liés à un utilisateur (via userModuleProgress)
 exports.getModulesByUserId = async (userId, levelId = null) => {
@@ -98,13 +99,9 @@ exports.create = async (data) => {
 
   const created = await prisma.module.create({ data });
 
-  // Invalider cache structurel + créer lignes de progression pour utilisateurs existants
-  await Promise.all([
-    invalidateStructureCache({ moduleId: created.id, levelId: created.levelId, languageId: level.languageId }),
-    cacheInvalidatePattern(`user:*:modules:level:${created.levelId}`),
-    provisionNewContent({ moduleId: created.id, levelId: created.levelId, languageId: level.languageId }),
-    notifyLearnersNewContent('module', { id: created.id, title: created.title }),
-  ]).catch(() => {});
+  // Sync arrière-plan : recalcul progression + déblocage + cache pour tous les utilisateurs
+  syncAllUsersProgression({ moduleId: created.id, levelId: created.levelId, languageId: level.languageId }, 'create').catch(() => {});
+  notifyLearnersNewContent('module', { id: created.id, title: created.title }).catch(() => {});
 
   return created;
 };
@@ -121,10 +118,7 @@ exports.update = async (id, data) => {
   const before = await prisma.module.findUnique({ where: { id }, select: { levelId: true } });
   const updated = await prisma.module.update({ where: { id }, data });
   if (before) {
-    await Promise.all([
-      invalidateStructureCache({ moduleId: id, levelId: before.levelId }),
-      cacheInvalidatePattern(`user:*:modules:level:${before.levelId}`),
-    ]).catch(() => {});
+    syncAllUsersProgression({ moduleId: id, levelId: before.levelId }, 'update').catch(() => {});
   }
   return updated;
 };
@@ -133,9 +127,6 @@ exports.remove = async (id) => {
   const module = await prisma.module.findUnique({ where: { id }, select: { levelId: true } });
   if (!module) return null;
   await prisma.module.delete({ where: { id } });
-  await Promise.all([
-    invalidateStructureCache({ moduleId: id, levelId: module.levelId }),
-    cacheInvalidatePattern(`user:*:modules:level:${module.levelId}`),
-  ]).catch(() => {});
+  syncAllUsersProgression({ moduleId: id, levelId: module.levelId }, 'delete').catch(() => {});
   return true;
 };

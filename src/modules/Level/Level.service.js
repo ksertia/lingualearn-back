@@ -1,6 +1,7 @@
 const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
 const { cacheGet, cacheSet, cacheDel, cacheInvalidatePattern, TTL } = require('../../utils/cache');
+const { syncAllUsersProgression } = require('../../utils/progressionSync');
 
 class LevelService {
     async invalidateCache(levelId = null, languageId = null) {
@@ -135,13 +136,13 @@ class LevelService {
         // S'assurer que le champ code est toujours présent
         const code = data.code ?? `LEVEL-${index}`;
         
-        const level = await prisma.level.create({ 
-            data: { ...data, index, code } 
+        const level = await prisma.level.create({
+            data: { ...data, index, code }
         });
-        
-        // Invalider le cache
+
         await this.invalidateCache(null, data.languageId);
-        
+        syncAllUsersProgression({ levelId: level.id, languageId: data.languageId }, 'create').catch(() => {});
+
         return level;
     }
 
@@ -213,35 +214,19 @@ class LevelService {
     }
 
     async updateLevel(id, data) {
-        const level = await prisma.level.update({ 
-            where: { id }, 
-            data 
-        });
-        
-        // Invalider le cache
+        const level = await prisma.level.update({ where: { id }, data });
         await this.invalidateCache(id, level.languageId);
-        
+        syncAllUsersProgression({ levelId: id, languageId: level.languageId }, 'update').catch(() => {});
         return level;
     }
 
     async deleteLevel(id) {
-        // Vérifier si le niveau a des dépendances
-        const modules = await prisma.module.findFirst({
-            where: { levelId: id },
-            select: { id: true }
-        });
-        
-        if (modules) {
-            throw new Error('Impossible de supprimer un niveau qui contient des modules');
-        }
-        
-        const level = await prisma.level.delete({ 
-            where: { id } 
-        });
-        
-        // Invalider le cache
+        const modules = await prisma.module.findFirst({ where: { levelId: id }, select: { id: true } });
+        if (modules) throw new Error('Impossible de supprimer un niveau qui contient des modules');
+
+        const level = await prisma.level.delete({ where: { id } });
         await this.invalidateCache(id, level.languageId);
-        
+        syncAllUsersProgression({ levelId: id, languageId: level.languageId }, 'delete').catch(() => {});
         return level;
     }
 

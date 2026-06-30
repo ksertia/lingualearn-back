@@ -3,6 +3,7 @@ const progressionService = require('../progression/progression.service');
 const { invalidateStructureCache, provisionNewContent } = require('../progression/progression.service');
 const { cacheWrap, cacheDel, TTL } = require('../../utils/cache');
 const { notifyLearnersNewContent } = require('../../utils/contentNotifier');
+const { syncAllUsersProgression } = require('../../utils/progressionSync');
 
 const STEP_CONTENT_SELECT = {
   id: true, title: true, description: true, index: true, pathId: true,
@@ -164,12 +165,8 @@ exports.create = async (data) => {
   };
   const created = await prisma.step.create({ data: stepData });
 
-  // Invalider cache structurel + créer lignes de progression pour utilisateurs existants
-  await Promise.all([
-    invalidateStructureCache({ stepId: created.id, pathId: created.pathId }),
-    provisionNewContent({ stepId: created.id, pathId: created.pathId }),
-    notifyLearnersNewContent('step', { id: created.id, title: created.title }),
-  ]).catch(() => {});
+  syncAllUsersProgression({ stepId: created.id, pathId: created.pathId }, 'create').catch(() => {});
+  notifyLearnersNewContent('step', { id: created.id, title: created.title }).catch(() => {});
 
   return created;
 };
@@ -191,7 +188,7 @@ exports.update = async (id, data) => {
   if (typeof data.isActive === 'boolean') stepData.isActive = data.isActive;
   const updated = await prisma.step.update({ where: { id }, data: stepData });
   if (before?.pathId) {
-    invalidateStructureCache({ stepId: id, pathId: before.pathId }).catch(() => {});
+    syncAllUsersProgression({ stepId: id, pathId: before.pathId }, 'update').catch(() => {});
   }
   return updated;
 };
@@ -202,7 +199,7 @@ exports.remove = async (id) => {
     await cacheDel(`step:${id}:content`);
     await prisma.step.delete({ where: { id } });
     if (before?.pathId) {
-      invalidateStructureCache({ stepId: id, pathId: before.pathId }).catch(() => {});
+      syncAllUsersProgression({ stepId: id, pathId: before.pathId }, 'delete').catch(() => {});
     }
     return true;
   } catch {

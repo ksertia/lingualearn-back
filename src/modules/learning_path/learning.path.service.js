@@ -3,6 +3,7 @@ const progressionService = require('../progression/progression.service');
 const { invalidateStructureCache, provisionNewContent } = require('../progression/progression.service');
 const { cacheWrap, cacheDel, TTL } = require('../../utils/cache');
 const { notifyLearnersNewContent } = require('../../utils/contentNotifier');
+const { syncAllUsersProgression } = require('../../utils/progressionSync');
 
 const PATH_SELECT = {
   id: true, title: true, description: true, index: true, moduleId: true,
@@ -123,12 +124,8 @@ async function createPath(data) {
   const path = await prisma.path.create({ data: { ...data, index } });
 
   if (data.moduleId) {
-    await Promise.all([
-      cacheDel(`paths:module:${data.moduleId}`),
-      invalidateStructureCache({ pathId: path.id, moduleId: data.moduleId }),
-      provisionNewContent({ pathId: path.id, moduleId: data.moduleId }),
-      notifyLearnersNewContent('path', { id: path.id, title: path.title }),
-    ]).catch(() => {});
+    syncAllUsersProgression({ pathId: path.id, moduleId: data.moduleId }, 'create').catch(() => {});
+    notifyLearnersNewContent('path', { id: path.id, title: path.title }).catch(() => {});
   }
 
   return path;
@@ -155,10 +152,7 @@ async function updatePath(id, data) {
   const before = await prisma.path.findUnique({ where: { id }, select: { moduleId: true } });
   const updated = await prisma.path.update({ where: { id }, data });
   if (updated.moduleId) {
-    await Promise.all([
-      cacheDel(`paths:module:${updated.moduleId}`),
-      invalidateStructureCache({ pathId: id, moduleId: updated.moduleId }),
-    ]).catch(() => {});
+    syncAllUsersProgression({ pathId: id, moduleId: updated.moduleId }, 'update').catch(() => {});
   }
   return updated;
 }
@@ -167,10 +161,7 @@ async function deletePath(id) {
   const path = await prisma.path.findUnique({ where: { id }, select: { moduleId: true } });
   const deleted = await prisma.path.delete({ where: { id } });
   if (path?.moduleId) {
-    await Promise.all([
-      cacheDel(`paths:module:${path.moduleId}`),
-      invalidateStructureCache({ pathId: id, moduleId: path.moduleId }),
-    ]).catch(() => {});
+    syncAllUsersProgression({ pathId: id, moduleId: path.moduleId }, 'delete').catch(() => {});
   }
   return deleted;
 }
