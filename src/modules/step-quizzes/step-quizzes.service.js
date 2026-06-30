@@ -1,5 +1,6 @@
 const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
+const { cacheDel } = require('../../utils/cache');
 
 async function createStepQuiz(data) {
 	// Filtrer les champs non présents dans le modèle Quiz
@@ -91,68 +92,26 @@ async function submitQuizAnswer(quizId, userId, userAnswers) {
 		}
 	});
 
-	// 5. Mettre à jour la progression de l'étape si réussi
+	// 5. Marquer l'étape complétée et déclencher la cascade (recalcul + déblocage + notifications)
 	let nextStepUnlocked = null;
 	if (passed) {
-		const stepProgress = await prisma.userStepProgress.findUnique({
-			where: {
-				userId_stepId: {
-					userId,
-					stepId: quiz.stepId
-				}
-			}
+		await prisma.userStepProgress.upsert({
+			where: { userId_stepId: { userId, stepId: quiz.stepId } },
+			update: { status: 'completed', progressPercentage: 100, score: percentageScore, completedAt: new Date() },
+			create: { userId, stepId: quiz.stepId, status: 'completed', progressPercentage: 100, score: percentageScore, completedAt: new Date() }
 		});
 
-		if (stepProgress) {
-			await prisma.userStepProgress.update({
-				where: {
-					userId_stepId: {
-						userId,
-						stepId: quiz.stepId
-					}
-				},
-				data: {
-					status: 'completed',
-					progress: 100,
-					score: percentageScore,
-					completedAt: new Date()
-				}
+		try {
+			await progressionService.completeStepAndUnlockNext(userId, quiz.stepId);
+			const nextStep = await prisma.step.findFirst({
+				where: { pathId: quiz.step.pathId, index: { gt: quiz.step.index }, isActive: true },
+				orderBy: { index: 'asc' }, select: { id: true, title: true, index: true }
 			});
-
-			// DÉBLOCAGE AUTOMATIQUE - Débloquer l'étape suivante
-			try {
-				const nextStep = await prisma.step.findFirst({
-					where: {
-						pathId: quiz.step.pathId,
-						index: { gt: quiz.step.index }
-					},
-					orderBy: { index: 'asc' }
-				});
-
-				if (nextStep) {
-					await prisma.userStepProgress.upsert({
-						where: { userId_stepId: { userId, stepId: nextStep.id } },
-						update: { status: 'unlocked', unlockedAt: new Date() },
-						create: { userId, stepId: nextStep.id, status: 'unlocked', unlockedAt: new Date() }
-					});
-
-					// Recalculer les pourcentages après completion de l'étape
-					await progressionService.handleStepProgressRecalculation(userId, quiz.step.pathId);
-
-					nextStepUnlocked = {
-						id: nextStep.id,
-						title: nextStep.title,
-						index: nextStep.index
-					};
-				} else {
-					// Toutes les étapes complétées → cascade automatique (path → module → level → language)
-					await progressionService.handlePathCompletion(userId, quiz.step.pathId);
-				}
-			} catch (error) {
-				console.error('Erreur lors du déblocage de l\'étape suivante:', error);
-			}
-		}
+			if (nextStep) nextStepUnlocked = { id: nextStep.id, title: nextStep.title, index: nextStep.index };
+		} catch (_) {}
 	}
+
+	cacheDel(`user:${userId}:state`, `gamification:user:${userId}:stats`).catch(() => {});
 
 	// 6. Calculer les récompenses
 	const earnedXp = passed ? quiz.xpReward : Math.floor(quiz.xpReward * (percentageScore / 100));

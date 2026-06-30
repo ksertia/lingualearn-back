@@ -68,47 +68,26 @@ async function submitExerciseAnswer(exerciseId, userId, userAnswers) {
     })
   ]);
 
-  // Step unlock logic (only if passed)
+  // Marquer l'étape complétée et déclencher la cascade (recalcul + déblocage + notifications)
   let nextStepUnlocked = null;
   if (passed) {
-    const stepProgress = await prisma.userStepProgress.findUnique({
+    await prisma.userStepProgress.upsert({
       where: { userId_stepId: { userId, stepId: exercise.stepId } },
-      select: { id: true }
+      update: { status: 'completed', progressPercentage: 100, score: percentageScore, completedAt: new Date() },
+      create: { userId, stepId: exercise.stepId, status: 'completed', progressPercentage: 100, score: percentageScore, completedAt: new Date() }
     });
 
-    if (stepProgress) {
-      // Update current step + find next step in parallel
-      const [, nextStep] = await Promise.all([
-        prisma.userStepProgress.update({
-          where: { userId_stepId: { userId, stepId: exercise.stepId } },
-          data: { status: 'completed', progress: 100, score: percentageScore, completedAt: new Date() }
-        }),
-        prisma.step.findFirst({
-          where: { pathId: exercise.step.pathId, index: { gt: exercise.step.index } },
-          orderBy: { index: 'asc' },
-          select: { id: true, title: true, index: true }
-        })
-      ]);
-
-      try {
-        if (nextStep) {
-          await prisma.userStepProgress.upsert({
-            where: { userId_stepId: { userId, stepId: nextStep.id } },
-            update: { status: 'unlocked', unlockedAt: new Date() },
-            create: { userId, stepId: nextStep.id, status: 'unlocked', unlockedAt: new Date() }
-          });
-          await progressionService.handleStepProgressRecalculation(userId, exercise.step.pathId);
-          nextStepUnlocked = { id: nextStep.id, title: nextStep.title, index: nextStep.index };
-        } else {
-          await progressionService.handlePathCompletion(userId, exercise.step.pathId);
-        }
-      } catch (error) {
-        console.error('Erreur lors du déblocage de l\'étape suivante:', error);
-      }
-    }
+    try {
+      await progressionService.completeStepAndUnlockNext(userId, exercise.stepId);
+      // Récupérer l'étape suivante pour la réponse Flutter
+      const nextStep = await prisma.step.findFirst({
+        where: { pathId: exercise.step.pathId, index: { gt: exercise.step.index }, isActive: true },
+        orderBy: { index: 'asc' }, select: { id: true, title: true, index: true }
+      });
+      if (nextStep) nextStepUnlocked = { id: nextStep.id, title: nextStep.title, index: nextStep.index };
+    } catch (_) {}
   }
 
-  // Invalidate user-state cache after any progression change
   cacheDel(`user:${userId}:state`, `gamification:user:${userId}:stats`).catch(() => {});
 
   return {

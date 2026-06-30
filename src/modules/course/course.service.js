@@ -23,7 +23,7 @@ exports.getCoursesByUserId = async (userId) => {
     }),
     prisma.userStepProgress.findMany({
       where: { userId, step: { pathId: userPathProgress.pathId, stepType: 'lesson' } },
-      select: { stepId: true, status: true, progress: true, score: true, completedAt: true }
+      select: { stepId: true, status: true, progressPercentage: true, score: true, completedAt: true }
     })
   ]);
 
@@ -40,7 +40,7 @@ exports.getCoursesByUserId = async (userId) => {
         estimatedMinutes: step.estimatedMinutes,
         progress: prog,
         status: prog?.status || 'locked',
-        progressValue: prog?.progress || 0,
+        progressValue: prog?.progressPercentage || 0,
         score: prog?.score || null,
         completedAt: prog?.completedAt || null
       };
@@ -78,7 +78,7 @@ exports.getLessonsByStep = async (stepId, userId = null) => {
     userId
       ? prisma.userStepProgress.findUnique({
           where: { userId_stepId: { userId, stepId } },
-          select: { status: true, progress: true, score: true, startedAt: true, completedAt: true }
+          select: { status: true, progressPercentage: true, score: true, startedAt: true, completedAt: true }
         })
       : Promise.resolve(null)
   ]);
@@ -97,20 +97,15 @@ exports.getLessonsByStep = async (stepId, userId = null) => {
 exports.completeLessonForUser = async (lessonId, userId) => {
   const lesson = await _getLessonWithStep(lessonId);
 
-  const stepProgress = await prisma.userStepProgress.findUnique({
-    where: { userId_stepId: { userId, stepId: lesson.stepId } },
-    select: { id: true }
-  });
-  if (!stepProgress) throw new Error('Progression de l\'étape non trouvée. Veuillez d\'abord démarrer l\'étape.');
-
   const earnedXp = 10;
   const earnedCoins = 5;
 
-  // Update step + stats in parallel
+  // Marquer l'étape complétée + stats en parallèle
   const [updatedProgress] = await Promise.all([
-    prisma.userStepProgress.update({
+    prisma.userStepProgress.upsert({
       where: { userId_stepId: { userId, stepId: lesson.stepId } },
-      data: { status: 'completed', progress: 100, completedAt: new Date() }
+      update: { status: 'completed', progressPercentage: 100, completedAt: new Date() },
+      create: { userId, stepId: lesson.stepId, status: 'completed', progressPercentage: 100, completedAt: new Date() }
     }),
     prisma.userStats.upsert({
       where: { userId },
@@ -119,31 +114,17 @@ exports.completeLessonForUser = async (lessonId, userId) => {
     })
   ]);
 
-  // Find next step + unlock
+  // Cascade complète : recalcul + déblocage suivant + notifications
   let nextStepUnlocked = null;
   try {
+    await progressionService.completeStepAndUnlockNext(userId, lesson.stepId);
     const nextStep = await prisma.step.findFirst({
-      where: { pathId: lesson.step.pathId, index: { gt: lesson.step.index } },
-      orderBy: { index: 'asc' },
-      select: { id: true, title: true, index: true }
+      where: { pathId: lesson.step.pathId, index: { gt: lesson.step.index }, isActive: true },
+      orderBy: { index: 'asc' }, select: { id: true, title: true, index: true }
     });
+    if (nextStep) nextStepUnlocked = { id: nextStep.id, title: nextStep.title, index: nextStep.index };
+  } catch (_) {}
 
-    if (nextStep) {
-      await prisma.userStepProgress.upsert({
-        where: { userId_stepId: { userId, stepId: nextStep.id } },
-        update: { status: 'unlocked', unlockedAt: new Date() },
-        create: { userId, stepId: nextStep.id, status: 'unlocked', unlockedAt: new Date() }
-      });
-      await progressionService.handleStepProgressRecalculation(userId, lesson.step.pathId);
-      nextStepUnlocked = { id: nextStep.id, title: nextStep.title, index: nextStep.index };
-    } else {
-      await progressionService.handlePathCompletion(userId, lesson.step.pathId);
-    }
-  } catch (error) {
-    console.error('Erreur lors du déblocage de l\'étape suivante:', error);
-  }
-
-  // Invalidate caches in background
   cacheDel(`user:${userId}:state`, `gamification:user:${userId}:stats`).catch(() => {});
 
   return {

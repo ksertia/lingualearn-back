@@ -1,30 +1,30 @@
+const service = require('./learning.path.service');
+const { createLearningPathSchema, updateLearningPathSchema } = require('./learning.path.schema');
+
 // Progression endpoints
 exports.startPath = async (req, res, next) => {
-       try {
-	       const { userId, pathId } = req.params;
-	       const progress = await service.startPathForUser(userId, pathId);
-	       res.json({ success: true, data: progress });
-       } catch (err) {
-	       next(err);
-       }
+  try {
+    const { userId, pathId } = req.params;
+    const progress = await service.startPathForUser(userId, pathId);
+    res.json({ success: true, data: progress });
+  } catch (err) {
+    next(err);
+  }
 };
 
 exports.completePath = async (req, res, next) => {
-	try {
-		const { userId, pathId } = req.params;
-		const progress = await service.completePathWithAutoUnlock(userId, pathId);
-		res.json({ 
-			success: true, 
-			message: 'Parcours complété avec succès. Prochain parcours débloqué automatiquement.',
-			data: progress 
-		});
-	} catch (err) {
-		next(err);
-	}
+  try {
+    const { userId, pathId } = req.params;
+    const progress = await service.completePathWithAutoUnlock(userId, pathId);
+    res.json({
+      success: true,
+      message: 'Parcours complété avec succès. Prochain parcours débloqué automatiquement.',
+      data: progress
+    });
+  } catch (err) {
+    next(err);
+  }
 };
-
-const service = require('./learning.path.service');
-const { createLearningPathSchema, updateLearningPathSchema } = require('./learning.path.schema');
 
 async function getByUserId(req, res, next) {
 	try {
@@ -121,13 +121,8 @@ async function remove(req, res, next) {
 }
 
 module.exports = {
-	create,
-	getAll,
-	getById,
-	update,
-	remove,
-	getByUserId,
-	getPathsByModuleId,
-	startPath: exports.startPath,
-	completePath: exports.completePath
+  create, getAll, getById, update, remove,
+  getByUserId, getPathsByModuleId,
+  startPath: exports.startPath,
+  completePath: exports.completePath
 };
