@@ -76,6 +76,9 @@ exports.assignLanguageToChild = async (parentId, childId, languageId) => {
     // Initialiser la progression complète (langue → level1 → module1 → parcours1 → étape1)
     await progressionService.initializeUserLanguageProgress(childId, languageId);
 
+    // Invalider le cache pour que my-progress reflète immédiatement la nouvelle langue
+    await cacheDel(`user:${childId}:progress`, `user-levels:${childId}`);
+
     const progress = await prisma.userLanguageProgress.findUnique({
         where: { userId_languageId: { userId: childId, languageId } }
     });
@@ -107,6 +110,8 @@ exports.unassignLanguageFromChild = async (parentId, childId, languageId) => {
     await prisma.userModuleProgress.deleteMany({ where: { userId: childId, module: { level: { languageId } } } });
     await prisma.userLevelProgress.deleteMany({ where: { userId: childId, level: { languageId } } });
     await prisma.userLanguageProgress.delete({ where: { userId_languageId: { userId: childId, languageId } } });
+
+    await cacheDel(`user:${childId}:progress`, `user-levels:${childId}`);
 
     return { success: true, message: 'Language unassigned and all related progress deleted' };
 };
@@ -405,12 +410,14 @@ exports.selectLanguageForUser = async (userId, languageId, levelId = null) => {
 	if (!existing) {
 		// Première sélection → initialiser avec le niveau choisi (ou le premier par défaut)
 		await progressionService.initializeUserLanguageProgress(userId, languageId, levelId);
+		await cacheDel(`user:${userId}:progress`, `user-levels:${userId}`);
 	} else {
 		// Déjà sélectionnée → juste mettre à jour lastAccessedAt
 		await prisma.userLanguageProgress.update({
 			where: { userId_languageId: { userId, languageId } },
 			data: { lastAccessedAt: new Date() }
 		});
+		await cacheDel(`user:${userId}:progress`);
 	}
 
 	return prisma.userLanguageProgress.findUnique({
