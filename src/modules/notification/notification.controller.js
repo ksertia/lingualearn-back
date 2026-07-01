@@ -51,4 +51,13 @@ async function remove(req, res, next) {
   }
 }
 
-module.exports = { create, getUserNotifications, markAsRead, markAllAsRead, remove };
+async function removeAllByUser(req, res, next) {
+  try {
+    const result = await service.deleteAllByUser(req.params.userId);
+    res.json({ success: true, deleted: result.count });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { create, getUserNotifications, markAsRead, markAllAsRead, remove, removeAllByUser };

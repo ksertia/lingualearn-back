@@ -94,6 +94,35 @@ router.put('/user/:userId/read-all', controller.markAllAsRead);
 
 /**
  * @swagger
+ * /api/v1/notifications/user/{userId}:
+ *   delete:
+ *     summary: Supprimer toutes les notifications d'un utilisateur
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Nombre de notifications supprimées
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 deleted:
+ *                   type: integer
+ */
+router.delete('/user/:userId', controller.removeAllByUser);
+
+/**
+ * @swagger
  * /api/v1/notifications/{id}/read:
  *   put:
  *     summary: Marquer une notification comme lue
