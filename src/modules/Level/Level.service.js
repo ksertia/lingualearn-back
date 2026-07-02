@@ -237,14 +237,10 @@ class LevelService {
             where: { id: levelId, isActive: true },
             select: { id: true, languageId: true }
         });
-        
+
         if (!level) {
             throw new Error('Niveau introuvable ou inactif');
         }
-
-        const existing = await prisma.userLevelProgress.findUnique({
-            where: { userId_levelId: { userId, levelId } }
-        });
 
         // Remettre lastAccessedAt à null sur tous les autres niveaux de la même langue
         // pour que ce niveau soit clairement le seul "actif" dans my-progress
@@ -257,9 +253,10 @@ class LevelService {
             data: { lastAccessedAt: null }
         });
 
-        const progress = await prisma.userLevelProgress.upsert({
+        // Créer ou mettre à jour la progression pour ce niveau
+        await prisma.userLevelProgress.upsert({
             where: { userId_levelId: { userId, levelId } },
-            update: { lastAccessedAt: new Date() },
+            update: { lastAccessedAt: new Date(), status: 'unlocked', unlockedAt: new Date() },
             create: {
                 userId,
                 levelId,
@@ -269,21 +266,22 @@ class LevelService {
             }
         });
 
-        // Si c'est une première sélection, débloquer module1 → parcours1 → étape1
-        if (!existing) {
-            const firstModule = await prisma.module.findFirst({
-                where: { levelId, isActive: true },
-                orderBy: { index: 'asc' },
-                select: { id: true }
-            });
-            if (firstModule) {
-                await progressionService.unlockModuleWithChildren(userId, firstModule.id);
-            }
+        // TOUJOURS débloquer module1 → parcours1 → étape1 pour ce niveau
+        // (que ce soit une première sélection ou un changement de niveau)
+        const firstModule = await prisma.module.findFirst({
+            where: { levelId, isActive: true },
+            orderBy: { index: 'asc' },
+            select: { id: true }
+        });
+        if (firstModule) {
+            await progressionService.unlockModuleWithChildren(userId, firstModule.id);
         }
 
         await this.invalidateCache(null, level.languageId);
-        await cacheDel(`user-levels:${userId}`);
-        return progress;
+        await cacheDel(`user:${userId}:progress`, `user-levels:${userId}`);
+        return prisma.userLevelProgress.findUnique({
+            where: { userId_levelId: { userId, levelId } }
+        });
     }
 
     // Méthode helper pour débloquer le contenu d'un niveau
