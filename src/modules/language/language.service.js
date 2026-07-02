@@ -172,24 +172,26 @@ async function _computeCurrentProgress(userId) {
 
     // Batch load active level/module/path/step progress for all languages at once
     const [allLevelProgs, allModuleProgs, allPathProgs, allStepProgs] = await Promise.all([
+        // Niveaux : trier par index ASC pour prendre le plus bas (Débutant avant Intermédiaire)
+        // Les NULL lastAccessedAt ne posent pas de problème avec ce tri
         prisma.userLevelProgress.findMany({
             where: { userId, level: { languageId: { in: languageIds } } },
-            orderBy: { lastAccessedAt: 'desc' },
-            include: { level: { select: { id: true, name: true, code: true, languageId: true } } }
+            orderBy: { level: { index: 'asc' } },
+            include: { level: { select: { id: true, name: true, code: true, languageId: true, index: true } } }
         }),
         prisma.userModuleProgress.findMany({
             where: { userId, status: { in: ['started', 'unlocked'] } },
-            orderBy: { lastAccessedAt: 'desc' },
+            orderBy: [{ lastAccessedAt: 'desc' }, { module: { index: 'asc' } }],
             include: { module: { select: { id: true, title: true, levelId: true } } }
         }),
         prisma.userPathProgress.findMany({
             where: { userId, status: { in: ['started', 'unlocked'] } },
-            orderBy: { lastAccessedAt: 'desc' },
+            orderBy: [{ lastAccessedAt: 'desc' }, { path: { index: 'asc' } }],
             include: { path: { select: { id: true, title: true, moduleId: true } } }
         }),
         prisma.userStepProgress.findMany({
             where: { userId, status: { in: ['unlocked', 'started'] } },
-            orderBy: { updatedAt: 'desc' },
+            orderBy: [{ updatedAt: 'desc' }, { step: { index: 'asc' } }],
             include: { step: { select: { id: true, title: true, stepType: true, pathId: true } } }
         }),
     ]);
@@ -200,9 +202,22 @@ async function _computeCurrentProgress(userId) {
     const pathByModule  = new Map(); // moduleId   → first active path
     const stepByPath    = new Map(); // pathId     → first active step
 
-    // levelByLang : un seul niveau par langue (le plus récemment accédé)
+    // levelByLang : niveau actif par langue
+    // Priorité : started > unlocked > completed, puis index le plus bas (Débutant avant Intermédiaire)
     for (const lp of allLevelProgs) {
-        if (!levelByLang.has(lp.level.languageId)) levelByLang.set(lp.level.languageId, lp);
+        const langId = lp.level.languageId;
+        const existing = levelByLang.get(langId);
+        if (!existing) {
+            levelByLang.set(langId, lp);
+        } else {
+            const rank = { started: 0, unlocked: 1, completed: 2 };
+            const newRank = rank[lp.status] ?? 3;
+            const exRank  = rank[existing.status] ?? 3;
+            // Préférer started/unlocked sur completed, puis index plus bas
+            if (newRank < exRank || (newRank === exRank && lp.level.index < existing.level.index)) {
+                levelByLang.set(langId, lp);
+            }
+        }
     }
 
     // Construire les sets d'IDs valides par langue pour éviter les croisements inter-langues
