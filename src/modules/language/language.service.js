@@ -202,8 +202,9 @@ async function _computeCurrentProgress(userId) {
     const pathByModule  = new Map(); // moduleId   → first active path
     const stepByPath    = new Map(); // pathId     → first active step
 
-    // levelByLang : niveau actif par langue
-    // Priorité : started > unlocked > completed, puis index le plus bas (Débutant avant Intermédiaire)
+    // levelByLang : niveau actif par langue = le niveau que l'utilisateur a choisi
+    // Priorité : started en premier, puis unlocked, puis completed
+    // À statut égal : lastAccessedAt le plus récent (le choix le plus récent de l'utilisateur)
     for (const lp of allLevelProgs) {
         const langId = lp.level.languageId;
         const existing = levelByLang.get(langId);
@@ -213,9 +214,14 @@ async function _computeCurrentProgress(userId) {
             const rank = { started: 0, unlocked: 1, completed: 2 };
             const newRank = rank[lp.status] ?? 3;
             const exRank  = rank[existing.status] ?? 3;
-            // Préférer started/unlocked sur completed, puis index plus bas
-            if (newRank < exRank || (newRank === exRank && lp.level.index < existing.level.index)) {
+            if (newRank < exRank) {
+                // Statut plus prioritaire (started > unlocked > completed)
                 levelByLang.set(langId, lp);
+            } else if (newRank === exRank) {
+                // Même statut → prendre le plus récemment accédé
+                const newDate = lp.lastAccessedAt ? new Date(lp.lastAccessedAt).getTime() : 0;
+                const exDate  = existing.lastAccessedAt ? new Date(existing.lastAccessedAt).getTime() : 0;
+                if (newDate > exDate) levelByLang.set(langId, lp);
             }
         }
     }

@@ -246,6 +246,17 @@ class LevelService {
             where: { userId_levelId: { userId, levelId } }
         });
 
+        // Remettre lastAccessedAt à null sur tous les autres niveaux de la même langue
+        // pour que ce niveau soit clairement le seul "actif" dans my-progress
+        await prisma.userLevelProgress.updateMany({
+            where: {
+                userId,
+                levelId: { not: levelId },
+                level: { languageId: level.languageId }
+            },
+            data: { lastAccessedAt: null }
+        });
+
         const progress = await prisma.userLevelProgress.upsert({
             where: { userId_levelId: { userId, levelId } },
             update: { lastAccessedAt: new Date() },
