@@ -446,8 +446,9 @@ exports.assignLevelToChild = async (parentId, childId, languageId, levelId) => {
 
 // Progression utilisateur pour Language
 exports.selectLanguageForUser = async (userId, languageId, levelId = null) => {
-	// Créer la row langue si elle n'existe pas encore (sans initialiser de niveau)
-	// Le niveau sera initialisé par selectLevelForUser juste après
+	const levelService = require('../Level/Level.service');
+
+	// Créer la row langue si elle n'existe pas encore
 	const progress = await prisma.userLanguageProgress.upsert({
 		where: { userId_languageId: { userId, languageId } },
 		update: { lastAccessedAt: new Date() },
@@ -460,9 +461,9 @@ exports.selectLanguageForUser = async (userId, languageId, levelId = null) => {
 		}
 	});
 
-	// Si un levelId est fourni directement (cas legacy), initialiser avec ce niveau
+	// Si un levelId est fourni, initialiser directement ce niveau (module1 → path1 → step1)
 	if (levelId) {
-		await progressionService.initializeUserLanguageProgress(userId, languageId, levelId);
+		await levelService.selectLevelForUser(userId, levelId);
 	}
 
 	await cacheDel(`user:${userId}:progress`, `user-levels:${userId}`);
