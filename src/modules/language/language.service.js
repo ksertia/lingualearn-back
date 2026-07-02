@@ -195,15 +195,37 @@ async function _computeCurrentProgress(userId) {
     ]);
 
     // Build maps for O(1) lookup per language/level/module/path
-    const levelByLang   = new Map(); // languageId → first active level
+    const levelByLang   = new Map(); // languageId → first level (trié par lastAccessedAt desc)
     const moduleByLevel = new Map(); // levelId    → first active module
     const pathByModule  = new Map(); // moduleId   → first active path
     const stepByPath    = new Map(); // pathId     → first active step
 
-    for (const lp of allLevelProgs)  if (!levelByLang.has(lp.level.languageId))   levelByLang.set(lp.level.languageId, lp);
-    for (const mp of allModuleProgs) if (!moduleByLevel.has(mp.module.levelId))   moduleByLevel.set(mp.module.levelId, mp);
-    for (const pp of allPathProgs)   if (!pathByModule.has(pp.path.moduleId))     pathByModule.set(pp.path.moduleId, pp);
-    for (const sp of allStepProgs)   if (!stepByPath.has(sp.step.pathId))         stepByPath.set(sp.step.pathId, sp);
+    // levelByLang : un seul niveau par langue (le plus récemment accédé)
+    for (const lp of allLevelProgs) {
+        if (!levelByLang.has(lp.level.languageId)) levelByLang.set(lp.level.languageId, lp);
+    }
+
+    // Construire les sets d'IDs valides par langue pour éviter les croisements inter-langues
+    const validLevelIds  = new Set([...levelByLang.values()].map(lp => lp.levelId));
+
+    for (const mp of allModuleProgs) {
+        if (validLevelIds.has(mp.module.levelId) && !moduleByLevel.has(mp.module.levelId))
+            moduleByLevel.set(mp.module.levelId, mp);
+    }
+
+    const validModuleIds = new Set([...moduleByLevel.values()].map(mp => mp.moduleId));
+
+    for (const pp of allPathProgs) {
+        if (validModuleIds.has(pp.path.moduleId) && !pathByModule.has(pp.path.moduleId))
+            pathByModule.set(pp.path.moduleId, pp);
+    }
+
+    const validPathIds = new Set([...pathByModule.values()].map(pp => pp.pathId));
+
+    for (const sp of allStepProgs) {
+        if (validPathIds.has(sp.step.pathId) && !stepByPath.has(sp.step.pathId))
+            stepByPath.set(sp.step.pathId, sp);
+    }
 
     // Collect all IDs we need counts for, then batch-fetch counts
     const levelIds  = [...new Set(allLevelProgs.map(l => l.levelId))];
