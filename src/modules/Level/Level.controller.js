@@ -76,15 +76,15 @@ exports.selectLevel = async (req, res, next) => {
        try {
 	       const { userId, levelId } = req.params;
 	       const { languageId } = req.body;
-	       console.log('[selectLevel] params:', { userId, levelId }, '| body:', req.body);
+	       console.log(`[2] selectLevel → userId: ${userId} | levelId: ${levelId} | languageId: ${languageId || 'non fourni'}`);
 
 	       // Vérifier que le niveau appartient bien à la langue déclarée par le frontend
 	       if (languageId) {
 		       const { prisma } = require('../../config/prisma');
 		       const level = await prisma.level.findUnique({ where: { id: levelId }, select: { languageId: true, name: true } });
-		       console.log('[selectLevel] niveau trouvé:', level, '| langue attendue:', languageId, '| match:', level?.languageId === languageId);
 		       if (level && level.languageId !== languageId) {
-			       return res.status(400).json({ success: false, error: `Le niveau "${level.name}" n'appartient pas à cette langue. Attendu: ${languageId}, trouvé: ${level.languageId}` });
+			       console.log(`[2] ERREUR → niveau "${level.name}" appartient à ${level.languageId}, pas à ${languageId}`);
+			       return res.status(400).json({ success: false, error: `Le niveau "${level.name}" n'appartient pas à cette langue` });
 		       }
 	       }
 
