@@ -335,11 +335,22 @@ class AuthService {
 
         const { passwordHash, ...userWithoutPassword } = user;
 
-        // Filtrer levelProgress pour ne garder que les niveaux de la langue active
-        const activeLanguageId = userWithoutPassword.languageProgress?.[0]?.language?.id ?? null;
-        const filteredLevelProgress = activeLanguageId
-            ? (userWithoutPassword.levelProgress || []).filter(lp => lp.level?.languageId === activeLanguageId)
-            : (userWithoutPassword.levelProgress || []);
+        // Un seul niveau par langue : le plus bas (index ASC) parmi unlocked/started,
+        // priorité started > unlocked > completed
+        const STATUS_RANK = { started: 0, unlocked: 1, completed: 2 };
+        const bestLevelByLang = new Map();
+        for (const lp of (userWithoutPassword.levelProgress || [])) {
+            const langId = lp.level?.languageId;
+            if (!langId) continue;
+            const existing = bestLevelByLang.get(langId);
+            if (!existing) { bestLevelByLang.set(langId, lp); continue; }
+            const newRank = STATUS_RANK[lp.status] ?? 3;
+            const exRank  = STATUS_RANK[existing.status] ?? 3;
+            if (newRank < exRank || (newRank === exRank && (lp.level?.index ?? 99) < (existing.level?.index ?? 99))) {
+                bestLevelByLang.set(langId, lp);
+            }
+        }
+        const filteredLevelProgress = [...bestLevelByLang.values()];
 
         return {
             user: { ...userWithoutPassword, levelProgress: filteredLevelProgress, firstLogin },
