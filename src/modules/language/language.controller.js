@@ -90,6 +90,7 @@ exports.selectLanguage = async (req, res, next) => {
        try {
 	       const { userId, languageId } = req.params;
 	       const { levelId } = req.body;
+	       console.log('[selectLanguage] params:', { userId, languageId }, '| body:', req.body, '| levelId resolved:', levelId || null);
 	       const progress = await service.selectLanguageForUser(userId, languageId, levelId || null);
 	       res.status(201).json({ success: true, data: progress });
        } catch (err) {

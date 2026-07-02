@@ -75,6 +75,7 @@ async function remove(req, res, next) {
 exports.selectLevel = async (req, res, next) => {
        try {
 	       const { userId, levelId } = req.params;
+	       console.log('[selectLevel] params:', { userId, levelId }, '| body:', req.body);
 	       const progress = await service.selectLevelForUser(userId, levelId);
 	       res.status(201).json({ success: true, data: progress });
        } catch (err) {
