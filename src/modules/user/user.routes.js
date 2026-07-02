@@ -40,7 +40,7 @@ router.get('/me', userController.getCurrentUser);
  *       403:
  *         description: Not a learner account
  */
-router.get('/my-children', allowRoles('learner'), userController.getMyChildren);
+router.get('/my-children', allowRoles('learner'), (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); }, userController.getMyChildren);
 
 /**
  * @swagger
@@ -57,7 +57,7 @@ router.get('/my-children', allowRoles('learner'), userController.getMyChildren);
  *       403:
  *         description: Réservé aux comptes enfants
  */
-router.get('/my-progress', userController.getMyProgress);
+router.get('/my-progress', (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); }, userController.getMyProgress);
 
 /**
  * @swagger

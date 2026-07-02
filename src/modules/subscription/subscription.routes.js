@@ -201,7 +201,7 @@ router.post('/', controller.create);
  *                 subscription:
  *                   $ref: '#/components/schemas/SubscriptionResponse'
  */
-router.get('/my-status', controller.myStatus);
+router.get('/my-status', (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); }, controller.myStatus);
 
 /**
  * @swagger
