@@ -1,7 +1,7 @@
 async function getByUserId(req, res, next) {
 	try {
-		const levels = await service.getLevelsByUserId(req.params.userId);
-		// Retourner un tableau vide si aucune langue sélectionnée (comportement normal)
+		const { languageId } = req.query;
+		const levels = await service.getLevelsByUserId(req.params.userId, languageId || null);
 		res.json({ success: true, data: levels });
 	} catch (err) {
 		next(err);

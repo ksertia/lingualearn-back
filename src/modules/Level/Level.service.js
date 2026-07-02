@@ -15,39 +15,29 @@ class LevelService {
     }
 
     // Récupérer tous les niveaux liés à un utilisateur (optimisé)
-    async getLevelsByUserId(userId) {
-        const cacheKey = `user-levels:${userId}`;
+    // languageId optionnel : si fourni, retourne les niveaux de cette langue directement
+    async getLevelsByUserId(userId, languageId = null) {
+        const cacheKey = languageId ? `user-levels:${userId}:${languageId}` : `user-levels:${userId}`;
         const cached = await cacheGet(cacheKey);
         if (cached !== null) return cached;
 
-        // 1. Trouver la langue actuelle de l'utilisateur
-        const userLanguageProgress = await prisma.userLanguageProgress.findFirst({
-            where: { userId },
-            orderBy: [
-                { lastAccessedAt: 'desc' },
-                { createdAt: 'desc' }
-            ],
-            select: {
-                languageId: true,
-                language: {
-                    select: {
-                        id: true,
-                        code: true,
-                        name: true
-                    }
-                }
-            }
-        });
-
-        if (!userLanguageProgress) {
-            return [];
+        // Résoudre la langue : celle fournie en param, sinon la dernière active de l'utilisateur
+        let resolvedLanguageId = languageId;
+        if (!resolvedLanguageId) {
+            const userLanguageProgress = await prisma.userLanguageProgress.findFirst({
+                where: { userId },
+                orderBy: [{ lastAccessedAt: 'desc' }, { createdAt: 'desc' }],
+                select: { languageId: true }
+            });
+            if (!userLanguageProgress) return [];
+            resolvedLanguageId = userLanguageProgress.languageId;
         }
 
-        // 2. Récupérer TOUS les niveaux de la langue avec leur progression en une seule requête
+        // Récupérer TOUS les niveaux de la langue avec leur progression en une seule requête
         const levels = await prisma.level.findMany({
-            where: { 
-                languageId: userLanguageProgress.languageId,
-                isActive: true  // Ne retourner que les niveaux actifs
+            where: {
+                languageId: resolvedLanguageId,
+                isActive: true
             },
             orderBy: { index: 'asc' },
             select: {
