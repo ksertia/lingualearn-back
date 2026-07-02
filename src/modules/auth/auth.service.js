@@ -288,8 +288,8 @@ class AuthService {
             id: true, email: true, phone: true, username: true, passwordHash: true,
             accountType: true, parentId: true, isVerified: true, isActive: true,
             firstLogin: true, lastLogin: true,
-            languageProgress: { select: { status: true, overallProgress: true, language: { select: { id: true, name: true, code: true, flagUrl: true } } } },
-            levelProgress: { select: { status: true, progressPercentage: true, level: { select: { id: true, name: true, code: true } } } }
+            languageProgress: { select: { status: true, overallProgress: true, language: { select: { id: true, name: true, code: true, flagUrl: true } } }, orderBy: { lastAccessedAt: 'desc' } },
+            levelProgress: { select: { status: true, progressPercentage: true, level: { select: { id: true, name: true, code: true, languageId: true } } }, orderBy: { lastAccessedAt: 'desc' } }
         };
 
         const user = await findUserByLoginInfo(loginInfo, userSelect);
@@ -334,7 +334,17 @@ class AuthService {
         ]);
 
         const { passwordHash, ...userWithoutPassword } = user;
-        return { user: { ...userWithoutPassword, firstLogin }, tokens };
+
+        // Filtrer levelProgress pour ne garder que les niveaux de la langue active
+        const activeLanguageId = userWithoutPassword.languageProgress?.[0]?.language?.id ?? null;
+        const filteredLevelProgress = activeLanguageId
+            ? (userWithoutPassword.levelProgress || []).filter(lp => lp.level?.languageId === activeLanguageId)
+            : (userWithoutPassword.levelProgress || []);
+
+        return {
+            user: { ...userWithoutPassword, levelProgress: filteredLevelProgress, firstLogin },
+            tokens
+        };
     }
 
     // ============ MOT DE PASSE OUBLIÉ ============
