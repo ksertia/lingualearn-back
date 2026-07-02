@@ -196,6 +196,8 @@ async function _computeCurrentProgress(userId) {
         }),
     ]);
 
+    console.log('[_computeCurrentProgress] userId:', userId, '| allLevelProgs:', allLevelProgs.map(lp => ({ levelId: lp.levelId, langId: lp.level?.languageId, status: lp.status, lastAccessedAt: lp.lastAccessedAt })));
+
     // Build maps for O(1) lookup per language/level/module/path
     const levelByLang   = new Map(); // languageId → first level (trié par lastAccessedAt desc)
     const moduleByLevel = new Map(); // levelId    → first active module
