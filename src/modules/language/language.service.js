@@ -463,21 +463,17 @@ exports.selectLanguageForUser = async (userId, languageId, levelId = null) => {
 		}
 	});
 
-	// Résoudre le levelId : celui fourni, ou le premier niveau actif de la langue
-	let targetLevelId = levelId;
-	if (!targetLevelId) {
-		const firstLevel = await prisma.level.findFirst({
-			where: { languageId, isActive: true },
-			orderBy: { index: 'asc' },
+	// Si un levelId est fourni ET qu'il appartient bien à cette langue, l'initialiser
+	if (levelId) {
+		const level = await prisma.level.findFirst({
+			where: { id: levelId, languageId, isActive: true },
 			select: { id: true }
 		});
-		targetLevelId = firstLevel?.id ?? null;
+		if (level) {
+			await levelService.selectLevelForUser(userId, levelId);
+		}
 	}
-
-	// Initialiser module1 → path1 → step1 pour le niveau cible
-	if (targetLevelId) {
-		await levelService.selectLevelForUser(userId, targetLevelId);
-	}
+	// Pas d'auto-init si pas de levelId : selectLevel sera appelé juste après par le frontend
 
 	await cacheDel(`user:${userId}:progress`, `user-levels:${userId}`);
 	return progress;
