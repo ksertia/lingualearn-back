@@ -2,6 +2,7 @@ const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
 const { cacheDel } = require('../../utils/cache');
 const { notifyLearnersNewContent } = require('../../utils/contentNotifier');
+const { logger } = require('../../utils/logger');
 
 const LESSON_SELECT = {
   id: true, title: true, contentType: true, content: true,
@@ -128,6 +129,7 @@ exports.completeLessonForUser = async (lessonId, userId) => {
 };
 
 exports.createCourse = async (data) => {
+  logger.info('[createCourse service] data reçu: ' + JSON.stringify(data));
   const lastLesson = await prisma.lesson.findFirst({ where: { stepId: data.stepId }, orderBy: { index: 'desc' } });
   const lessonIndex = lastLesson ? lastLesson.index + 1 : 1;
 
@@ -167,6 +169,7 @@ exports.getCourse = async (id) => {
 };
 
 exports.updateCourse = async (id, data) => {
+  logger.info('[updateCourse service] id: ' + id + ' | data reçu: ' + JSON.stringify(data));
   const lesson = await prisma.lesson.findUnique({ where: { id } });
   if (!lesson) throw new Error('Cours non trouvé');
 
