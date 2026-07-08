@@ -140,8 +140,16 @@ exports.completeLessonForUser = async (lessonId, userId) => {
 exports.createCourse = async (data) => {
   const lastLesson = await prisma.lesson.findFirst({ where: { stepId: data.stepId }, orderBy: { index: 'desc' } });
   const lessonIndex = lastLesson ? lastLesson.index + 1 : 1;
+
+  const isText = !data.contentType || data.contentType === 'text';
   const created = await prisma.lesson.create({
-    data: { stepId: data.stepId, title: data.title, content: data.description || '', videoUrl: data.contentUrl, index: lessonIndex }
+    data: {
+      stepId: data.stepId,
+      title: data.title,
+      content: isText ? (data.description || '') : '',
+      videoUrl: isText ? null : (data.contentUrl || null),
+      index: lessonIndex
+    }
   });
   notifyLearnersNewContent('course', { id: created.id, title: created.title }).catch(() => {});
   return created;
