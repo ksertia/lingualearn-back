@@ -117,6 +117,7 @@ const getCourse = async (req, res) => {
 // Create new course
 const createCourse = async (req, res) => {
 	try {
+		console.log('[createCourse] body reçu:', JSON.stringify(req.body));
 		const { error, value } = createCourseSchema.validate(req.body);
 		if (error) {
 			return res.status(400).json({
@@ -124,6 +125,7 @@ const createCourse = async (req, res) => {
 				message: error.details[0].message,
 			});
 		}
+		console.log('[createCourse] value après validation:', JSON.stringify(value));
 		const course = await courseService.createCourse(value);
 		res.status(201).json({
 			success: true,
