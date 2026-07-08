@@ -5,11 +5,13 @@ const Joi = require('joi');
  * Sinon c'est une URL (retournée par POST /uploads/...).
  */
 const contentField = (required = false) => Joi.when('contentType', {
-  is: 'text',
-  then: required ? Joi.string().required() : Joi.string().allow('', null),
-  otherwise: required
+  is: Joi.valid('video', 'audio', 'pdf', 'image'),
+  then: required
     ? Joi.string().uri().required()
-    : Joi.string().uri().allow('', null)
+    : Joi.string().uri().allow('', null),
+  otherwise: required
+    ? Joi.string().required()
+    : Joi.string().allow('', null)
 });
 
 const createCourseSchema = Joi.object({
