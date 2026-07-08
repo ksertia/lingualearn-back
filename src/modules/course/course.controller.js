@@ -1,5 +1,6 @@
 const courseService = require('./course.service');
 const { createCourseSchema, updateCourseSchema, patchCourseSchema } = require('./course.schema');
+const logger = require('../../utils/logger');
 
 const getCoursesByUserId = async (req, res, next) => {
   try {
@@ -74,10 +75,10 @@ const getCourse = async (req, res) => {
 
 const createCourse = async (req, res) => {
   try {
-    console.log('[createCourse] body:', JSON.stringify(req.body));
+    logger.info('[createCourse] body: ' + JSON.stringify(req.body));
     const { error, value } = createCourseSchema.validate(req.body);
     if (error) return res.status(400).json({ success: false, message: error.details[0].message });
-    console.log('[createCourse] value validé:', JSON.stringify(value));
+    logger.info('[createCourse] value validé: ' + JSON.stringify(value));
     const course = await courseService.createCourse(value);
     res.status(201).json({ success: true, data: course, message: 'Cours créé avec succès.' });
   } catch (err) {
