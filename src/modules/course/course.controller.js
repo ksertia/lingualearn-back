@@ -1,6 +1,6 @@
 const courseService = require('./course.service');
 const { createCourseSchema, updateCourseSchema, patchCourseSchema } = require('./course.schema');
-const logger = require('../../utils/logger');
+const { logger } = require('../../utils/logger');
 
 const getCoursesByUserId = async (req, res, next) => {
   try {
