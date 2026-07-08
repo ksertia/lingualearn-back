@@ -3,6 +3,11 @@ const progressionService = require('../progression/progression.service');
 const { cacheDel } = require('../../utils/cache');
 const { notifyLearnersNewContent } = require('../../utils/contentNotifier');
 
+const LESSON_SELECT = {
+  id: true, title: true, contentType: true, content: true,
+  attachments: true, index: true, stepId: true
+};
+
 exports.getCoursesByUserId = async (userId) => {
   const userPathProgress = await prisma.userPathProgress.findFirst({
     where: { userId, status: { in: ['unlocked', 'started'] } },
@@ -11,15 +16,11 @@ exports.getCoursesByUserId = async (userId) => {
   });
   if (!userPathProgress) return [];
 
-  // Fetch lesson-steps + user progress in parallel (no N+1)
   const [steps, userProgressList] = await Promise.all([
     prisma.step.findMany({
       where: { pathId: userPathProgress.pathId, stepType: 'lesson' },
       orderBy: { index: 'asc' },
-      select: {
-        id: true, title: true, index: true, estimatedMinutes: true,
-        lesson: { select: { id: true, title: true, content: true, videoUrl: true, duration: true } }
-      }
+      select: { id: true, title: true, index: true, estimatedMinutes: true, lesson: { select: LESSON_SELECT } }
     }),
     prisma.userStepProgress.findMany({
       where: { userId, step: { pathId: userPathProgress.pathId, stepType: 'lesson' } },
@@ -29,44 +30,19 @@ exports.getCoursesByUserId = async (userId) => {
 
   const progressMap = new Map(userProgressList.map(p => [p.stepId, p]));
 
-  return steps
-    .filter(step => step.lesson)
-    .map(step => {
-      const prog = progressMap.get(step.id) || null;
-      return {
-        id: step.lesson.id, title: step.lesson.title, content: step.lesson.content,
-        videoUrl: step.lesson.videoUrl, duration: step.lesson.duration,
-        stepId: step.id, stepTitle: step.title, stepIndex: step.index,
-        estimatedMinutes: step.estimatedMinutes,
-        progress: prog,
-        status: prog?.status || 'locked',
-        progressValue: prog?.progressPercentage || 0,
-        score: prog?.score || null,
-        completedAt: prog?.completedAt || null
-      };
-    });
-};
-
-const _getLessonWithStep = async (lessonId) => {
-  const lesson = await prisma.lesson.findUnique({
-    where: { id: lessonId },
-    include: { step: { select: { id: true, pathId: true, index: true } } }
+  return steps.filter(s => s.lesson).map(step => {
+    const prog = progressMap.get(step.id) || null;
+    return {
+      ...step.lesson,
+      stepId: step.id, stepTitle: step.title, stepIndex: step.index,
+      estimatedMinutes: step.estimatedMinutes,
+      progress: prog,
+      status: prog?.status || 'locked',
+      progressValue: prog?.progressPercentage || 0,
+      score: prog?.score || null,
+      completedAt: prog?.completedAt || null
+    };
   });
-  if (!lesson) throw new Error('Cours non trouvé');
-  return lesson;
-};
-
-exports.startCourseForUser = async (userId, courseId) => {
-  const lesson = await prisma.lesson.findUnique({ where: { id: courseId }, select: { stepId: true } });
-  if (!lesson) throw new Error('Cours non trouvé');
-  return prisma.userStepProgress.update({
-    where: { userId_stepId: { userId, stepId: lesson.stepId } },
-    data: { status: 'started', startedAt: new Date() }
-  });
-};
-
-exports.completeCourseForUser = async (userId, courseId) => {
-  return exports.completeLessonForUser(courseId, userId);
 };
 
 exports.getLessonsByStep = async (stepId, userId = null) => {
@@ -86,21 +62,37 @@ exports.getLessonsByStep = async (stepId, userId = null) => {
   if (!lesson) return null;
 
   return {
-    id: lesson.id, title: lesson.title, content: lesson.content,
-    videoUrl: lesson.videoUrl, attachments: lesson.attachments, index: lesson.index,
-    stepId: lesson.stepId,
+    id: lesson.id, title: lesson.title,
+    contentType: lesson.contentType, content: lesson.content,
+    attachments: lesson.attachments, index: lesson.index, stepId: lesson.stepId,
     stepInfo: { id: lesson.step.id, title: lesson.step.title, description: lesson.step.description, estimatedMinutes: lesson.step.estimatedMinutes },
     userProgress: userProgress || null
   };
 };
 
+exports.startCourseForUser = async (userId, courseId) => {
+  const lesson = await prisma.lesson.findUnique({ where: { id: courseId }, select: { stepId: true } });
+  if (!lesson) throw new Error('Cours non trouvé');
+  return prisma.userStepProgress.update({
+    where: { userId_stepId: { userId, stepId: lesson.stepId } },
+    data: { status: 'started', startedAt: new Date() }
+  });
+};
+
+exports.completeCourseForUser = async (userId, courseId) => {
+  return exports.completeLessonForUser(courseId, userId);
+};
+
 exports.completeLessonForUser = async (lessonId, userId) => {
-  const lesson = await _getLessonWithStep(lessonId);
+  const lesson = await prisma.lesson.findUnique({
+    where: { id: lessonId },
+    include: { step: { select: { id: true, pathId: true, index: true } } }
+  });
+  if (!lesson) throw new Error('Cours non trouvé');
 
   const earnedXp = 10;
   const earnedCoins = 5;
 
-  // Marquer l'étape complétée + stats en parallèle
   const [updatedProgress] = await Promise.all([
     prisma.userStepProgress.upsert({
       where: { userId_stepId: { userId, stepId: lesson.stepId } },
@@ -114,7 +106,6 @@ exports.completeLessonForUser = async (lessonId, userId) => {
     })
   ]);
 
-  // Cascade complète : recalcul + déblocage suivant + notifications
   let nextStepUnlocked = null;
   try {
     await progressionService.completeStepAndUnlockNext(userId, lesson.stepId);
@@ -129,8 +120,7 @@ exports.completeLessonForUser = async (lessonId, userId) => {
 
   return {
     lessonId: lesson.id, lessonTitle: lesson.title, stepProgress: updatedProgress,
-    rewards: { xp: earnedXp, coins: earnedCoins },
-    nextStepUnlocked,
+    rewards: { xp: earnedXp, coins: earnedCoins }, nextStepUnlocked,
     message: nextStepUnlocked
       ? `Leçon complétée ! Étape suivante débloquée : ${nextStepUnlocked.title}`
       : 'Leçon complétée avec succès !'
@@ -141,14 +131,14 @@ exports.createCourse = async (data) => {
   const lastLesson = await prisma.lesson.findFirst({ where: { stepId: data.stepId }, orderBy: { index: 'desc' } });
   const lessonIndex = lastLesson ? lastLesson.index + 1 : 1;
 
-  const isText = !data.contentType || data.contentType === 'text';
   const created = await prisma.lesson.create({
     data: {
-      stepId: data.stepId,
-      title: data.title,
-      content: isText ? (data.description || '') : '',
-      videoUrl: isText ? null : (data.contentUrl || null),
-      index: lessonIndex
+      stepId:      data.stepId,
+      title:       data.title,
+      contentType: data.contentType || 'text',
+      content:     data.content || '',
+      attachments: data.attachments || null,
+      index:       lessonIndex
     }
   });
   notifyLearnersNewContent('course', { id: created.id, title: created.title }).catch(() => {});
@@ -156,12 +146,11 @@ exports.createCourse = async (data) => {
 };
 
 exports.getCourses = async (filters = {}) => {
-  const { page = 1, limit = 20, search, stepId, isPublished, isActive, sortBy = 'createdAt', sortOrder = 'desc' } = filters;
+  const { page = 1, limit = 20, search, stepId, contentType, sortBy = 'createdAt', sortOrder = 'desc' } = filters;
   const where = {};
   if (stepId) where.stepId = stepId;
-  if (typeof isPublished === 'boolean') where.isFreePreview = isPublished;
-  if (typeof isActive === 'boolean') where.isActive = isActive;
-  if (search) where.OR = [{ title: { contains: search } }, { contentText: { contains: search } }];
+  if (contentType) where.contentType = contentType;
+  if (search) where.OR = [{ title: { contains: search } }, { content: { contains: search } }];
 
   const skip = (page - 1) * limit;
   const [total, data] = await Promise.all([
@@ -180,14 +169,14 @@ exports.getCourse = async (id) => {
 exports.updateCourse = async (id, data) => {
   const lesson = await prisma.lesson.findUnique({ where: { id } });
   if (!lesson) throw new Error('Cours non trouvé');
-  const { title, description, contentUrl, contentType, attachments, index } = data;
-  const isText = !contentType || contentType === 'text';
+
   const validData = {};
-  if (title !== undefined) validData.title = title;
-  if (description !== undefined) validData.content = isText ? description : '';
-  if (contentUrl !== undefined) validData.videoUrl = isText ? null : contentUrl;
-  if (attachments !== undefined) validData.attachments = attachments;
-  if (index !== undefined) validData.index = index;
+  if (data.title !== undefined)       validData.title = data.title;
+  if (data.contentType !== undefined) validData.contentType = data.contentType;
+  if (data.content !== undefined)     validData.content = data.content;
+  if (data.attachments !== undefined) validData.attachments = data.attachments;
+  if (data.isActive !== undefined)    validData.isActive = data.isActive;
+
   return prisma.lesson.update({ where: { id }, data: validData });
 };
 
@@ -202,17 +191,17 @@ exports.deleteCourse = async (id) => {
 exports.duplicateCourse = async (id) => {
   const lesson = await prisma.lesson.findUnique({ where: { id } });
   if (!lesson) throw new Error('Cours non trouvé');
-  const { id: _, createdAt, updatedAt, ...copy } = lesson;
+  const { id: _, createdAt, updatedAt, stepId, ...copy } = lesson;
   copy.title = copy.title + ' (copie)';
-  return prisma.lesson.create({ data: copy });
+  return prisma.lesson.create({ data: { ...copy, stepId } });
 };
 
 exports.toggleCoursePublish = async (id) => {
   const lesson = await prisma.lesson.findUnique({ where: { id } });
   if (!lesson) throw new Error('Cours non trouvé');
-  return prisma.lesson.update({ where: { id }, data: { isFreePreview: !lesson.isFreePreview } });
+  return prisma.lesson.update({ where: { id }, data: { isActive: !lesson.isActive } });
 };
 
 exports.getCoursesByLevel = async (levelId) => {
-  return prisma.lesson.findMany({ where: { stepId: levelId } });
+  return prisma.lesson.findMany({ where: { step: { path: { module: { levelId } } } } });
 };

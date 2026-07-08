@@ -186,8 +186,8 @@ model Lesson {
   id          String   @id @default(cuid())
   stepId      String   @unique
   title       String   @db.VarChar(200)
-  content     String   @db.Text
-  videoUrl    String?  @db.VarChar(500)
+  contentType String   @default("text") @db.VarChar(20) // text | video | audio | pdf | image
+  content     String   @db.Text                          // texte brut si text, URL si autre
   attachments Json?
   index       Int      @default(0)
   createdAt   DateTime @default(now())
