@@ -180,11 +180,12 @@ exports.getCourse = async (id) => {
 exports.updateCourse = async (id, data) => {
   const lesson = await prisma.lesson.findUnique({ where: { id } });
   if (!lesson) throw new Error('Cours non trouvé');
-  const { title, content, videoUrl, attachments, index } = data;
+  const { title, description, contentUrl, contentType, attachments, index } = data;
+  const isText = !contentType || contentType === 'text';
   const validData = {};
   if (title !== undefined) validData.title = title;
-  if (content !== undefined) validData.content = content;
-  if (videoUrl !== undefined) validData.videoUrl = videoUrl;
+  if (description !== undefined) validData.content = isText ? description : '';
+  if (contentUrl !== undefined) validData.videoUrl = isText ? null : contentUrl;
   if (attachments !== undefined) validData.attachments = attachments;
   if (index !== undefined) validData.index = index;
   return prisma.lesson.update({ where: { id }, data: validData });
