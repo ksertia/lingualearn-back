@@ -88,8 +88,10 @@ const createCourse = async (req, res) => {
 
 const updateCourse = async (req, res) => {
   try {
+    logger.info('[updateCourse] id: ' + req.params.id + ' | body: ' + JSON.stringify(req.body));
     const { error, value } = updateCourseSchema.validate(req.body);
     if (error) return res.status(400).json({ success: false, message: error.details[0].message });
+    logger.info('[updateCourse] value validé: ' + JSON.stringify(value));
     const course = await courseService.updateCourse(req.params.id, value);
     res.status(200).json({ success: true, data: course, message: 'Cours mis à jour.' });
   } catch (err) {
