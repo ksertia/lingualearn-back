@@ -156,10 +156,34 @@ exports.completeStepWithAutoUnlock = async (userId, stepId) => {
 };
 
 exports.create = async (data) => {
+  // Calculer automatiquement le prochain index si non fourni ou déjà pris
+  let index = typeof data.index === 'number' ? data.index : null;
+  if (index === null) {
+    const last = await prisma.step.findFirst({
+      where: { pathId: data.pathId },
+      orderBy: { index: 'desc' },
+      select: { index: true }
+    });
+    index = last ? last.index + 1 : 0;
+  } else {
+    // Vérifier que l'index n'est pas déjà pris
+    const existing = await prisma.step.findFirst({
+      where: { pathId: data.pathId, index },
+      select: { id: true }
+    });
+    if (existing) {
+      const last = await prisma.step.findFirst({
+        where: { pathId: data.pathId },
+        orderBy: { index: 'desc' },
+        select: { index: true }
+      });
+      index = last ? last.index + 1 : 0;
+    }
+  }
+
   const stepData = {
     pathId: data.pathId, title: data.title, description: data.description,
-    stepType: data.stepType,
-    index: typeof data.index === 'number' ? data.index : 0,
+    stepType: data.stepType, index,
     estimatedMinutes: typeof data.estimatedMinutes === 'number' ? data.estimatedMinutes : 15,
     isActive: typeof data.isActive === 'boolean' ? data.isActive : true
   };
