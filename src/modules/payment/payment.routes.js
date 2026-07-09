@@ -317,4 +317,45 @@ router.post('/confirm', controller.confirm);
  */
 router.get('/history/:userId', controller.history);
 
+/**
+ * @swagger
+ * /api/v1/payment/coins:
+ *   post:
+ *     summary: Payer un abonnement avec des coins du wallet
+ *     tags: [Payment]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [planId]
+ *             properties:
+ *               planId:
+ *                 type: string
+ *                 description: ID du plan (doit avoir coinPrice défini)
+ *                 example: clplan456def
+ *     responses:
+ *       200:
+ *         description: Abonnement activé, coins débités
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 message: { type: string, example: "Abonnement activé avec 500 coins." }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     subscription: { type: object }
+ *                     coinsSpent:   { type: integer, example: 500 }
+ *                     newBalance:   { type: integer, example: 120 }
+ *       400:
+ *         description: Solde insuffisant ou plan sans coinPrice
+ */
+router.post('/coins', controller.payCoins);
+
 module.exports = router;

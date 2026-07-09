@@ -555,6 +555,7 @@ model SubscriptionPlan {
   reducePrice    Decimal?       @db.Decimal(10, 2)
   percentage     Decimal?       @db.Decimal(5, 2)
   currency       String         @default("EUR") @db.VarChar(3)
+  coinPrice      Int?
   features       Json
   maxSubAccounts Int            @default(0)
   isActive       Boolean        @default(true)

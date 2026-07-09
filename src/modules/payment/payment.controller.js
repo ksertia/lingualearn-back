@@ -1,5 +1,6 @@
 const service = require('./payment.service');
 const Joi = require('joi');
+const { AppError } = require('../../middleware/errorHandler');
 
 const initiateSchema = Joi.object({
   userId:        Joi.string().required(),
@@ -46,4 +47,15 @@ async function history(req, res, next) {
   }
 }
 
-module.exports = { initiate, confirm, history };
+async function payCoins(req, res, next) {
+  try {
+    const { planId } = req.body;
+    if (!planId) return res.status(400).json({ success: false, error: 'planId est requis' });
+    const result = await service.payWithCoins(req.user.id, planId);
+    res.status(200).json({ success: true, message: `Abonnement activé avec ${result.coinsSpent} coins.`, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { initiate, confirm, history, payCoins };

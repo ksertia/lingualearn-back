@@ -1,5 +1,6 @@
 const { prisma } = require('../../config/prisma');
 const { cacheDel } = require('../../utils/cache');
+const { recordCoinTransaction } = require('../transaction/transaction.service');
 
 const PARRAIN_XP    = 50;
 const PARRAIN_COINS = 20;
@@ -77,6 +78,15 @@ async function applyReferralCode(filleulId, code) {
   ]);
 
   cacheDel(`user:${filleulId}:base`).catch(() => {});
+  recordCoinTransaction({
+    userId: filleulId,
+    amountCoins: 0,
+    transactionType: 'coin_earn',
+    description: `Bonus parrainage : +${FILLEUL_XP} XP de bienvenue`,
+    referenceType: 'referral',
+    referenceId: parrain.id
+  }).catch(() => {});
+
   return { success: true, message: `Code appliqué ! Vous avez reçu ${FILLEUL_XP} XP de bienvenue.` };
 }
 
@@ -106,6 +116,14 @@ async function rewardParrainIfEligible(filleulId) {
   });
 
   cacheDel(`user:${referral.parrainId}:base`, `gamification:user:${referral.parrainId}:stats`).catch(() => {});
+  recordCoinTransaction({
+    userId: referral.parrainId,
+    amountCoins: PARRAIN_COINS,
+    transactionType: 'coin_earn',
+    description: `Parrainage récompensé : +${PARRAIN_XP} XP et +${PARRAIN_COINS} coins`,
+    referenceType: 'referral',
+    referenceId: filleulId
+  }).catch(() => {});
 }
 
 module.exports = { getOrCreateReferralCode, getReferralStats, applyReferralCode, rewardParrainIfEligible };

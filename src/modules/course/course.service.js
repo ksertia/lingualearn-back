@@ -4,6 +4,7 @@ const { cacheDel } = require('../../utils/cache');
 const { notifyLearnersNewContent } = require('../../utils/contentNotifier');
 const { logger } = require('../../utils/logger');
 const { rewardParrainIfEligible } = require('../referral/referral.service');
+const { recordCoinTransaction } = require('../transaction/transaction.service');
 
 const LESSON_SELECT = {
   id: true, title: true, contentType: true, content: true,
@@ -120,6 +121,14 @@ exports.completeLessonForUser = async (lessonId, userId) => {
 
   cacheDel(`user:${userId}:state`, `gamification:user:${userId}:stats`).catch(() => {});
   rewardParrainIfEligible(userId).catch(() => {});
+  recordCoinTransaction({
+    userId,
+    amountCoins: earnedCoins,
+    transactionType: 'coin_earn',
+    description: `Leçon complétée : ${lesson.title}`,
+    referenceType: 'lesson',
+    referenceId: lesson.id
+  }).catch(() => {});
 
   return {
     lessonId: lesson.id, lessonTitle: lesson.title, stepProgress: updatedProgress,

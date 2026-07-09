@@ -4,6 +4,7 @@ const orange = require('./providers/orange');
 const moov   = require('./providers/moov');
 const { verifyOperator } = require('./providers/verifyOperator');
 const { cacheDel } = require('../../utils/cache');
+const { recordCoinTransaction } = require('../transaction/transaction.service');
 
 const OTP_EXPIRY_MINUTES = 5;
 const SUPPORTED_METHODS  = ['orange_money', 'moov_money', 'coris_money'];
@@ -175,4 +176,56 @@ async function getPaymentHistory(userId) {
   });
 }
 
-module.exports = { initiatePayment, confirmPayment, getPaymentHistory };
+async function payWithCoins(userId, planId) {
+  const [plan, stats] = await Promise.all([
+    prisma.subscriptionPlan.findUnique({ where: { id: planId } }),
+    prisma.userStats.findUnique({ where: { userId }, select: { totalCoins: true } })
+  ]);
+
+  if (!plan) throw new AppError(404, 'Plan introuvable.');
+  if (!plan.isActive) throw new AppError(400, 'Ce plan n\'est plus disponible.');
+  if (!plan.coinPrice) throw new AppError(400, 'Ce plan ne supporte pas le paiement en coins.');
+
+  const balance = stats?.totalCoins ?? 0;
+  if (balance < plan.coinPrice) {
+    throw new AppError(400, `Solde insuffisant. Vous avez ${balance} coins, il en faut ${plan.coinPrice}.`);
+  }
+
+  const periodStart = new Date();
+  const periodEnd   = _computePeriodEnd('monthly');
+
+  // Transaction atomique : débiter coins + créer abonnement
+  await prisma.$transaction([
+    prisma.userStats.update({
+      where: { userId },
+      data: { totalCoins: { decrement: plan.coinPrice } }
+    }),
+    prisma.subscription.deleteMany({ where: { userId } }),
+  ]);
+
+  const subscription = await prisma.subscription.create({
+    data: {
+      userId, planId, status: 'active',
+      billingCycle: 'monthly',
+      currentPeriodStart: periodStart, currentPeriodEnd: periodEnd,
+      cancelAtPeriodEnd: false,
+    }
+  });
+
+  await Promise.all([
+    prisma.user.update({ where: { id: userId }, data: { subscriptionId: subscription.id, subscriptionEndsAt: periodEnd } }),
+    recordCoinTransaction({
+      userId,
+      amountCoins: -plan.coinPrice,
+      transactionType: 'coin_spend',
+      description: `Abonnement ${plan.planName} payé avec coins`,
+      referenceType: 'subscription',
+      referenceId: subscription.id
+    }),
+    cacheDel(`user:${userId}:base`, `user:${userId}:details`, `user:${userId}:current`, `sub:status:${userId}`, `gamification:user:${userId}:stats`)
+  ]);
+
+  return { subscription, coinsSpent: plan.coinPrice, newBalance: balance - plan.coinPrice };
+}
+
+module.exports = { initiatePayment, confirmPayment, getPaymentHistory, payWithCoins };

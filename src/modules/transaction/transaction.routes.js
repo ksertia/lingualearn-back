@@ -111,6 +111,42 @@ const router = express.Router();
  *             schema:
  *               $ref: '#/components/schemas/TransactionListResponse'
  */
+/**
+ * @swagger
+ * /api/v1/transactions/wallet/my:
+ *   get:
+ *     summary: Mon wallet — solde coins + historique
+ *     tags: [Transactions]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Solde et historique coins
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     balance:  { type: integer, example: 120 }
+ *                     totalXp:  { type: integer, example: 450 }
+ *                     history:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:               { type: string }
+ *                           transactionType:  { type: string, example: coin_earn }
+ *                           amountCoins:      { type: integer, example: 20 }
+ *                           balanceCoinsAfter: { type: integer, example: 120 }
+ *                           description:      { type: string }
+ *                           createdAt:        { type: string, format: date-time }
+ */
+router.get('/wallet/my', controller.getMyWallet);
+
 router.get('/user/:userId', controller.listByUser);
 
 /**

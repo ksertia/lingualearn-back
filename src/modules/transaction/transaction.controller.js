@@ -22,4 +22,13 @@ async function getOne(req, res, next) {
   }
 }
 
-module.exports = { listByUser, getOne };
+async function getMyWallet(req, res, next) {
+  try {
+    const wallet = await service.getWallet(req.user.id);
+    res.json({ success: true, data: wallet });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { listByUser, getOne, getMyWallet };
