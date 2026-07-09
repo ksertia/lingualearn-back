@@ -24,6 +24,8 @@ model User {
   createdAt           DateTime               @default(now())
   lastLogin           DateTime?
   lastActive          DateTime?
+  referralCode        String?                @unique @db.VarChar(20)
+  referredBy          String?
   reportsSent         AccountReport[]        @relation("ReportsSent")
   reportsGenerated    AccountReport[]        @relation("ReportsGenerated")
   exerciseAttempts    ExerciseAttempt[]
@@ -55,14 +57,30 @@ model User {
   parentUser          User?                  @relation("ParentToSubAccounts", fields: [parentId], references: [id])
   subAccounts         User[]                 @relation("ParentToSubAccounts")
   verificationCodes   VerificationCode[]
-  sentMessages        Message[]          @relation("SentMessages")
-  receivedMessages    Message[]          @relation("ReceivedMessages")
+  sentMessages        Message[]              @relation("SentMessages")
+  receivedMessages    Message[]              @relation("ReceivedMessages")
   deviceTokens        DeviceToken[]
+  referralsSent       Referral[]             @relation("ReferralParrain")
+  referralReceived    Referral?              @relation("ReferralFilleul")
 
   @@index([parentId])
   @@index([accountType])
   @@index([createdBy], map: "users_createdBy_fkey")
   @@map("users")
+}
+
+model Referral {
+  id          String    @id @default(cuid())
+  parrainId   String
+  filleulId   String    @unique
+  status      String    @default("pending") @db.VarChar(20) // pending | rewarded
+  rewardedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  parrain     User      @relation("ReferralParrain", fields: [parrainId], references: [id], onDelete: Cascade)
+  filleul     User      @relation("ReferralFilleul", fields: [filleulId], references: [id], onDelete: Cascade)
+
+  @@index([parrainId])
+  @@map("referrals")
 }
 
 model Profile {

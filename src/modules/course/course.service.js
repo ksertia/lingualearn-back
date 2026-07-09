@@ -3,6 +3,7 @@ const progressionService = require('../progression/progression.service');
 const { cacheDel } = require('../../utils/cache');
 const { notifyLearnersNewContent } = require('../../utils/contentNotifier');
 const { logger } = require('../../utils/logger');
+const { rewardParrainIfEligible } = require('../referral/referral.service');
 
 const LESSON_SELECT = {
   id: true, title: true, contentType: true, content: true,
@@ -118,6 +119,7 @@ exports.completeLessonForUser = async (lessonId, userId) => {
   } catch (_) {}
 
   cacheDel(`user:${userId}:state`, `gamification:user:${userId}:stats`).catch(() => {});
+  rewardParrainIfEligible(userId).catch(() => {});
 
   return {
     lessonId: lesson.id, lessonTitle: lesson.title, stepProgress: updatedProgress,

@@ -27,6 +27,7 @@ const progressionRoutes = require('../modules/progression/progression.routes');
 const uploadRoutes = require('../modules/upload/upload.routes');
 const paymentRoutes = require('../modules/payment/payment.routes');
 const transactionRoutes = require('../modules/transaction/transaction.routes');
+const referralRoutes = require('../modules/referral/referral.routes');
 const languageController = require('../modules/language/language.controller');
 const levelController = require('../modules/Level/Level.controller');
 const moduleController = require('../modules/module/module.controller');
@@ -64,6 +65,7 @@ router.use('/learning-paths',authMiddleware, requireSubscription, learningPathsR
 router.use('/evaluation',    authMiddleware, requireSubscription, evaluationRoutes);
 router.use('/progression',   authMiddleware, requireSubscription, progressionRoutes);
 router.use('/gamification',  authMiddleware, requireSubscription, gamificationRoutes);
+router.use('/referral',      authMiddleware, referralRoutes);
 
 // ─── Routes utilisateur : languages et levels publiques ──────────────────────
 router.get('/users/:userId/languages',                       languageController.getByUserId);

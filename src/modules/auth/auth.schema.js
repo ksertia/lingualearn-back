@@ -19,6 +19,7 @@ const registerSchema = z.object({
         .optional()
         .nullable(),
     accountType: z.enum(['admin', 'learner', 'plateform_manager', 'teacher']),
+    referralCode: z.string().max(20).optional().nullable(),
 }).refine(data => data.email || data.phone, {
     message: 'Either email or phone must be provided',
     path: ['email']

@@ -9,6 +9,7 @@ const { emailService } = require('../../utils/emailService');
 const { logger } = require('../../utils/logger');
 const { cacheGet, cacheSet, cacheDel, TTL } = require('../../utils/cache');
 const { createNotification } = require('../notification/notification.service');
+const { applyReferralCode, getOrCreateReferralCode } = require('../referral/referral.service');
 
 // Recherche utilisateur par loginInfo (email / phone / username) — 1 requête
 async function findUserByLoginInfo(loginInfo, select) {
@@ -20,7 +21,7 @@ async function findUserByLoginInfo(loginInfo, select) {
 class AuthService {
     // ============ INSCRIPTION (publique — learner, admin, teacher, platform_manager) ============
     async register(data) {
-        const { email, phone, password, username, accountType, firstName, lastName } = data;
+        const { email, phone, password, username, accountType, firstName, lastName, referralCode } = data;
 
         // sub_account_learner ne peut PAS s'inscrire via la route publique
         if (accountType === 'sub_account_learner') {
@@ -102,6 +103,14 @@ class AuthService {
                 const setting = await prisma.appSetting.findUnique({ where: { key: 'trial_duration_days' } });
                 if (setting) trialDays = parseInt(setting.value, 10);
             } catch (_) {}
+
+            // Générer le code de parrainage du nouvel utilisateur
+            getOrCreateReferralCode(user.id).catch(() => {});
+
+            // Appliquer le code de parrainage si fourni
+            if (referralCode) {
+                applyReferralCode(user.id, referralCode.toUpperCase().trim()).catch(() => {});
+            }
 
             // Email de bienvenue
             if (email && user.username) {
