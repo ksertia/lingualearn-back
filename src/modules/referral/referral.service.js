@@ -17,14 +17,13 @@ async function getOrCreateReferralCode(userId) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { referralCode: true } });
   if (user?.referralCode) return user.referralCode;
 
-  let code;
-  let attempts = 0;
-  do {
-    code = _generateCode(userId);
-    const existing = await prisma.user.findUnique({ where: { referralCode: code } });
-    if (!existing) break;
-    attempts++;
-  } while (attempts < 10);
+  let code = null;
+  for (let i = 0; i < 10; i++) {
+    const candidate = _generateCode(userId);
+    const existing = await prisma.user.findUnique({ where: { referralCode: candidate } });
+    if (!existing) { code = candidate; break; }
+  }
+  if (!code) throw new Error('Impossible de générer un code de parrainage unique');
 
   await prisma.user.update({ where: { id: userId }, data: { referralCode: code } });
   return code;
@@ -93,14 +92,18 @@ async function rewardParrainIfEligible(filleulId) {
   });
   if (lessonsCompleted < 1) return;
 
-  await prisma.$transaction([
-    prisma.referral.update({ where: { id: referral.id }, data: { status: 'rewarded', rewardedAt: new Date() } }),
-    prisma.userStats.upsert({
-      where: { userId: referral.parrainId },
-      create: { userId: referral.parrainId, totalXp: PARRAIN_XP, totalCoins: PARRAIN_COINS },
-      update: { totalXp: { increment: PARRAIN_XP }, totalCoins: { increment: PARRAIN_COINS } }
-    })
-  ]);
+  // updateMany avec filtre status='pending' évite la double récompense en cas d'appels concurrents
+  const updated = await prisma.referral.updateMany({
+    where: { id: referral.id, status: 'pending' },
+    data: { status: 'rewarded', rewardedAt: new Date() }
+  });
+  if (updated.count === 0) return; // déjà récompensé par un appel concurrent
+
+  await prisma.userStats.upsert({
+    where: { userId: referral.parrainId },
+    create: { userId: referral.parrainId, totalXp: PARRAIN_XP, totalCoins: PARRAIN_COINS },
+    update: { totalXp: { increment: PARRAIN_XP }, totalCoins: { increment: PARRAIN_COINS } }
+  });
 
   cacheDel(`user:${referral.parrainId}:base`, `gamification:user:${referral.parrainId}:stats`).catch(() => {});
 }
