@@ -8,7 +8,7 @@ const { syncAllUsersProgression } = require('../../utils/progressionSync');
 const STEP_CONTENT_SELECT = {
   id: true, title: true, description: true, index: true, pathId: true,
   stepType: true, estimatedMinutes: true, isActive: true,
-  lesson:   { select: { id: true, title: true, contentType: true, content: true } },
+  lesson:   { select: { id: true, title: true, summary: true, isActive: true, blocks: { orderBy: { index: 'asc' }, select: { id: true, sectionType: true, contentType: true, content: true, caption: true, index: true } } } },
   exercise: { select: { id: true, title: true, instructions: true, points: true, xpReward: true, coinReward: true } },
   quiz:     { select: { id: true, title: true, passingScore: true, timeLimitMinutes: true, xpReward: true, coinReward: true } }
 };
@@ -93,7 +93,7 @@ exports.getStepContent = async (stepId, userId = null) => {
             }
           }
         },
-        lesson:   { select: { id: true, title: true, contentType: true, content: true, attachments: true, index: true } },
+        lesson:   { select: { id: true, title: true, summary: true, isActive: true, index: true, blocks: { orderBy: { index: 'asc' }, select: { id: true, sectionType: true, contentType: true, content: true, caption: true, index: true } } } },
         exercise: { select: { id: true, title: true, instructions: true, content: true, hints: true, explanation: true, maxAttempts: true, points: true, xpReward: true, coinReward: true, correctAnswers: true } },
         quiz:     { select: { id: true, title: true, questions: true, passingScore: true, maxAttempts: true, timeLimitMinutes: true, xpReward: true, coinReward: true } }
       }

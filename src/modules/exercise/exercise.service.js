@@ -53,9 +53,20 @@ async function submitExerciseAnswer(exerciseId, userId, userAnswers) {
   const earnedCoins = passed ? exercise.coinReward  : Math.floor(exercise.coinReward  * (percentageScore / 100));
 
   // Persist attempt + stats in parallel (both unconditional)
+  const attemptNumber = attempts + 1;
+
   const [attempt] = await Promise.all([
     prisma.exerciseAttempt.create({
-      data: { exerciseId, userId, answers: userAnswers, score: percentageScore, passed, completedAt: new Date() }
+      data: {
+        exerciseId, userId,
+        attemptNumber,
+        answers: userAnswers,
+        score: percentageScore,
+        pointsEarned: earnedCoins,
+        xpEarned: earnedXp,
+        coinsEarned: earnedCoins,
+        isCorrect: passed
+      }
     }),
     (earnedXp > 0 || earnedCoins > 0) && prisma.userStats.upsert({
       where: { userId },

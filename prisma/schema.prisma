@@ -201,18 +201,34 @@ model Step {
 }
 
 model Lesson {
-  id          String   @id @default(cuid())
-  stepId      String   @unique
-  title       String   @db.VarChar(200)
-  contentType String   @default("text") @db.VarChar(20) // text | video | audio | pdf | image
-  content     String   @db.Text                          // texte brut si text, URL si autre
-  attachments Json?
-  index       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  step        Step     @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  id          String        @id @default(cuid())
+  stepId      String        @unique
+  title       String        @db.VarChar(200)
+  summary     String?       @db.Text
+  index       Int           @default(0)
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  step        Step          @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  blocks      LessonBlock[]
 
   @@map("lessons")
+}
+
+model LessonBlock {
+  id          String   @id @default(cuid())
+  lessonId    String
+  sectionType String   @db.VarChar(30)  // introduction | main | transcript | example | example_audio | key_points
+  contentType String   @db.VarChar(20)  // text | video | audio | pdf | image
+  content     String   @db.Text         // texte brut OU url selon contentType
+  caption     String?  @db.VarChar(500) // légende optionnelle
+  index       Int      @default(0)      // ordre dans la leçon
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId, index])
+  @@map("lesson_blocks")
 }
 
 model Exercise {

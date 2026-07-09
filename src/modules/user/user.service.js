@@ -188,7 +188,7 @@ class UserService {
             let currentLesson = null, currentExercise = null, currentQuiz = null;
             if (stepProg?.step) {
                 [currentLesson, currentExercise, currentQuiz] = await Promise.all([
-                    prisma.lesson.findFirst({ where: { stepId: stepProg.step.id }, select: { id: true, title: true, contentType: true, content: true } }),
+                    prisma.lesson.findFirst({ where: { stepId: stepProg.step.id }, select: { id: true, title: true, summary: true, isActive: true, blocks: { orderBy: { index: 'asc' }, select: { id: true, sectionType: true, contentType: true, content: true, caption: true, index: true } } } }),
                     prisma.exercise.findFirst({ where: { stepId: stepProg.step.id }, select: { id: true, title: true, instructions: true, points: true, xpReward: true, coinReward: true } }),
                     prisma.quiz.findFirst({ where: { stepId: stepProg.step.id }, select: { id: true, title: true, passingScore: true, timeLimitMinutes: true, xpReward: true, coinReward: true } })
                 ]);

@@ -1,38 +1,52 @@
 const Joi = require('joi');
 
-/**
- * Règle commune : si contentType = 'text', content est du texte brut.
- * Sinon c'est une URL (retournée par POST /uploads/...).
- */
-const contentField = (required = false) => Joi.when('contentType', {
-  is: Joi.valid('video', 'audio', 'pdf', 'image'),
-  then: required
-    ? Joi.string().uri().required()
-    : Joi.string().uri().allow('', null),
-  otherwise: required
-    ? Joi.string().required()
-    : Joi.string().allow('', null)
-});
+const SECTION_TYPES = ['introduction', 'main', 'transcript', 'example', 'example_audio', 'key_points'];
+const CONTENT_TYPES = ['text', 'video', 'audio', 'pdf', 'image'];
 
+// ─── Leçon (métadonnées) ───────────────────────────────────────────────────────
 const createCourseSchema = Joi.object({
-  stepId:      Joi.string().required(),
-  title:       Joi.string().max(200).required(),
-  contentType: Joi.string().valid('text', 'video', 'audio', 'pdf', 'image').default('text'),
-  content:     contentField(true),   // requis à la création
-  attachments: Joi.array().items(Joi.object()).allow(null),
-  duration:    Joi.number().integer().min(0).allow(null),
-  isActive:    Joi.boolean().default(true)
+  stepId:  Joi.string().required(),
+  title:   Joi.string().max(200).required(),
+  summary: Joi.string().allow('', null).optional(),
 });
 
 const updateCourseSchema = Joi.object({
-  title:       Joi.string().max(200),
-  contentType: Joi.string().valid('text', 'video', 'audio', 'pdf', 'image'),
-  content:     contentField(false),  // optionnel en update
-  attachments: Joi.array().items(Joi.object()).allow(null),
-  duration:    Joi.number().integer().min(0).allow(null),
-  isActive:    Joi.boolean()
+  title:    Joi.string().max(200),
+  summary:  Joi.string().allow('', null),
+  isActive: Joi.boolean(),
 });
 
 const patchCourseSchema = updateCourseSchema;
 
-module.exports = { createCourseSchema, updateCourseSchema, patchCourseSchema };
+// ─── Bloc de contenu ───────────────────────────────────────────────────────────
+const contentField = Joi.when('contentType', {
+  is: Joi.valid('video', 'audio', 'pdf', 'image'),
+  then: Joi.string().uri().required(),
+  otherwise: Joi.string().required()   // text ou sectionType=transcript → texte brut
+});
+
+const createBlockSchema = Joi.object({
+  sectionType: Joi.string().valid(...SECTION_TYPES).required(),
+  contentType: Joi.string().valid(...CONTENT_TYPES).required(),
+  content:     contentField,
+  caption:     Joi.string().max(500).allow('', null).optional(),
+  index:       Joi.number().integer().min(0).optional(),
+});
+
+const updateBlockSchema = Joi.object({
+  sectionType: Joi.string().valid(...SECTION_TYPES),
+  contentType: Joi.string().valid(...CONTENT_TYPES),
+  content:     Joi.string().allow('', null),
+  caption:     Joi.string().max(500).allow('', null),
+  index:       Joi.number().integer().min(0),
+});
+
+const reorderBlocksSchema = Joi.object({
+  orderedIds: Joi.array().items(Joi.string()).min(1).required(),
+});
+
+module.exports = {
+  createCourseSchema, updateCourseSchema, patchCourseSchema,
+  createBlockSchema, updateBlockSchema, reorderBlocksSchema,
+  SECTION_TYPES, CONTENT_TYPES
+};

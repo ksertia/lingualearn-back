@@ -7,141 +7,97 @@ const router = express.Router();
  * tags:
  *   name: Course
  *   description: |
- *     Gestion des leçons (cours).
- *     **Flux d'ajout de contenu :**
- *     1. Si `contentType = text` → envoyer le texte directement dans `content`
- *     2. Si `contentType = video | audio | pdf | image` → uploader d'abord via `POST /api/v1/uploads/{type}`, récupérer l'URL retournée, puis l'envoyer dans `content`
+ *     Gestion des leçons et de leurs blocs de contenu.
+ *
+ *     Une leçon est composée de **blocs ordonnés**, chacun ayant un type de section et un type de contenu :
+ *
+ *     | sectionType     | Rôle                                      |
+ *     |-----------------|-------------------------------------------|
+ *     | introduction    | Texte court d'introduction                |
+ *     | main            | Contenu principal (vidéo, audio, texte)   |
+ *     | transcript      | Transcription texte d'un audio/vidéo      |
+ *     | example         | Exemple textuel                           |
+ *     | example_audio   | Exemple audio (prononciation)             |
+ *     | key_points      | Points clés / résumé                      |
+ *
+ *     | contentType | Contenu attendu dans `content`            |
+ *     |-------------|-------------------------------------------|
+ *     | text        | Texte brut                                |
+ *     | video       | URL (après upload via POST /uploads/video)|
+ *     | audio       | URL (après upload via POST /uploads/audio)|
+ *     | pdf         | URL                                       |
+ *     | image       | URL                                       |
  */
 
 /**
  * @swagger
  * components:
  *   schemas:
- *     LessonContent:
+ *     LessonBlock:
  *       type: object
- *       description: |
- *         Le champ `content` contient :
- *         - du **texte brut** si `contentType = text`
- *         - une **URL** (retournée par /uploads) si `contentType = video | audio | pdf | image`
  *       properties:
- *         id:
- *           type: string
- *           example: clq1x2y3z4w5e6r7t8y9u0i1
- *         stepId:
- *           type: string
- *           example: clq1x2y3z4w5e6r7t8y9u0i2
- *         title:
- *           type: string
- *           example: Introduction à la grammaire
- *         contentType:
- *           type: string
- *           enum: [text, video, audio, pdf, image]
- *           example: text
- *         content:
- *           type: string
- *           example: "Bonjour signifie Hello en français."
- *           description: Texte brut (si text) ou URL du fichier (si video/audio/pdf/image)
- *         attachments:
+ *         id:          { type: string }
+ *         lessonId:    { type: string }
+ *         sectionType: { type: string, enum: [introduction, main, transcript, example, example_audio, key_points] }
+ *         contentType: { type: string, enum: [text, video, audio, pdf, image] }
+ *         content:     { type: string, description: "Texte brut ou URL selon contentType" }
+ *         caption:     { type: string, nullable: true }
+ *         index:       { type: integer }
+ *
+ *     Lesson:
+ *       type: object
+ *       properties:
+ *         id:       { type: string }
+ *         stepId:   { type: string }
+ *         title:    { type: string }
+ *         summary:  { type: string, nullable: true }
+ *         isActive: { type: boolean }
+ *         blocks:
  *           type: array
- *           items:
- *             type: object
- *           nullable: true
- *         index:
- *           type: integer
- *           example: 1
- *         createdAt:
- *           type: string
- *           format: date-time
- *         updatedAt:
- *           type: string
- *           format: date-time
+ *           items: { $ref: '#/components/schemas/LessonBlock' }
  *
  *     LessonCreate:
  *       type: object
- *       required: [stepId, title, content]
+ *       required: [stepId, title]
  *       properties:
- *         stepId:
- *           type: string
- *           example: clq1x2y3z4w5e6r7t8y9u0i2
- *         title:
- *           type: string
- *           example: Introduction à la grammaire
- *         contentType:
- *           type: string
- *           enum: [text, video, audio, pdf, image]
- *           default: text
- *           example: text
- *         content:
- *           type: string
- *           example: "Bonjour signifie Hello en français."
- *           description: |
- *             - `text` → saisir le texte directement ici
- *             - `video/audio/pdf/image` → mettre l'URL retournée par POST /uploads/{type}
- *         attachments:
- *           type: array
- *           items:
- *             type: object
- *           nullable: true
- *         isActive:
- *           type: boolean
- *           default: true
+ *         stepId:  { type: string }
+ *         title:   { type: string, maxLength: 200 }
+ *         summary: { type: string, nullable: true }
  *
- *     LessonUpdate:
+ *     BlockCreate:
  *       type: object
+ *       required: [sectionType, contentType, content]
  *       properties:
- *         title:
- *           type: string
- *         contentType:
- *           type: string
- *           enum: [text, video, audio, pdf, image]
- *         content:
- *           type: string
- *           description: Texte brut ou URL selon contentType
- *         attachments:
- *           type: array
- *           items:
- *             type: object
- *           nullable: true
- *         isActive:
- *           type: boolean
+ *         sectionType: { type: string, enum: [introduction, main, transcript, example, example_audio, key_points] }
+ *         contentType: { type: string, enum: [text, video, audio, pdf, image] }
+ *         content:     { type: string }
+ *         caption:     { type: string, nullable: true }
+ *         index:       { type: integer }
+ *       examples:
+ *         intro_text:
+ *           summary: Introduction texte
+ *           value: { sectionType: "introduction", contentType: "text", content: "Dans cette leçon, vous allez apprendre à saluer en Dioula." }
+ *         main_video:
+ *           summary: Contenu principal vidéo
+ *           value: { sectionType: "main", contentType: "video", content: "https://res.cloudinary.com/lingualearn/video/upload/v1/..." }
+ *         transcript:
+ *           summary: Transcription
+ *           value: { sectionType: "transcript", contentType: "text", content: "I ni ce signifie Bonjour en Dioula..." }
+ *         example_audio:
+ *           summary: Exemple audio
+ *           value: { sectionType: "example_audio", contentType: "audio", content: "https://res.cloudinary.com/lingualearn/audio/upload/v1/..." }
+ *         key_points:
+ *           summary: Points clés
+ *           value: { sectionType: "key_points", contentType: "text", content: "- I ni ce = Bonjour\n- I ni wula = Bonsoir" }
  */
 
-/**
- * @swagger
- * /api/v1/courses/user/{userId}:
- *   get:
- *     summary: Leçons de l'utilisateur avec progression
- *     tags: [Course]
- *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Liste des leçons
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/LessonContent'
- *       404:
- *         description: Aucune leçon trouvée
- */
-router.get('/user/:userId', controller.getCoursesByUserId);
+// ─── Leçons ────────────────────────────────────────────────────────────────────
 
 /**
  * @swagger
  * /api/v1/courses:
  *   get:
- *     summary: Liste paginée des cours
+ *     summary: Liste paginée des leçons
  *     tags: [Course]
  *     parameters:
  *       - in: query
@@ -156,17 +112,6 @@ router.get('/user/:userId', controller.getCoursesByUserId);
  *       - in: query
  *         name: stepId
  *         schema: { type: string }
- *       - in: query
- *         name: contentType
- *         schema:
- *           type: string
- *           enum: [text, video, audio, pdf, image]
- *       - in: query
- *         name: sortBy
- *         schema: { type: string, default: createdAt }
- *       - in: query
- *         name: sortOrder
- *         schema: { type: string, enum: [asc, desc], default: desc }
  *     responses:
  *       200:
  *         description: Liste paginée
@@ -177,7 +122,7 @@ router.get('/', controller.getCourses);
  * @swagger
  * /api/v1/courses/step/{stepId}/lessons:
  *   get:
- *     summary: Leçon d'une étape avec progression utilisateur
+ *     summary: Leçon d'une étape avec ses blocs et progression
  *     tags: [Course]
  *     parameters:
  *       - in: path
@@ -187,234 +132,34 @@ router.get('/', controller.getCourses);
  *       - in: query
  *         name: userId
  *         schema: { type: string }
- *         description: Optionnel — pour inclure la progression
  *     responses:
  *       200:
- *         description: Leçon avec progression
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success: { type: boolean }
- *                 data:
- *                   $ref: '#/components/schemas/LessonContent'
+ *         description: Leçon avec blocs regroupés par section
  */
 router.get('/step/:stepId/lessons', controller.getLessonsByStep);
 
 /**
  * @swagger
- * /api/v1/courses/{id}:
+ * /api/v1/courses/user/{userId}:
  *   get:
- *     summary: Récupérer un cours par ID
+ *     summary: Leçons de l'utilisateur avec progression
  *     tags: [Course]
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: userId
  *         required: true
  *         schema: { type: string }
  *     responses:
  *       200:
- *         description: Cours trouvé
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success: { type: boolean }
- *                 data:
- *                   $ref: '#/components/schemas/LessonContent'
- *       404:
- *         description: Cours non trouvé
+ *         description: Liste des leçons
  */
-router.get('/:id', controller.getCourse);
-
-/**
- * @swagger
- * /api/v1/courses/{lessonId}/complete:
- *   post:
- *     summary: Marquer une leçon comme complétée
- *     tags: [Course]
- *     parameters:
- *       - in: path
- *         name: lessonId
- *         required: true
- *         schema: { type: string }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [userId]
- *             properties:
- *               userId: { type: string }
- *     responses:
- *       200:
- *         description: Leçon complétée, récompenses attribuées
- *       400:
- *         description: Données invalides
- */
-router.post('/:lessonId/complete', controller.completeLesson);
-
-/**
- * @swagger
- * /api/v1/courses:
- *   post:
- *     summary: Créer un cours
- *     tags: [Course]
- *     description: |
- *       **Pour du texte :** envoyer `contentType=text` et `content="votre texte"`.
- *       **Pour une vidéo/audio/pdf/image :** uploader d'abord via `POST /api/v1/uploads/{type}`, puis mettre l'URL retournée dans `content`.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/LessonCreate'
- *           examples:
- *             texte:
- *               summary: Contenu texte
- *               value:
- *                 stepId: "clq1x2y3z4w5e6r7t8y9u0i2"
- *                 title: "Leçon 1 — Salutations"
- *                 contentType: "text"
- *                 content: "Bonjour signifie Hello en français."
- *             video:
- *               summary: Contenu vidéo (après upload)
- *               value:
- *                 stepId: "clq1x2y3z4w5e6r7t8y9u0i2"
- *                 title: "Leçon 1 — Vidéo"
- *                 contentType: "video"
- *                 content: "https://res.cloudinary.com/lingualearn/video/upload/v1/..."
- *     responses:
- *       201:
- *         description: Cours créé
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success: { type: boolean }
- *                 data:
- *                   $ref: '#/components/schemas/LessonContent'
- *       400:
- *         description: Erreur de validation
- */
-router.post('/', controller.createCourse);
-
-/**
- * @swagger
- * /api/v1/courses/{id}:
- *   put:
- *     summary: Modifier un cours (remplacement complet)
- *     tags: [Course]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/LessonUpdate'
- *     responses:
- *       200:
- *         description: Cours mis à jour
- *       404:
- *         description: Cours non trouvé
- */
-router.put('/:id', controller.updateCourse);
-
-/**
- * @swagger
- * /api/v1/courses/{id}:
- *   patch:
- *     summary: Modifier un cours (partiel)
- *     tags: [Course]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/LessonUpdate'
- *     responses:
- *       200:
- *         description: Cours mis à jour
- *       404:
- *         description: Cours non trouvé
- */
-router.patch('/:id', controller.patchCourse);
-
-/**
- * @swagger
- * /api/v1/courses/{id}:
- *   delete:
- *     summary: Supprimer un cours
- *     tags: [Course]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string }
- *     responses:
- *       200:
- *         description: Cours supprimé
- *       404:
- *         description: Cours non trouvé
- */
-router.delete('/:id', controller.deleteCourse);
-
-/**
- * @swagger
- * /api/v1/courses/{id}/duplicate:
- *   post:
- *     summary: Dupliquer un cours
- *     tags: [Course]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string }
- *     responses:
- *       201:
- *         description: Cours dupliqué
- *       404:
- *         description: Cours non trouvé
- */
-router.post('/:id/duplicate', controller.duplicateCourse);
-
-/**
- * @swagger
- * /api/v1/courses/{id}/toggle-publish:
- *   patch:
- *     summary: Activer / désactiver un cours
- *     tags: [Course]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string }
- *     responses:
- *       200:
- *         description: Statut modifié
- *       404:
- *         description: Cours non trouvé
- */
-router.patch('/:id/toggle-publish', controller.toggleCoursePublish);
+router.get('/user/:userId', controller.getCoursesByUserId);
 
 /**
  * @swagger
  * /api/v1/courses/level/{levelId}:
  *   get:
- *     summary: Cours d'un niveau
+ *     summary: Leçons d'un niveau
  *     tags: [Course]
  *     parameters:
  *       - in: path
@@ -423,8 +168,208 @@ router.patch('/:id/toggle-publish', controller.toggleCoursePublish);
  *         schema: { type: string }
  *     responses:
  *       200:
- *         description: Liste des cours du niveau
+ *         description: Liste des leçons du niveau
  */
 router.get('/level/:levelId', controller.getCoursesByLevel);
+
+/**
+ * @swagger
+ * /api/v1/courses/{id}:
+ *   get:
+ *     summary: Récupérer une leçon par ID (avec ses blocs)
+ *     tags: [Course]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Leçon trouvée
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 data: { $ref: '#/components/schemas/Lesson' }
+ */
+router.get('/:id', controller.getCourse);
+
+/**
+ * @swagger
+ * /api/v1/courses:
+ *   post:
+ *     summary: Créer une leçon (sans blocs — ajouter les blocs ensuite)
+ *     tags: [Course]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { $ref: '#/components/schemas/LessonCreate' }
+ *     responses:
+ *       201:
+ *         description: Leçon créée
+ */
+router.post('/', controller.createCourse);
+
+/**
+ * @swagger
+ * /api/v1/courses/{id}:
+ *   put:
+ *     summary: Modifier une leçon (titre, résumé)
+ *     tags: [Course]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Leçon mise à jour
+ */
+router.put('/:id', controller.updateCourse);
+
+/**
+ * @swagger
+ * /api/v1/courses/{id}:
+ *   patch:
+ *     summary: Modifier partiellement une leçon
+ *     tags: [Course]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Leçon mise à jour
+ */
+router.patch('/:id', controller.patchCourse);
+
+/**
+ * @swagger
+ * /api/v1/courses/{id}:
+ *   delete:
+ *     summary: Supprimer une leçon (et tous ses blocs)
+ *     tags: [Course]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Leçon supprimée
+ */
+router.delete('/:id', controller.deleteCourse);
+
+router.post('/:id/duplicate',     controller.duplicateCourse);
+router.patch('/:id/toggle-publish', controller.toggleCoursePublish);
+router.post('/:lessonId/complete',  controller.completeLesson);
+
+// ─── Blocs ─────────────────────────────────────────────────────────────────────
+
+/**
+ * @swagger
+ * /api/v1/courses/{id}/blocks:
+ *   post:
+ *     summary: Ajouter un bloc à une leçon
+ *     tags: [Course]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *         description: ID de la leçon
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { $ref: '#/components/schemas/BlockCreate' }
+ *     responses:
+ *       201:
+ *         description: Bloc ajouté
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 data: { $ref: '#/components/schemas/LessonBlock' }
+ */
+router.post('/:id/blocks', controller.addBlock);
+
+/**
+ * @swagger
+ * /api/v1/courses/{id}/blocks/reorder:
+ *   patch:
+ *     summary: Réordonner les blocs d'une leçon
+ *     tags: [Course]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [orderedIds]
+ *             properties:
+ *               orderedIds:
+ *                 type: array
+ *                 items: { type: string }
+ *                 description: IDs des blocs dans le nouvel ordre
+ *                 example: ["blk_abc", "blk_def", "blk_ghi"]
+ *     responses:
+ *       200:
+ *         description: Blocs réordonnés, leçon retournée avec blocs dans le nouvel ordre
+ */
+router.patch('/:id/blocks/reorder', controller.reorderBlocks);
+
+/**
+ * @swagger
+ * /api/v1/courses/{id}/blocks/{blockId}:
+ *   patch:
+ *     summary: Modifier un bloc
+ *     tags: [Course]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: blockId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Bloc mis à jour
+ */
+router.patch('/:id/blocks/:blockId', controller.updateBlock);
+
+/**
+ * @swagger
+ * /api/v1/courses/{id}/blocks/{blockId}:
+ *   delete:
+ *     summary: Supprimer un bloc
+ *     tags: [Course]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: blockId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Bloc supprimé
+ */
+router.delete('/:id/blocks/:blockId', controller.deleteBlock);
 
 module.exports = router;
