@@ -439,6 +439,9 @@ const options = {
     './src/modules/discover/discover.routes.js',
     './src/modules/progression/progression.routes.js',
     './src/modules/app_setting/app_setting.routes.js',
+    './src/modules/referral/referral.routes.js',
+    './src/modules/transaction/transaction.routes.js',
+    './src/modules/payment/payment.routes.js',
   ],
 };
 
