@@ -78,14 +78,6 @@ async function applyReferralCode(filleulId, code) {
   ]);
 
   cacheDel(`user:${filleulId}:base`).catch(() => {});
-  recordCoinTransaction({
-    userId: filleulId,
-    amountCoins: 0,
-    transactionType: 'coin_earn',
-    description: `Bonus parrainage : +${FILLEUL_XP} XP de bienvenue`,
-    referenceType: 'referral',
-    referenceId: parrain.id
-  }).catch(() => {});
 
   return { success: true, message: `Code appliqué ! Vous avez reçu ${FILLEUL_XP} XP de bienvenue.` };
 }

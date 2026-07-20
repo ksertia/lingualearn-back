@@ -1,6 +1,7 @@
 const { prisma } = require('../../config/prisma');
 const progressionService = require('../progression/progression.service');
 const { cacheDel } = require('../../utils/cache');
+const { recordCoinTransaction } = require('../transaction/transaction.service');
 
 async function createExercise(data) {
   return prisma.exercise.create({ data });
@@ -100,6 +101,17 @@ async function submitExerciseAnswer(exerciseId, userId, userAnswers) {
   }
 
   cacheDel(`user:${userId}:state`, `gamification:user:${userId}:stats`).catch(() => {});
+
+  if (earnedCoins > 0) {
+    recordCoinTransaction({
+      userId,
+      amountCoins: earnedCoins,
+      transactionType: 'coin_earn',
+      description: `Exercice ${passed ? 'réussi' : 'complété'} : ${exercise.title} (score ${percentageScore}%)`,
+      referenceType: 'exercise',
+      referenceId: exerciseId
+    }).catch(() => {});
+  }
 
   return {
     attemptId: attempt.id,
