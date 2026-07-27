@@ -8,6 +8,10 @@ async function create(req, res, next) {
 		const exercise = await service.createExercise(value);
 		res.status(201).json({ success: true, data: exercise, message: 'Exercice créé avec succès.' });
 	} catch (err) {
+		if (err.message?.includes('non trouvé')) return res.status(404).json({ success: false, error: err.message });
+		if (err.message?.includes('type') || err.message?.includes('existe déjà')) {
+			return res.status(409).json({ success: false, error: err.message });
+		}
 		next(err);
 	}
 }
@@ -27,9 +31,9 @@ async function update(req, res, next) {
 		const { error, value } = updateExerciseSchema.validate(req.body);
 		if (error) return res.status(400).json({ success: false, error: error.details[0].message });
 		const exercise = await service.updateExercise(req.params.id, value);
-		if (!exercise) return res.status(404).json({ success: false, error: 'Exercice non trouvé' });
 		res.json({ success: true, data: exercise });
 	} catch (err) {
+		if (err.message?.includes('non trouvé')) return res.status(404).json({ success: false, error: err.message });
 		next(err);
 	}
 }
@@ -39,6 +43,7 @@ async function remove(req, res, next) {
 		await service.deleteExercise(req.params.id);
 		res.status(200).json({ success: true, message: 'Exercice supprimé.' });
 	} catch (err) {
+		if (err.message?.includes('non trouvé')) return res.status(404).json({ success: false, error: err.message });
 		next(err);
 	}
 }

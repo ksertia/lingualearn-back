@@ -4,6 +4,15 @@ const { cacheDel } = require('../../utils/cache');
 const { recordCoinTransaction } = require('../transaction/transaction.service');
 
 async function createExercise(data) {
+  const step = await prisma.step.findUnique({ where: { id: data.stepId } });
+  if (!step) throw new Error('Step non trouvé');
+  if (step.stepType !== 'exercise') {
+    throw new Error(`Ce step est de type "${step.stepType}", un exercice ne peut être attaché qu'à un step de type "exercise"`);
+  }
+
+  const existing = await prisma.exercise.findUnique({ where: { stepId: data.stepId } });
+  if (existing) throw new Error('Un exercice existe déjà pour ce step');
+
   return prisma.exercise.create({ data });
 }
 
@@ -12,10 +21,14 @@ async function getExerciseById(id) {
 }
 
 async function updateExercise(id, data) {
+  const existing = await prisma.exercise.findUnique({ where: { id } });
+  if (!existing) throw new Error('Exercice non trouvé');
   return prisma.exercise.update({ where: { id }, data });
 }
 
 async function deleteExercise(id) {
+  const existing = await prisma.exercise.findUnique({ where: { id } });
+  if (!existing) throw new Error('Exercice non trouvé');
   return prisma.exercise.delete({ where: { id } });
 }
 

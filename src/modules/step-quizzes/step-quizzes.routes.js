@@ -110,7 +110,7 @@ router.put('/:id', controller.update);
  *         schema:
  *           type: string
  *     responses:
- *       204:
+ *       200:
  *         description: Quiz supprimé
  *       404:
  *         description: Quiz non trouvé

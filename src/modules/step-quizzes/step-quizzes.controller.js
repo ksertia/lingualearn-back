@@ -1,13 +1,17 @@
-const { createStepQuizSchema } = require('./step-quizzes.schema');
+const { createStepQuizSchema, updateStepQuizSchema } = require('./step-quizzes.schema');
 const service = require('./step-quizzes.service');
 
 async function create(req, res, next) {
 	try {
 		const { error, value } = createStepQuizSchema.validate(req.body);
-		if (error) return res.status(400).json({ error: error.details[0].message });
+		if (error) return res.status(400).json({ success: false, error: error.details[0].message });
 		const quiz = await service.createStepQuiz(value);
 		res.status(201).json({ success: true, data: quiz, message: 'Quiz créé avec succès.' });
 	} catch (err) {
+		if (err.message?.includes('non trouvé')) return res.status(404).json({ success: false, error: err.message });
+		if (err.message?.includes('type') || err.message?.includes('existe déjà')) {
+			return res.status(409).json({ success: false, error: err.message });
+		}
 		next(err);
 	}
 }
@@ -15,8 +19,8 @@ async function create(req, res, next) {
 async function getById(req, res, next) {
 	try {
 		const quiz = await service.getStepQuizById(req.params.id);
-		if (!quiz) return res.status(404).json({ error: 'Quiz non trouvé' });
-		res.json(quiz);
+		if (!quiz) return res.status(404).json({ success: false, error: 'Quiz non trouvé' });
+		res.json({ success: true, data: quiz });
 	} catch (err) {
 		next(err);
 	}
@@ -24,22 +28,22 @@ async function getById(req, res, next) {
 
 async function update(req, res, next) {
 	try {
-		const { error, value } = createStepQuizSchema.validate(req.body);
-		if (error) return res.status(400).json({ error: error.details[0].message });
+		const { error, value } = updateStepQuizSchema.validate(req.body);
+		if (error) return res.status(400).json({ success: false, error: error.details[0].message });
 		const quiz = await service.updateStepQuiz(req.params.id, value);
-		if (!quiz) return res.status(404).json({ error: 'Quiz non trouvé' });
-		res.json(quiz);
+		res.json({ success: true, data: quiz });
 	} catch (err) {
+		if (err.message?.includes('non trouvé')) return res.status(404).json({ success: false, error: err.message });
 		next(err);
 	}
 };
 
 async function remove(req, res, next) {
 	try {
-		const deleted = await service.deleteStepQuiz(req.params.id);
-		if (!deleted) return res.status(404).json({ error: 'Quiz non trouvé' });
-		res.status(204).send();
+		await service.deleteStepQuiz(req.params.id);
+		res.status(200).json({ success: true, message: 'Quiz supprimé.' });
 	} catch (err) {
+		if (err.message?.includes('non trouvé')) return res.status(404).json({ success: false, error: err.message });
 		next(err);
 	}
 }

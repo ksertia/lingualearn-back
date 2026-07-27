@@ -36,9 +36,15 @@ const createBlockSchema = Joi.object({
 const updateBlockSchema = Joi.object({
   sectionType: Joi.string().valid(...SECTION_TYPES),
   contentType: Joi.string().valid(...CONTENT_TYPES),
-  content:     Joi.string().allow('', null),
+  content:     Joi.when('contentType', {
+    is: Joi.valid('video', 'audio', 'pdf', 'image'),
+    then: Joi.string().uri(),
+    otherwise: Joi.string()
+  }),
   caption:     Joi.string().max(500).allow('', null),
   index:       Joi.number().integer().min(0),
+}).and('contentType', 'content').messages({
+  'object.and': 'contentType et content doivent être fournis ensemble pour garantir la cohérence du bloc.'
 });
 
 const reorderBlocksSchema = Joi.object({

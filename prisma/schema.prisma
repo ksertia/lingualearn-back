@@ -227,7 +227,7 @@ model LessonBlock {
   updatedAt   DateTime @updatedAt
   lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
-  @@index([lessonId, index])
+  @@unique([lessonId, index])
   @@map("lesson_blocks")
 }
 

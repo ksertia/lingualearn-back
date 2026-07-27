@@ -156,6 +156,9 @@ const addBlock = async (req, res, next) => {
     const block = await courseService.addBlock(req.params.id, value);
     res.status(201).json({ success: true, data: block, message: 'Bloc ajouté.' });
   } catch (err) {
+    if (err.code === 'P2002') {
+      return res.status(409).json({ success: false, message: 'Un bloc existe déjà à cet index pour cette leçon.' });
+    }
     const status = err.message?.includes('non trouvé') ? 404 : 400;
     res.status(status).json({ success: false, message: err.message });
   }

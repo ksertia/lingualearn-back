@@ -3,6 +3,15 @@ const progressionService = require('../progression/progression.service');
 const { cacheDel } = require('../../utils/cache');
 
 async function createStepQuiz(data) {
+	const step = await prisma.step.findUnique({ where: { id: data.stepId } });
+	if (!step) throw new Error('Step non trouvé');
+	if (step.stepType !== 'quiz') {
+		throw new Error(`Ce step est de type "${step.stepType}", un quiz ne peut être attaché qu'à un step de type "quiz"`);
+	}
+
+	const existing = await prisma.quiz.findUnique({ where: { stepId: data.stepId } });
+	if (existing) throw new Error('Un quiz existe déjà pour ce step');
+
 	// Filtrer les champs non présents dans le modèle Quiz
 	const { description, isActive, ...quizData } = data;
 	return prisma.quiz.create({ data: quizData });
@@ -13,10 +22,17 @@ async function getStepQuizById(id) {
 }
 
 async function updateStepQuiz(id, data) {
-	return prisma.quiz.update({ where: { id }, data });
+	const existing = await prisma.quiz.findUnique({ where: { id } });
+	if (!existing) throw new Error('Quiz non trouvé');
+
+	// Filtrer les champs non présents dans le modèle Quiz
+	const { description, isActive, ...quizData } = data;
+	return prisma.quiz.update({ where: { id }, data: quizData });
 }
 
 async function deleteStepQuiz(id) {
+	const existing = await prisma.quiz.findUnique({ where: { id } });
+	if (!existing) throw new Error('Quiz non trouvé');
 	return prisma.quiz.delete({ where: { id } });
 }
 

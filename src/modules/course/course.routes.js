@@ -264,8 +264,64 @@ router.patch('/:id', controller.patchCourse);
  */
 router.delete('/:id', controller.deleteCourse);
 
+/**
+ * @swagger
+ * /api/v1/courses/{id}/duplicate:
+ *   post:
+ *     summary: Dupliquer une leçon (et tous ses blocs)
+ *     tags: [Course]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       201:
+ *         description: Leçon dupliquée
+ */
 router.post('/:id/duplicate',     controller.duplicateCourse);
+
+/**
+ * @swagger
+ * /api/v1/courses/{id}/toggle-publish:
+ *   patch:
+ *     summary: Activer/désactiver la publication d'une leçon
+ *     tags: [Course]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Statut de publication basculé
+ */
 router.patch('/:id/toggle-publish', controller.toggleCoursePublish);
+
+/**
+ * @swagger
+ * /api/v1/courses/{lessonId}/complete:
+ *   post:
+ *     summary: Marquer une leçon comme terminée pour un utilisateur
+ *     tags: [Course]
+ *     parameters:
+ *       - in: path
+ *         name: lessonId
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [userId]
+ *             properties:
+ *               userId: { type: string, example: 'user123' }
+ *     responses:
+ *       200:
+ *         description: Progression mise à jour
+ */
 router.post('/:lessonId/complete',  controller.completeLesson);
 
 // ─── Blocs ─────────────────────────────────────────────────────────────────────

@@ -107,27 +107,29 @@ exports.toggleCoursePublish = async (id) => {
 // ─── BLOCS ─────────────────────────────────────────────────────────────────────
 
 exports.addBlock = async (lessonId, data) => {
-  const lesson = await prisma.lesson.findUnique({ where: { id: lessonId } });
-  if (!lesson) throw new Error('Leçon non trouvée');
-
   if (!SECTION_TYPES.includes(data.sectionType))
     throw new Error(`sectionType invalide. Valeurs: ${SECTION_TYPES.join(', ')}`);
   if (!CONTENT_TYPES.includes(data.contentType))
     throw new Error(`contentType invalide. Valeurs: ${CONTENT_TYPES.join(', ')}`);
 
-  // Auto-index : dernier index + 1
-  const last = await prisma.lessonBlock.findFirst({ where: { lessonId }, orderBy: { index: 'desc' } });
-  const index = data.index !== undefined ? data.index : (last ? last.index + 1 : 0);
+  return prisma.$transaction(async (tx) => {
+    const lesson = await tx.lesson.findUnique({ where: { id: lessonId } });
+    if (!lesson) throw new Error('Leçon non trouvée');
 
-  return prisma.lessonBlock.create({
-    data: {
-      lessonId,
-      sectionType: data.sectionType,
-      contentType: data.contentType,
-      content:     data.content,
-      caption:     data.caption || null,
-      index
-    }
+    // Auto-index calculé et créé dans la même transaction pour éviter les doublons concurrents
+    const last = await tx.lessonBlock.findFirst({ where: { lessonId }, orderBy: { index: 'desc' } });
+    const index = data.index !== undefined ? data.index : (last ? last.index + 1 : 0);
+
+    return tx.lessonBlock.create({
+      data: {
+        lessonId,
+        sectionType: data.sectionType,
+        contentType: data.contentType,
+        content:     data.content,
+        caption:     data.caption || null,
+        index
+      }
+    });
   });
 };
 
@@ -160,11 +162,26 @@ exports.reorderBlocks = async (lessonId, orderedIds) => {
   const lesson = await prisma.lesson.findUnique({ where: { id: lessonId } });
   if (!lesson) throw new Error('Leçon non trouvée');
 
-  await Promise.all(
-    orderedIds.map((id, index) =>
-      prisma.lessonBlock.update({ where: { id }, data: { index } })
+  const existingBlocks = await prisma.lessonBlock.findMany({
+    where: { lessonId },
+    select: { id: true }
+  });
+  const validIds = new Set(existingBlocks.map(b => b.id));
+
+  if (orderedIds.length !== existingBlocks.length || !orderedIds.every(id => validIds.has(id))) {
+    throw new Error('orderedIds doit contenir exactement les blocs de cette leçon');
+  }
+
+  await prisma.$transaction([
+    // Décalage temporaire hors de la plage [0, n) pour éviter les collisions
+    // avec la contrainte unique (lessonId, index) pendant le réordonnancement
+    ...orderedIds.map((id, i) =>
+      prisma.lessonBlock.update({ where: { id }, data: { index: i + existingBlocks.length } })
+    ),
+    ...orderedIds.map((id, i) =>
+      prisma.lessonBlock.update({ where: { id }, data: { index: i } })
     )
-  );
+  ]);
 
   return prisma.lesson.findUnique({ where: { id: lessonId }, include: { blocks: { orderBy: { index: 'asc' } } } });
 };
