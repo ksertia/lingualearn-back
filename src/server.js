@@ -131,7 +131,7 @@ app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
         tryItOutEnabled: true
     },
     customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: 'LinguaLearn API Documentation'
+    customSiteTitle: 'Tibi API Documentation'
 }));
 app.get('/api-docs/swagger.json', (req, res) => {
     res.setHeader('Content-Type', 'application/json');

@@ -121,7 +121,7 @@ class AuthService {
             createNotification({
                 userId: user.id,
                 notificationType: 'welcome',
-                title: 'Bienvenue sur LinguaLearn !',
+                title: 'Bienvenue sur Tibi !',
                 message: `Votre essai gratuit de ${trialDays} jours commence maintenant. Bonne découverte !`,
                 actionUrl: '/home',
             }).catch(() => {});
@@ -215,7 +215,7 @@ class AuthService {
         createNotification({
             userId: child.id,
             notificationType: 'welcome',
-            title: 'Bienvenue sur LinguaLearn !',
+            title: 'Bienvenue sur Tibi !',
             message: `Ton compte a été créé. Bonne découverte !`,
             actionUrl: '/home',
         }).catch(() => {});

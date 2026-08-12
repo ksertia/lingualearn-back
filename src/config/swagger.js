@@ -6,9 +6,9 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'LinguaLearn API',
+      title: 'Tibi API',
       version: '1.0.0',
-      description: 'API complète pour la plateforme LinguaLearn - Authentication, Users & Admin',
+      description: 'API complète pour la plateforme Tibi - Authentication, Users & Admin',
       contact: {
         name: 'API Support',
         email: 'support@lingualearn.com',
