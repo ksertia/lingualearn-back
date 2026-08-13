@@ -55,6 +55,35 @@ router.get('/user/:userId/sub-theme/:subThemeId', controller.getUserSubThemeProg
 
 /**
  * @swagger
+ * /api/v1/progress/user/{userId}/level/{levelId}/next:
+ *   get:
+ *     summary: Suggère la prochaine étape (sous-thème) à faire pour cet utilisateur
+ *     description: |
+ *       Purement indicatif — aucun blocage. Retourne le premier sous-thème actif
+ *       (dans l'ordre Module > Thème > Sous-thème) dont la progression est
+ *       inférieure à 100%. L'utilisateur reste libre d'accéder à n'importe
+ *       quel autre sous-thème, cette route sert uniquement à guider
+ *       l'affichage d'une carte "Continuer avec...".
+ *     tags: [Progress]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: levelId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Sous-thème recommandé, ou subTheme null si le niveau est terminé
+ *       404:
+ *         description: Niveau non trouvé
+ */
+router.get('/user/:userId/level/:levelId/next', controller.getNextRecommended);
+
+/**
+ * @swagger
  * /api/v1/progress/user/{userId}/module/{moduleId}/recalculate:
  *   post:
  *     summary: Forcer le recalcul de la progression d'un module (et du niveau associé)

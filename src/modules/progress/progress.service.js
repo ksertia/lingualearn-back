@@ -130,6 +130,66 @@ exports.getUserSubThemeProgress = async (userId, subThemeId) => {
   return progress || { userId, subThemeId, progressPercentage: 0, completedContentIds: [], evaluationScore: null };
 };
 
+// Suggère le prochain sous-thème à faire pour un utilisateur sur un niveau —
+// purement indicatif, ne bloque jamais l'accès aux autres sous-thèmes.
+// Ordre naturel : Module.index -> Theme.index -> SubTheme.index. Le premier
+// sous-thème actif dont la progression est < 100% (ou jamais commencé) est
+// suggéré ; si tout est terminé, retourne subTheme: null.
+exports.getNextRecommendedSubTheme = async (userId, levelId) => {
+  const level = await prisma.level.findUnique({ where: { id: levelId } });
+  if (!level) throw new Error('Niveau non trouvé');
+
+  const modules = await prisma.module.findMany({
+    where: { levelId, isActive: true },
+    orderBy: { index: 'asc' },
+    select: {
+      id: true, title: true, index: true,
+      themes: {
+        where: { isActive: true },
+        orderBy: { index: 'asc' },
+        select: {
+          id: true, title: true, index: true,
+          subThemes: { where: { isActive: true }, orderBy: { index: 'asc' }, select: { id: true, title: true, index: true } }
+        }
+      }
+    }
+  });
+
+  // Aplatit la hiérarchie en une liste ordonnée module -> theme -> subTheme
+  const orderedSubThemes = [];
+  for (const module_ of modules) {
+    for (const theme of module_.themes) {
+      for (const subTheme of theme.subThemes) {
+        orderedSubThemes.push({ module: module_, theme, subTheme });
+      }
+    }
+  }
+
+  if (orderedSubThemes.length === 0) {
+    return { subTheme: null, theme: null, module: null, progressPercentage: 0, message: 'Aucun contenu disponible pour ce niveau.' };
+  }
+
+  const progresses = await prisma.userSubThemeProgress.findMany({
+    where: { userId, subThemeId: { in: orderedSubThemes.map(e => e.subTheme.id) } },
+    select: { subThemeId: true, progressPercentage: true }
+  });
+  const progressMap = new Map(progresses.map(p => [p.subThemeId, Number(p.progressPercentage)]));
+
+  const next = orderedSubThemes.find(e => (progressMap.get(e.subTheme.id) || 0) < 100);
+
+  if (!next) {
+    return { subTheme: null, theme: null, module: null, progressPercentage: 100, message: 'Niveau terminé — tous les sous-thèmes sont complétés.' };
+  }
+
+  return {
+    subTheme: { id: next.subTheme.id, title: next.subTheme.title, index: next.subTheme.index },
+    theme: { id: next.theme.id, title: next.theme.title },
+    module: { id: next.module.id, title: next.module.title },
+    progressPercentage: progressMap.get(next.subTheme.id) || 0,
+    message: `Continuez avec "${next.subTheme.title}".`
+  };
+};
+
 // Point d'entrée unique pour les modules de contenu : recalcule le sous-thème
 // PUIS propage jusqu'au module et au niveau, pour que les % restent à jour
 // à tous les étages sans que chaque appelant ait à connaître la chaîne complète.

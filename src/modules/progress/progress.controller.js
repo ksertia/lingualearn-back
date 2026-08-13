@@ -22,6 +22,17 @@ const getUserSubThemeProgress = async (req, res, next) => {
   }
 };
 
+const getNextRecommended = async (req, res, next) => {
+  try {
+    const { userId, levelId } = req.params;
+    const recommendation = await progressService.getNextRecommendedSubTheme(userId, levelId);
+    res.status(200).json({ success: true, data: recommendation });
+  } catch (err) {
+    const status = err.message?.includes('non trouvé') ? 404 : 400;
+    res.status(status).json({ success: false, message: err.message });
+  }
+};
+
 const recalculateModule = async (req, res, next) => {
   try {
     const { userId, moduleId } = req.params;
@@ -33,4 +44,4 @@ const recalculateModule = async (req, res, next) => {
   }
 };
 
-module.exports = { getUserLevelProgress, getUserSubThemeProgress, recalculateModule };
+module.exports = { getUserLevelProgress, getUserSubThemeProgress, getNextRecommended, recalculateModule };
