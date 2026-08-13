@@ -133,16 +133,16 @@ router.get(
 
 /**
  * @swagger
- * /api/v1/admin/stats/learning-paths/total:
+ * /api/v1/admin/stats/themes/total:
  *   get:
- *     summary: Nombre total de parcours créés
+ *     summary: Nombre total de thèmes créés
  *     tags: [AdminDashboard]
  *     responses:
  *       200:
- *         description: Nombre total de parcours
+ *         description: Nombre total de thèmes
  */
 router.get(
-  '/stats/learning-paths/total',
+  '/stats/themes/total',
   authMiddleware,
   allowRoles('admin'),
   controller.getTotalLearningPaths
@@ -150,16 +150,16 @@ router.get(
 
 /**
  * @swagger
- * /api/v1/admin/stats/steps/total:
+ * /api/v1/admin/stats/sub-themes/total:
  *   get:
- *     summary: Nombre total d'étapes
+ *     summary: Nombre total de sous-thèmes
  *     tags: [AdminDashboard]
  *     responses:
  *       200:
- *         description: Nombre total d'étapes
+ *         description: Nombre total de sous-thèmes
  */
 router.get(
-  '/stats/steps/total',
+  '/stats/sub-themes/total',
   authMiddleware,
   allowRoles('admin'),
   controller.getTotalSteps
@@ -167,16 +167,16 @@ router.get(
 
 /**
  * @swagger
- * /api/v1/admin/stats/lessons/total:
+ * /api/v1/admin/stats/contents/total:
  *   get:
- *     summary: Nombre total de leçons
+ *     summary: Nombre total de contenus de type "course"
  *     tags: [AdminDashboard]
  *     responses:
  *       200:
- *         description: Nombre total de leçons
+ *         description: Nombre total de contenus de type cours
  */
 router.get(
-  '/stats/lessons/total',
+  '/stats/contents/total',
   authMiddleware,
   allowRoles('admin'),
   controller.getTotalLessons
@@ -184,16 +184,16 @@ router.get(
 
 /**
  * @swagger
- * /api/v1/admin/stats/quizzes/total:
+ * /api/v1/admin/stats/evaluations/total:
  *   get:
- *     summary: Nombre total de quiz (stepQuizzes)
+ *     summary: Nombre total d'évaluations de sous-thème
  *     tags: [AdminDashboard]
  *     responses:
  *       200:
- *         description: Nombre total de quiz
+ *         description: Nombre total d'évaluations
  */
 router.get(
-  '/stats/quizzes/total',
+  '/stats/evaluations/total',
   authMiddleware,
   allowRoles('admin'),
   controller.getTotalQuizzes

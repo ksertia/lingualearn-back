@@ -193,9 +193,9 @@ router.get('/:languageId/levels/:levelId/modules', controller.getLevelModules);
 
 /**
  * @swagger
- * /api/v1/languages/{languageId}/levels/{levelId}/modules/{moduleId}/paths:
+ * /api/v1/languages/{languageId}/levels/{levelId}/modules/{moduleId}/themes:
  *   get:
- *     summary: Récupérer tous les parcours d'un module spécifique
+ *     summary: Récupérer tous les thèmes d'un module spécifique
  *     tags: [Languages]
  *     parameters:
  *       - in: path
@@ -203,67 +203,29 @@ router.get('/:languageId/levels/:levelId/modules', controller.getLevelModules);
  *         required: true
  *         schema:
  *           type: string
- *         description: "ID de la langue (UUID Prisma)"
  *       - in: path
  *         name: levelId
  *         required: true
  *         schema:
  *           type: string
- *         description: ID du niveau
  *       - in: path
  *         name: moduleId
  *         required: true
  *         schema:
  *           type: string
- *         description: ID du module
  *     responses:
  *       200:
- *         description: Parcours récupérés avec succès
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *                   properties:
- *                     languageId:
- *                       type: string
- *                     levelId:
- *                       type: string
- *                     moduleId:
- *                       type: string
- *                     moduleName:
- *                       type: string
- *                     paths:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           id:
- *                             type: string
- *                           name:
- *                             type: string
- *                           description:
- *                             type: string
- *                           index:
- *                             type: integer
- *                           steps:
- *                             type: array
- *                             items:
- *                               type: object
+ *         description: Thèmes récupérés avec succès
  *       404:
  *         description: Langue, niveau ou module non trouvé
  */
-router.get('/:languageId/levels/:levelId/modules/:moduleId/paths', controller.getModulePaths);
+router.get('/:languageId/levels/:levelId/modules/:moduleId/themes', controller.getModuleThemes);
 
 /**
  * @swagger
- * /api/v1/languages/{languageId}/levels/{levelId}/modules/{moduleId}/paths/{pathId}/steps:
+ * /api/v1/languages/{languageId}/levels/{levelId}/modules/{moduleId}/themes/{themeId}/sub-themes:
  *   get:
- *     summary: Récupérer toutes les étapes d'un parcours spécifique
+ *     summary: Récupérer tous les sous-thèmes d'un thème spécifique
  *     tags: [Languages]
  *     parameters:
  *       - in: path
@@ -271,75 +233,34 @@ router.get('/:languageId/levels/:levelId/modules/:moduleId/paths', controller.ge
  *         required: true
  *         schema:
  *           type: string
- *         description: "ID de la langue (UUID Prisma)"
  *       - in: path
  *         name: levelId
  *         required: true
  *         schema:
  *           type: string
- *         description: ID du niveau
  *       - in: path
  *         name: moduleId
  *         required: true
  *         schema:
  *           type: string
- *         description: ID du module
  *       - in: path
- *         name: pathId
+ *         name: themeId
  *         required: true
  *         schema:
  *           type: string
- *         description: ID du parcours
  *     responses:
  *       200:
- *         description: Étapes récupérées avec succès
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *                   properties:
- *                     languageId:
- *                       type: string
- *                     levelId:
- *                       type: string
- *                     moduleId:
- *                       type: string
- *                     pathId:
- *                       type: string
- *                     pathName:
- *                       type: string
- *                     steps:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           id:
- *                             type: string
- *                           name:
- *                             type: string
- *                           description:
- *                             type: string
- *                           index:
- *                             type: integer
- *                           type:
- *                             type: string
- *                           content:
- *                             type: object
+ *         description: Sous-thèmes récupérés avec succès
  *       404:
- *         description: Langue, niveau, module ou parcours non trouvé
+ *         description: Langue, niveau, module ou thème non trouvé
  */
-router.get('/:languageId/levels/:levelId/modules/:moduleId/paths/:pathId/steps', controller.getPathSteps);
+router.get('/:languageId/levels/:levelId/modules/:moduleId/themes/:themeId/sub-themes', controller.getThemeSubThemes);
 
 /**
  * @swagger
- * /api/v1/languages/{languageId}/levels/{levelId}/modules/{moduleId}/paths/{pathId}/steps/{stepId}/content:
+ * /api/v1/languages/{languageId}/levels/{levelId}/modules/{moduleId}/themes/{themeId}/sub-themes/{subThemeId}/content:
  *   get:
- *     summary: Récupérer le contenu complet d'une étape (cours, exercices, quiz)
+ *     summary: Récupérer le contenu complet d'un sous-thème (cours, vidéos, exercices, ressources, évaluation)
  *     tags: [Languages]
  *     parameters:
  *       - in: path
@@ -347,114 +268,33 @@ router.get('/:languageId/levels/:levelId/modules/:moduleId/paths/:pathId/steps',
  *         required: true
  *         schema:
  *           type: string
- *         description: "ID de la langue (UUID Prisma)"
  *       - in: path
  *         name: levelId
  *         required: true
  *         schema:
  *           type: string
- *         description: ID du niveau
  *       - in: path
  *         name: moduleId
  *         required: true
  *         schema:
  *           type: string
- *         description: ID du module
  *       - in: path
- *         name: pathId
+ *         name: themeId
  *         required: true
  *         schema:
  *           type: string
- *         description: ID du parcours
  *       - in: path
- *         name: stepId
+ *         name: subThemeId
  *         required: true
  *         schema:
  *           type: string
- *         description: ID de l'étape
  *     responses:
  *       200:
- *         description: Contenu de l'étape récupéré avec succès
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *                   properties:
- *                     languageId:
- *                       type: string
- *                     levelId:
- *                       type: string
- *                     moduleId:
- *                       type: string
- *                     pathId:
- *                       type: string
- *                     stepId:
- *                       type: string
- *                     stepName:
- *                       type: string
- *                     step:
- *                       type: object
- *                       properties:
- *                         id:
- *                           type: string
- *                         name:
- *                           type: string
- *                         description:
- *                           type: string
- *                         index:
- *                           type: integer
- *                         type:
- *                           type: string
- *                     courses:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           id:
- *                             type: string
- *                           title:
- *                             type: string
- *                           content:
- *                             type: object
- *                           order:
- *                             type: integer
- *                     exercises:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           id:
- *                             type: string
- *                           title:
- *                             type: string
- *                           instructions:
- *                             type: string
- *                           type:
- *                             type: string
- *                           order:
- *                             type: integer
- *                     quizzes:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           id:
- *                             type: string
- *                           title:
- *                             type: string
- *                           questions:
- *                             type: array
- *                           order:
- *                             type: integer
+ *         description: Contenu du sous-thème récupéré avec succès
  *       404:
- *         description: Langue, niveau, module, parcours ou étape non trouvé
+ *         description: Langue, niveau, module, thème ou sous-thème non trouvé
  */
-router.get('/:languageId/levels/:levelId/modules/:moduleId/paths/:pathId/steps/:stepId/content', controller.getStepContent);
+router.get('/:languageId/levels/:levelId/modules/:moduleId/themes/:themeId/sub-themes/:subThemeId/content', controller.getSubThemeContent);
 
 /**
  * @swagger

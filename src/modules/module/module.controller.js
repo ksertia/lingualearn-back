@@ -14,11 +14,11 @@ exports.startModule = async (req, res, next) => {
 exports.completeModule = async (req, res, next) => {
   try {
     const { userId, moduleId } = req.params;
-    const progress = await service.completeModuleWithAutoUnlock(userId, moduleId);
-    res.json({ 
-      success: true, 
-      message: 'Module complété avec succès. Prochain module débloqué automatiquement.',
-      data: progress 
+    const progress = await service.completeModuleForUser(userId, moduleId);
+    res.json({
+      success: true,
+      message: 'Module complété avec succès.',
+      data: progress
     });
   } catch (err) {
     next(err);

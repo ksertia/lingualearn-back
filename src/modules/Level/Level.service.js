@@ -1,5 +1,4 @@
 const { prisma } = require('../../config/prisma');
-const progressionService = require('../progression/progression.service');
 const { cacheGet, cacheSet, cacheDel, cacheInvalidatePattern, TTL } = require('../../utils/cache');
 const { syncAllUsersProgression } = require('../../utils/progressionSync');
 
@@ -84,8 +83,6 @@ class LevelService {
             // Progression (peut être null si jamais touché)
             progress: level.userProgress[0] || null,
             
-            // Statut calculé
-            status: level.userProgress[0]?.status || 'locked',
             progressPercentage: level.userProgress[0]?.progressPercentage || 0,
             totalXp: level.userProgress[0]?.totalXp || 0,
             timeSpentMinutes: level.userProgress[0]?.timeSpentMinutes || 0,
@@ -220,9 +217,8 @@ class LevelService {
         return level;
     }
 
-    // Progression utilisateur pour Level (optimisée)
+    // Progression utilisateur pour Level (optimisée) — aucun blocage, accès libre
     async selectLevelForUser(userId, levelId) {
-        // Vérifier si le niveau existe et est actif
         const level = await prisma.level.findUnique({
             where: { id: levelId, isActive: true },
             select: { id: true, languageId: true }
@@ -243,29 +239,11 @@ class LevelService {
             data: { lastAccessedAt: null }
         });
 
-        // Créer ou mettre à jour la progression pour ce niveau
         await prisma.userLevelProgress.upsert({
             where: { userId_levelId: { userId, levelId } },
-            update: { lastAccessedAt: new Date(), status: 'unlocked', unlockedAt: new Date() },
-            create: {
-                userId,
-                levelId,
-                status: 'unlocked',
-                unlockedAt: new Date(),
-                lastAccessedAt: new Date()
-            }
+            update: { lastAccessedAt: new Date() },
+            create: { userId, levelId, lastAccessedAt: new Date() }
         });
-
-        // TOUJOURS débloquer module1 → parcours1 → étape1 pour ce niveau
-        // (que ce soit une première sélection ou un changement de niveau)
-        const firstModule = await prisma.module.findFirst({
-            where: { levelId, isActive: true },
-            orderBy: { index: 'asc' },
-            select: { id: true }
-        });
-        if (firstModule) {
-            await progressionService.unlockModuleWithChildren(userId, firstModule.id);
-        }
 
         await this.invalidateCache(null, level.languageId);
         await cacheDel(`user:${userId}:progress`, `user-levels:${userId}`);
@@ -274,65 +252,11 @@ class LevelService {
         });
     }
 
-    // Méthode helper pour débloquer le contenu d'un niveau
-    async unlockLevelContent(userId, levelId) {
-        // Charger module1 + path1 + step1 en parallèle via leurs relations imbriquées
-        const [firstModule, firstPathViaLevel, firstStepViaLevel] = await Promise.all([
-            prisma.module.findFirst({
-                where: { levelId, isActive: true },
-                orderBy: { index: 'asc' },
-                select: { id: true }
-            }),
-            prisma.path.findFirst({
-                where: { module: { levelId, isActive: true }, isActive: true },
-                orderBy: [{ module: { index: 'asc' } }, { index: 'asc' }],
-                select: { id: true, moduleId: true }
-            }),
-            prisma.step.findFirst({
-                where: { path: { module: { levelId, isActive: true }, isActive: true }, isActive: true },
-                orderBy: [{ path: { module: { index: 'asc' } } }, { path: { index: 'asc' } }, { index: 'asc' }],
-                select: { id: true }
-            })
-        ]);
-
-        if (!firstModule) return;
-
-        const now = new Date();
-        const unlockedData = { status: 'unlocked', unlockedAt: now, lastAccessedAt: now };
-
-        // Construire les upserts disponibles selon ce qu'on a trouvé
-        const upserts = [
-            prisma.userModuleProgress.upsert({
-                where: { userId_moduleId: { userId, moduleId: firstModule.id } },
-                update: unlockedData,
-                create: { userId, moduleId: firstModule.id, ...unlockedData }
-            })
-        ];
-
-        if (firstPathViaLevel) {
-            upserts.push(prisma.userPathProgress.upsert({
-                where: { userId_pathId: { userId, pathId: firstPathViaLevel.id } },
-                update: unlockedData,
-                create: { userId, pathId: firstPathViaLevel.id, ...unlockedData }
-            }));
-        }
-
-        if (firstStepViaLevel) {
-            upserts.push(prisma.userStepProgress.upsert({
-                where: { userId_stepId: { userId, stepId: firstStepViaLevel.id } },
-                update: unlockedData,
-                create: { userId, stepId: firstStepViaLevel.id, ...unlockedData }
-            }));
-        }
-
-        await Promise.all(upserts);
-    }
-
     async startLevelForUser(userId, levelId) {
         try {
             return await prisma.userLevelProgress.update({
                 where: { userId_levelId: { userId, levelId } },
-                data: { status: 'started', startedAt: new Date(), lastAccessedAt: new Date() }
+                data: { startedAt: new Date(), lastAccessedAt: new Date() }
             });
         } catch (err) {
             if (err.code === 'P2025') throw new Error('Niveau non sélectionné pour cet utilisateur');
@@ -344,16 +268,8 @@ class LevelService {
         const levelData = await prisma.level.findUnique({ where: { id: levelId }, select: { languageId: true } });
         const result = await prisma.userLevelProgress.update({
             where: { userId_levelId: { userId, levelId } },
-            data: { status: 'completed', completedAt: new Date(), progressPercentage: 100 }
+            data: { completedAt: new Date(), progressPercentage: 100 }
         });
-        await this.invalidateCache(levelId, levelData?.languageId);
-        return result;
-    }
-
-    // Compléter un niveau avec déblocage automatique du suivant
-    async completeLevelWithAutoUnlock(userId, levelId) {
-        const levelData = await prisma.level.findUnique({ where: { id: levelId }, select: { languageId: true } });
-        const result = await progressionService.completeLevelAndUnlockNext(userId, levelId);
         await this.invalidateCache(levelId, levelData?.languageId);
         return result;
     }

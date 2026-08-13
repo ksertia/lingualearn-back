@@ -1,17 +1,15 @@
 const { prisma } = require('../../config/prisma');
-const progressionService = require('../progression/progression.service');
-const { invalidateStructureCache, provisionNewContent } = require('../progression/progression.service');
-const { cacheWrap, cacheDel, cacheInvalidatePattern, TTL } = require('../../utils/cache');
+const { cacheWrap, cacheDel, TTL } = require('../../utils/cache');
 const { notifyLearnersNewContent } = require('../../utils/contentNotifier');
 const { syncAllUsersProgression } = require('../../utils/progressionSync');
 
-// Récupérer tous les modules liés à un utilisateur (via userModuleProgress)
+// Récupérer tous les modules liés à un utilisateur (via userModuleProgress) — accès libre, aucun blocage
 exports.getModulesByUserId = async (userId, levelId = null) => {
   let targetLevelId = levelId;
 
   if (!targetLevelId) {
     const userLevelProgress = await prisma.userLevelProgress.findFirst({
-      where: { userId, status: { in: ['unlocked', 'started', 'completed'] } },
+      where: { userId },
       orderBy: { lastAccessedAt: 'desc' }
     });
     if (!userLevelProgress) return [];
@@ -22,7 +20,7 @@ exports.getModulesByUserId = async (userId, levelId = null) => {
     const modules = await prisma.module.findMany({
       where: { levelId: targetLevelId, isActive: true },
       orderBy: { index: 'asc' },
-      include: { userProgress: { where: { userId }, select: { status: true, progressPercentage: true, totalXp: true, timeSpentMinutes: true, unlockedAt: true, startedAt: true, completedAt: true, lastAccessedAt: true } } }
+      include: { userProgress: { where: { userId }, select: { progressPercentage: true, startedAt: true, completedAt: true, lastAccessedAt: true } } }
     });
 
     return modules.map(module => ({
@@ -31,14 +29,9 @@ exports.getModulesByUserId = async (userId, levelId = null) => {
       description: module.description,
       index: module.index,
       thumbnailUrl: module.thumbnailUrl,
-      estimatedHours: module.estimatedHours,
       isActive: module.isActive,
       progress: module.userProgress[0] || null,
-      status: module.userProgress[0]?.status || 'locked',
       progressPercentage: module.userProgress[0]?.progressPercentage || 0,
-      totalXp: module.userProgress[0]?.totalXp || 0,
-      timeSpentMinutes: module.userProgress[0]?.timeSpentMinutes || 0,
-      unlockedAt: module.userProgress[0]?.unlockedAt || null,
       startedAt: module.userProgress[0]?.startedAt || null,
       completedAt: module.userProgress[0]?.completedAt || null,
       lastAccessedAt: module.userProgress[0]?.lastAccessedAt || null
@@ -47,26 +40,16 @@ exports.getModulesByUserId = async (userId, levelId = null) => {
 };
 
 exports.startModuleForUser = async (userId, moduleId) => {
-  // Charger module + premier path + upsert progression en parallèle
-  const [mod, firstPath, progress] = await Promise.all([
+  const [mod, progress] = await Promise.all([
     prisma.module.findUnique({ where: { id: moduleId }, select: { levelId: true } }),
-    prisma.path.findFirst({ where: { moduleId }, orderBy: { index: 'asc' }, select: { id: true } }),
     prisma.userModuleProgress.upsert({
       where: { userId_moduleId: { userId, moduleId } },
-      update: { status: 'started', startedAt: new Date(), lastAccessedAt: new Date() },
-      create: { userId, moduleId, status: 'started', startedAt: new Date(), lastAccessedAt: new Date() }
+      update: { startedAt: new Date(), lastAccessedAt: new Date() },
+      create: { userId, moduleId, startedAt: new Date(), lastAccessedAt: new Date() }
     }),
   ]);
 
-  // Invalider cache + débloquer premier path en parallèle
-  await Promise.all([
-    mod ? cacheDel(`user:${userId}:modules:level:${mod.levelId}`) : Promise.resolve(),
-    firstPath ? prisma.userPathProgress.upsert({
-      where: { userId_pathId: { userId, pathId: firstPath.id } },
-      update: { status: 'unlocked', unlockedAt: new Date(), lastAccessedAt: new Date() },
-      create: { userId, pathId: firstPath.id, status: 'unlocked', unlockedAt: new Date(), lastAccessedAt: new Date() }
-    }) : Promise.resolve(),
-  ]);
+  if (mod) await cacheDel(`user:${userId}:modules:level:${mod.levelId}`);
 
   return progress;
 };
@@ -76,13 +59,8 @@ exports.completeModuleForUser = async (userId, moduleId) => {
   if (mod) await cacheDel(`user:${userId}:modules:level:${mod.levelId}`);
   return prisma.userModuleProgress.update({
     where: { userId_moduleId: { userId, moduleId } },
-    data: { status: 'completed', completedAt: new Date() }
+    data: { completedAt: new Date(), progressPercentage: 100 }
   });
-};
-
-// Compléter un module avec déblocage automatique du suivant
-exports.completeModuleWithAutoUnlock = async (userId, moduleId) => {
-  return await progressionService.completeModuleAndUnlockNext(userId, moduleId);
 };
 
 exports.create = async (data) => {

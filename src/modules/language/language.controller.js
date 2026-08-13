@@ -184,40 +184,40 @@ exports.getLevelModules = async (req, res, next) => {
 	}
 };
 
-exports.getModulePaths = async (req, res, next) => {
+exports.getModuleThemes = async (req, res, next) => {
 	try {
 		const { languageId, levelId, moduleId } = req.params;
-		const paths = await service.getModulePaths(languageId, levelId, moduleId);
-		if (!paths) {
+		const themes = await service.getModuleThemes(languageId, levelId, moduleId);
+		if (!themes) {
 			return res.status(404).json({ success: false, error: 'Langue, niveau ou module non trouvé' });
 		}
-		res.json({ success: true, data: { languageId, levelId, moduleId, moduleName: paths.moduleName, paths: paths.paths } });
+		res.json({ success: true, data: { languageId, levelId, moduleId, moduleName: themes.moduleName, themes: themes.themes } });
 	} catch (err) {
 		next(err);
 	}
 };
 
-exports.getPathSteps = async (req, res, next) => {
+exports.getThemeSubThemes = async (req, res, next) => {
 	try {
-		const { languageId, levelId, moduleId, pathId } = req.params;
-		const steps = await service.getPathSteps(languageId, levelId, moduleId, pathId);
-		if (!steps) {
-			return res.status(404).json({ success: false, error: 'Langue, niveau, module ou parcours non trouvé' });
+		const { languageId, levelId, moduleId, themeId } = req.params;
+		const subThemes = await service.getThemeSubThemes(languageId, levelId, moduleId, themeId);
+		if (!subThemes) {
+			return res.status(404).json({ success: false, error: 'Langue, niveau, module ou thème non trouvé' });
 		}
-		res.json({ success: true, data: { languageId, levelId, moduleId, pathId, pathName: steps.pathName, steps: steps.steps } });
+		res.json({ success: true, data: { languageId, levelId, moduleId, themeId, themeName: subThemes.themeName, subThemes: subThemes.subThemes } });
 	} catch (err) {
 		next(err);
 	}
 };
 
-exports.getStepContent = async (req, res, next) => {
+exports.getSubThemeContent = async (req, res, next) => {
 	try {
-		const { languageId, levelId, moduleId, pathId, stepId } = req.params;
-		const content = await service.getStepContent(languageId, levelId, moduleId, pathId, stepId);
+		const { languageId, levelId, moduleId, themeId, subThemeId } = req.params;
+		const content = await service.getSubThemeContent(languageId, levelId, moduleId, themeId, subThemeId);
 		if (!content) {
-			return res.status(404).json({ success: false, error: 'Langue, niveau, module, parcours ou étape non trouvé' });
+			return res.status(404).json({ success: false, error: 'Langue, niveau, module, thème ou sous-thème non trouvé' });
 		}
-		res.json({ success: true, data: { languageId, levelId, moduleId, pathId, stepId, stepName: content.stepName, step: content.step, courses: content.courses, exercises: content.exercises, quizzes: content.quizzes } });
+		res.json({ success: true, data: { languageId, levelId, moduleId, themeId, subThemeId, subThemeName: content.subThemeName, subTheme: content.subTheme, contents: content.contents, evaluation: content.evaluation } });
 	} catch (err) {
 		next(err);
 	}

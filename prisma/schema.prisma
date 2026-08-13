@@ -28,12 +28,12 @@ model User {
   referredBy          String?
   reportsSent         AccountReport[]        @relation("ReportsSent")
   reportsGenerated    AccountReport[]        @relation("ReportsGenerated")
-  exerciseAttempts    ExerciseAttempt[]
+  contentAttempts     ContentAttempt[]
+  evaluationAttempts  EvaluationAttempt[]
   loginAttempts       LoginAttempt[]
   notifications       Notification[]
   passwordResetTokens PasswordResetToken[]
   profile             Profile?
-  quizAttempts        QuizAttempt[]
   refreshTokens       RefreshToken[]
   sessions            Session[]
   subAccountControls  SubAccountControl[]    @relation("ParentControls")
@@ -47,11 +47,8 @@ model User {
   languageProgress    UserLanguageProgress[]
   levelProgress       UserLevelProgress[]
   moduleProgress      UserModuleProgress[]
-  pathProgress        UserPathProgress[]
+  subThemeProgress    UserSubThemeProgress[]
   stats               UserStats?
-  stepProgress        UserStepProgress[]
-  exerciseProgress    UserExerciseProgress[]
-  quizProgress        UserQuizProgress[]
   createdByUser       User?                  @relation("CreatedBy", fields: [createdBy], references: [id])
   createdUsers        User[]                 @relation("CreatedBy")
   parentUser          User?                  @relation("ParentToSubAccounts", fields: [parentId], references: [id])
@@ -150,148 +147,177 @@ model Module {
   updatedAt    DateTime             @updatedAt
   thumbnailUrl String?              @db.VarChar(500)
   level        Level                @relation(fields: [levelId], references: [id], onDelete: Cascade)
-  paths        Path[]
+  themes       Theme[]
   userProgress UserModuleProgress[]
 
   @@unique([levelId, index])
   @@map("modules")
 }
 
-model Path {
-  id              String             @id @default(cuid())
-  moduleId        String
-  title           String             @db.VarChar(200)
-  description     String?            @db.Text
-  index           Int                @default(0)
-  estimatedMinutes Int?
-  thumbnailUrl    String?            @db.VarChar(500)
-  difficulty      String             @default("medium") @db.VarChar(20)
-  estimatedHours  Int?               @default(10)
-  isActive        Boolean            @default(true)
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  pathQuiz        PathQuiz?
-  module          Module             @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  steps           Step[]
-  userProgress    UserPathProgress[]
+model Theme {
+  id          String     @id @default(cuid())
+  moduleId    String
+  title       String     @db.VarChar(200)
+  description String?    @db.Text
+  iconUrl     String?    @db.VarChar(500)
+  index       Int        @default(0)
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  module      Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  subThemes   SubTheme[]
 
-  @@unique([moduleId, index])
-  @@map("paths")
+  @@index([moduleId])
+  @@map("themes")
 }
 
-model Step {
-  id               String             @id @default(cuid())
-  pathId           String
-  title            String             @db.VarChar(200)
-  description      String?            @db.Text
-  stepType         String             @db.VarChar(20)
-  index            Int                @default(0)
-  estimatedMinutes Int                @default(15)
-  isActive         Boolean            @default(true)
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  exercise         Exercise?
-  lesson           Lesson?
-  quiz             Quiz?
-  path             Path               @relation(fields: [pathId], references: [id], onDelete: Cascade)
-  userProgress     UserStepProgress[]
+model SubTheme {
+  id           String                 @id @default(cuid())
+  themeId      String
+  title        String                 @db.VarChar(200)
+  description  String?                @db.Text
+  index        Int                    @default(0)
+  isActive     Boolean                @default(true)
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  theme        Theme                  @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  contents     Content[]
+  evaluation   Evaluation?
+  userProgress UserSubThemeProgress[]
 
-  @@unique([pathId, index])
-  @@map("steps")
+  @@index([themeId])
+  @@map("sub_themes")
 }
 
-model Lesson {
-  id          String        @id @default(cuid())
-  stepId      String        @unique
-  title       String        @db.VarChar(200)
-  summary     String?       @db.Text
-  index       Int           @default(0)
-  isActive    Boolean       @default(true)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  step        Step          @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  blocks      LessonBlock[]
+// contentType: course | video | exercise | resource
+model Content {
+  id         String @id @default(cuid())
+  subThemeId String
+  contentType String @db.VarChar(20)
+  title      String @db.VarChar(200)
+  index      Int    @default(0)
+  isActive   Boolean @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  @@map("lessons")
+  // ── course ──
+  summary         String? @db.Text
+
+  // ── video ──
+  videoUrl        String? @db.VarChar(500)
+  description     String? @db.Text
+  keyPoints       Json?
+
+  // ── exercise ──
+  statement       String? @db.Text
+  question        String? @db.Text
+  possibleAnswers Json?
+  correctAnswer   Json?
+  explanation     String? @db.Text
+
+  // ── resource ──
+  resourceType String? @db.VarChar(20)
+  resourceUrl  String? @db.VarChar(500)
+
+  subTheme SubTheme       @relation(fields: [subThemeId], references: [id], onDelete: Cascade)
+  blocks   ContentBlock[]
+  attempts ContentAttempt[]
+
+  @@unique([subThemeId, index])
+  @@index([subThemeId, contentType])
+  @@map("contents")
 }
 
-model LessonBlock {
+model ContentBlock {
   id          String   @id @default(cuid())
-  lessonId    String
-  sectionType String   @db.VarChar(30)  // introduction | main | transcript | example | example_audio | key_points
-  contentType String   @db.VarChar(20)  // text | video | audio | pdf | image
-  content     String   @db.Text         // texte brut OU url selon contentType
-  caption     String?  @db.VarChar(500) // légende optionnelle
-  index       Int      @default(0)      // ordre dans la leçon
+  contentId   String
+  sectionType String   @db.VarChar(30)  // introduction | lesson | example | key_point | summary
+  blockType   String   @db.VarChar(20)  // text | video | audio | pdf | image
+  content     String   @db.Text         // texte brut OU url selon blockType
+  caption     String?  @db.VarChar(500)
+  index       Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  parent      Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
 
-  @@unique([lessonId, index])
-  @@map("lesson_blocks")
+  @@unique([contentId, index])
+  @@map("content_blocks")
 }
 
-model Exercise {
-  id             String            @id @default(cuid())
-  stepId         String            @unique
-  title          String            @db.VarChar(200)
-  instructions   String            @db.Text
-  content        Json
-  correctAnswers Json?
-  hints          Json?
-  explanation    String?           @db.Text
-  maxAttempts    Int               @default(3)
-  points         Int               @default(10)
-  xpReward       Int               @default(20)
-  coinReward     Int               @default(10)
-  index          Int               @default(0)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  attempts       ExerciseAttempt[]
-  userProgress   UserExerciseProgress[]
-  step           Step              @relation(fields: [stepId], references: [id], onDelete: Cascade)
-
-  @@map("exercises")
-}
-
-model Quiz {
-  id               String        @id @default(cuid())
-  stepId           String        @unique
-  title            String        @db.VarChar(200)
+model Evaluation {
+  id               String              @id @default(cuid())
+  subThemeId       String              @unique
+  title            String              @db.VarChar(200)
+  description      String?             @db.Text
   questions        Json
-  passingScore     Int           @default(70)
-  maxAttempts      Int           @default(2)
-  timeLimitMinutes Int?          @default(10)
-  xpReward         Int           @default(30)
-  coinReward       Int           @default(15)
-  index            Int           @default(0)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  attempts         QuizAttempt[]
-  userProgress     UserQuizProgress[]
-  step             Step          @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  passingScore     Int                 @default(70)
+  maxAttempts      Int                 @default(3)
+  timeLimitMinutes Int?                @default(15)
+  isActive         Boolean             @default(true)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  subTheme         SubTheme            @relation(fields: [subThemeId], references: [id], onDelete: Cascade)
+  attempts         EvaluationAttempt[]
 
-  @@map("quizzes")
+  @@map("evaluations")
 }
 
-model PathQuiz {
-  id               String        @id @default(cuid())
-  pathId           String        @unique
-  title            String        @db.VarChar(200)
-  description      String?       @db.Text
-  questions        Json
-  passingScore     Int           @default(70)
-  maxAttempts      Int           @default(3)
-  timeLimitMinutes Int           @default(30)
-  xpReward         Int           @default(100)
-  coinReward       Int           @default(50)
-  isActive         Boolean       @default(true)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  path             Path          @relation(fields: [pathId], references: [id], onDelete: Cascade)
-  attempts         QuizAttempt[]
+model EvaluationAttempt {
+  id               String     @id @default(cuid())
+  userId           String
+  evaluationId     String
+  attemptNumber    Int
+  answers          Json
+  score            Decimal    @db.Decimal(5, 2)
+  passed           Boolean
+  timeSpentSeconds Int?
+  feedback         Json?
+  createdAt        DateTime   @default(now())
+  evaluation       Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("path_quizzes")
+  @@unique([userId, evaluationId, attemptNumber])
+  @@index([evaluationId], map: "evaluation_attempts_evaluationId_fkey")
+  @@map("evaluation_attempts")
+}
+
+model ContentAttempt {
+  id               String   @id @default(cuid())
+  userId           String
+  contentId        String
+  attemptNumber    Int
+  answers          Json
+  score            Decimal? @db.Decimal(5, 2)
+  isCorrect        Boolean?
+  timeSpentSeconds Int?
+  createdAt        DateTime @default(now())
+  content          Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contentId, attemptNumber])
+  @@index([contentId], map: "content_attempts_contentId_fkey")
+  @@map("content_attempts")
+}
+
+model UserSubThemeProgress {
+  id                  String    @id @default(cuid())
+  userId              String
+  subThemeId          String
+  progressPercentage  Decimal   @default(0.00) @db.Decimal(5, 2)
+  completedContentIds Json?
+  evaluationScore     Decimal?  @db.Decimal(5, 2)
+  startedAt           DateTime?
+  completedAt         DateTime?
+  lastAccessedAt      DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  subTheme            SubTheme  @relation(fields: [subThemeId], references: [id], onDelete: Cascade)
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, subThemeId])
+  @@index([subThemeId])
+  @@index([userId])
+  @@map("user_sub_theme_progress")
 }
 
 model UserLanguageProgress {
@@ -360,108 +386,6 @@ model UserModuleProgress {
   @@index([moduleId, status])
   @@index([userId, status])
   @@map("user_module_progress")
-}
-
-model UserPathProgress {
-  id                 String    @id @default(cuid())
-  userId             String
-  pathId             String
-  status             String    @default("locked") @db.VarChar(20)
-  currentStepIndex   Int       @default(0)
-  progressPercentage Decimal   @default(0.00) @db.Decimal(5, 2)
-  totalXp            Int       @default(0)
-  timeSpentMinutes   Int       @default(0)
-  quizScore          Decimal?  @db.Decimal(5, 2)
-  unlockedAt         DateTime?
-  startedAt          DateTime?
-  completedAt        DateTime?
-  lastAccessedAt     DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  path               Path      @relation(fields: [pathId], references: [id], onDelete: Cascade)
-  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, pathId])
-  @@index([pathId, status])
-  @@index([userId, status])
-  @@map("user_path_progress")
-}
-
-model UserStepProgress {
-  id                 String    @id @default(cuid())
-  userId             String
-  stepId             String
-  status             String    @default("not_started") @db.VarChar(20)
-  progressPercentage Decimal   @default(0.00) @db.Decimal(5, 2)
-  score              Decimal?  @db.Decimal(5, 2)
-  startedAt          DateTime?
-  completedAt        DateTime?
-  unlockedAt         DateTime?
-  lastAccessedAt     DateTime?
-  timeSpentMinutes   Int       @default(0)
-  totalXp            Int       @default(0)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  step               Step      @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, stepId])
-  @@index([stepId, status])
-  @@index([userId, status])
-  @@index([userId, lastAccessedAt])
-  @@map("user_step_progress")
-}
-
-model QuizAttempt {
-  id               String    @id @default(cuid())
-  userId           String
-  quizType         String    @db.VarChar(20)
-  quizId           String?
-  pathQuizId       String?
-  attemptNumber    Int
-  score            Decimal   @db.Decimal(5, 2)
-  answers          Json
-  timeSpentSeconds Int
-  status           String    @db.VarChar(20)
-  passed           Boolean
-  feedback         String?   @db.Text
-  xpEarned         Int       @default(0)
-  coinsEarned      Int       @default(0)
-  startedAt        DateTime  @default(now())
-  completedAt      DateTime?
-  gradedAt         DateTime?
-  createdAt        DateTime  @default(now())
-  pathQuiz         PathQuiz? @relation(fields: [pathQuizId], references: [id])
-  quiz             Quiz?     @relation(fields: [quizId], references: [id])
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, quizType, quizId, attemptNumber])
-  @@unique([userId, quizType, pathQuizId, attemptNumber])
-  @@index([pathQuizId], map: "quiz_attempts_pathQuizId_fkey")
-  @@index([quizId], map: "quiz_attempts_quizId_fkey")
-  @@map("quiz_attempts")
-}
-
-model ExerciseAttempt {
-  id               String   @id @default(cuid())
-  userId           String
-  exerciseId       String
-  attemptNumber    Int
-  answers          Json
-  score            Decimal? @db.Decimal(5, 2)
-  pointsEarned     Int      @default(0)
-  xpEarned         Int      @default(0)
-  coinsEarned      Int      @default(0)
-  timeSpentSeconds Int?
-  isCorrect        Boolean?
-  feedback         String?  @db.Text
-  createdAt        DateTime @default(now())
-  exercise         Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, exerciseId, attemptNumber])
-  @@index([exerciseId], map: "exercise_attempts_exerciseId_fkey")
-  @@map("exercise_attempts")
 }
 
 model RefreshToken {
@@ -828,46 +752,6 @@ model DiscoverContent {
 
   @@index([sectionId])
   @@map("discover_contents")
-}
-
-model UserExerciseProgress {
-  id                 String    @id @default(cuid())
-  userId             String
-  exerciseId         String
-  status             String    @default("not_started") @db.VarChar(20)
-  progressPercentage Decimal   @default(0.00) @db.Decimal(5, 2)
-  score              Decimal?  @db.Decimal(5, 2)
-  completedAt        DateTime?
-  unlockedAt         DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  exercise           Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, exerciseId])
-  @@index([exerciseId, status])
-  @@index([userId, status])
-  @@map("user_exercise_progress")
-}
-
-model UserQuizProgress {
-  id                 String    @id @default(cuid())
-  userId             String
-  quizId             String
-  status             String    @default("not_started") @db.VarChar(20)
-  progressPercentage Decimal   @default(0.00) @db.Decimal(5, 2)
-  score              Decimal?  @db.Decimal(5, 2)
-  completedAt        DateTime?
-  unlockedAt         DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  quiz               Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, quizId])
-  @@index([quizId, status])
-  @@index([userId, status])
-  @@map("user_quiz_progress")
 }
 
 model DiscoverOption {

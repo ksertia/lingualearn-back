@@ -65,28 +65,26 @@ class UserService {
             if (!user) throw new AppError(404, 'User not found');
 
             // Progressions langues + toutes progressions en parallèle (1 requête chacune)
-            const [langProgressList, levelProgress, moduleProgress, pathProgress, stepProgress] = await Promise.all([
+            const [langProgressList, levelProgress, moduleProgress, subThemeProgress] = await Promise.all([
                 prisma.userLanguageProgress.findMany({
                     where: { userId },
                     include: { language: { select: { id: true, code: true, name: true, description: true, isActive: true } } },
                     orderBy: [{ lastAccessedAt: 'desc' }, { startedAt: 'desc' }]
                 }),
-                prisma.userLevelProgress.findMany({ where: { userId }, select: { levelId: true, status: true, progressPercentage: true, unlockedAt: true, startedAt: true, completedAt: true, lastAccessedAt: true } }),
-                prisma.userModuleProgress.findMany({ where: { userId }, select: { moduleId: true, status: true, progressPercentage: true } }),
-                prisma.userPathProgress.findMany({ where: { userId }, select: { pathId: true, status: true, progressPercentage: true } }),
-                prisma.userStepProgress.findMany({ where: { userId }, select: { stepId: true, status: true, progressPercentage: true, score: true } }),
+                prisma.userLevelProgress.findMany({ where: { userId }, select: { levelId: true, progressPercentage: true, startedAt: true, completedAt: true, lastAccessedAt: true } }),
+                prisma.userModuleProgress.findMany({ where: { userId }, select: { moduleId: true, progressPercentage: true } }),
+                prisma.userSubThemeProgress.findMany({ where: { userId }, select: { subThemeId: true, progressPercentage: true, evaluationScore: true } }),
             ]);
 
             // Maps pour accès O(1)
-            const levelMap   = new Map(levelProgress.map(p => [p.levelId, p]));
-            const moduleMap  = new Map(moduleProgress.map(p => [p.moduleId, p]));
-            const pathMap    = new Map(pathProgress.map(p => [p.pathId, p]));
-            const stepMap    = new Map(stepProgress.map(p => [p.stepId, p]));
+            const levelMap    = new Map(levelProgress.map(p => [p.levelId, p]));
+            const moduleMap   = new Map(moduleProgress.map(p => [p.moduleId, p]));
+            const subThemeMap = new Map(subThemeProgress.map(p => [p.subThemeId, p]));
 
             return serializeBigInt({
                 user,
                 langProgressList,
-                progressMaps: { levelMap, moduleMap, pathMap, stepMap },
+                progressMaps: { levelMap, moduleMap, subThemeMap },
                 currentLanguageId: langProgressList[0]?.languageId || null,
                 totalLanguages: langProgressList.length
             });
@@ -147,61 +145,50 @@ class UserService {
         return result;
     }
 
-    // ─── ÉTAT COURANT (level/module/path/step actif) ───────────────────────────
+    // ─── ÉTAT COURANT (level/module/thème/sous-thème actif) ────────────────────
     async _getCurrentState(userId, languageId) {
         return cacheWrap(`user:${userId}:state:${languageId}`, async () => {
-            // 4 requêtes parallèles au lieu de 4 séquentielles
-            const [levelProg, lesson, exercise, quiz] = await Promise.all([
-                prisma.userLevelProgress.findFirst({
-                    where: { userId, status: { in: ['started', 'unlocked'] }, level: { languageId } },
-                    orderBy: { lastAccessedAt: 'desc' },
-                    include: { level: { select: { id: true, code: true, name: true, index: true } } }
-                }),
-                Promise.resolve(null), // placeholders — seront remplis après
-                Promise.resolve(null),
-                Promise.resolve(null),
-            ]);
+            const levelProg = await prisma.userLevelProgress.findFirst({
+                where: { userId, level: { languageId } },
+                orderBy: { lastAccessedAt: 'desc' },
+                include: { level: { select: { id: true, code: true, name: true, index: true } } }
+            });
 
             if (!levelProg) return null;
 
-            const [moduleProg] = await Promise.all([
-                prisma.userModuleProgress.findFirst({
-                    where: { userId, status: { in: ['started', 'unlocked'] }, module: { levelId: levelProg.levelId } },
-                    orderBy: { lastAccessedAt: 'desc' },
-                    include: { module: { select: { id: true, title: true, index: true } } }
-                })
-            ]);
-
-            const pathProg = moduleProg ? await prisma.userPathProgress.findFirst({
-                where: { userId, status: { in: ['started', 'unlocked'] }, path: { moduleId: moduleProg.moduleId } },
+            const moduleProg = await prisma.userModuleProgress.findFirst({
+                where: { userId, module: { levelId: levelProg.levelId } },
                 orderBy: { lastAccessedAt: 'desc' },
-                include: { path: { select: { id: true, title: true, index: true } } }
+                include: { module: { select: { id: true, title: true, index: true } } }
+            });
+
+            const subThemeProg = moduleProg ? await prisma.userSubThemeProgress.findFirst({
+                where: { userId, subTheme: { theme: { moduleId: moduleProg.moduleId } } },
+                orderBy: { lastAccessedAt: 'desc' },
+                include: { subTheme: { select: { id: true, title: true, index: true, themeId: true } } }
             }) : null;
 
-            const stepProg = pathProg ? await prisma.userStepProgress.findFirst({
-                where: { userId, status: { notIn: ['completed'] }, step: { pathId: pathProg.pathId } },
-                orderBy: { updatedAt: 'desc' },
-                include: { step: { select: { id: true, title: true, stepType: true, index: true } } }
-            }) : null;
-
-            // Contenu de l'étape en parallèle
-            let currentLesson = null, currentExercise = null, currentQuiz = null;
-            if (stepProg?.step) {
-                [currentLesson, currentExercise, currentQuiz] = await Promise.all([
-                    prisma.lesson.findFirst({ where: { stepId: stepProg.step.id }, select: { id: true, title: true, summary: true, isActive: true, blocks: { orderBy: { index: 'asc' }, select: { id: true, sectionType: true, contentType: true, content: true, caption: true, index: true } } } }),
-                    prisma.exercise.findFirst({ where: { stepId: stepProg.step.id }, select: { id: true, title: true, instructions: true, points: true, xpReward: true, coinReward: true } }),
-                    prisma.quiz.findFirst({ where: { stepId: stepProg.step.id }, select: { id: true, title: true, passingScore: true, timeLimitMinutes: true, xpReward: true, coinReward: true } })
+            let currentContents = [], currentEvaluation = null;
+            if (subThemeProg?.subTheme) {
+                [currentContents, currentEvaluation] = await Promise.all([
+                    prisma.content.findMany({
+                        where: { subThemeId: subThemeProg.subTheme.id, isActive: true },
+                        orderBy: { index: 'asc' },
+                        select: { id: true, contentType: true, title: true, index: true }
+                    }),
+                    prisma.evaluation.findUnique({
+                        where: { subThemeId: subThemeProg.subTheme.id },
+                        select: { id: true, title: true, passingScore: true, timeLimitMinutes: true }
+                    })
                 ]);
             }
 
             return {
-                currentLevel:    levelProg?.level    || null,
-                currentModule:   moduleProg?.module  || null,
-                currentPath:     pathProg?.path      || null,
-                currentStep:     stepProg?.step      || null,
-                currentLesson,
-                currentExercise,
-                currentQuiz
+                currentLevel:     levelProg?.level      || null,
+                currentModule:    moduleProg?.module    || null,
+                currentSubTheme:  subThemeProg?.subTheme || null,
+                currentContents,
+                currentEvaluation
             };
         }, TTL.SHORT);
     }

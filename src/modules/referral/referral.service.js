@@ -89,10 +89,10 @@ async function rewardParrainIfEligible(filleulId) {
   });
   if (!referral || referral.status === 'rewarded') return;
 
-  const lessonsCompleted = await prisma.userStepProgress.count({
-    where: { userId: filleulId, status: 'completed', step: { stepType: 'lesson' } }
+  const subThemesStarted = await prisma.userSubThemeProgress.count({
+    where: { userId: filleulId, progressPercentage: { gt: 0 } }
   });
-  if (lessonsCompleted < 1) return;
+  if (subThemesStarted < 1) return;
 
   // updateMany avec filtre status='pending' évite la double récompense en cas d'appels concurrents
   const updated = await prisma.referral.updateMany({

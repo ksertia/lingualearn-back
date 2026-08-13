@@ -2,10 +2,11 @@ const { prisma } = require('../config/prisma');
 const { createNotification } = require('../modules/notification/notification.service');
 
 const CONTENT_TYPES = {
-  module:  { label: 'Nouveau module',   icon: null, url: (id) => `/modules/${id}` },
-  path:    { label: 'Nouveau parcours', icon: null, url: (id) => `/paths/${id}` },
-  step:    { label: 'Nouvelle étape',   icon: null, url: (id) => `/steps/${id}` },
-  course:  { label: 'Nouvelle leçon',   icon: null, url: (id) => `/courses/${id}` },
+  module:     { label: 'Nouveau module',     icon: null, url: (id) => `/modules/${id}` },
+  theme:      { label: 'Nouveau thème',      icon: null, url: (id) => `/themes/${id}` },
+  'sub-theme':{ label: 'Nouveau sous-thème', icon: null, url: (id) => `/sub-themes/${id}` },
+  content:    { label: 'Nouveau contenu',    icon: null, url: (id) => `/contents/${id}` },
+  evaluation: { label: 'Nouvelle évaluation',icon: null, url: (id) => `/evaluations/${id}` },
 };
 
 /**

@@ -25,11 +25,10 @@ async function getDashboardStats(filters = {}) {
   return cacheWrap(_dashboardCacheKey(filters), async () => {
     const userWhere = _buildUserWhere(filters);
 
-    // All 12 counts run in parallel — single round-trip per query, none sequential
+    // All counts run in parallel — single round-trip per query, none sequential
     const [
       totalUsers, activeUsers, verifiedUsers, adminUsers, subAccounts, usersWithSubscription,
-      totalLevels, totalSteps, totalLessons, totalExercises,
-      totalPaths, totalModules
+      totalLevels, totalModules, totalThemes, totalSubThemes, totalContents, totalEvaluations
     ] = await Promise.all([
       prisma.user.count({ where: userWhere }),
       prisma.user.count({ where: { ...userWhere, isActive: true } }),
@@ -38,21 +37,21 @@ async function getDashboardStats(filters = {}) {
       prisma.user.count({ where: { ...userWhere, accountType: 'sub_account' } }),
       prisma.user.count({ where: { ...userWhere, subscriptionId: { not: null } } }),
       prisma.level.count(),
-      prisma.step.count(),
-      prisma.lesson.count(),
-      prisma.exercise.count(),
-      prisma.path.count(),
       prisma.module.count(),
+      prisma.theme.count(),
+      prisma.subTheme.count(),
+      prisma.content.count(),
+      prisma.evaluation.count(),
     ]);
 
     return {
       users: { total: totalUsers, active: activeUsers, verified: verifiedUsers, admin: adminUsers, subAccounts, withSubscription: usersWithSubscription },
       levels: totalLevels,
-      steps: totalSteps,
-      lessons: totalLessons,
-      exercises: totalExercises,
-      paths: totalPaths,
       modules: totalModules,
+      themes: totalThemes,
+      subThemes: totalSubThemes,
+      contents: totalContents,
+      evaluations: totalEvaluations,
     };
   }, TTL.MEDIUM);
 }
@@ -80,10 +79,10 @@ async function getTotalUsers(filters = {}) {
   return prisma.user.count({ where });
 }
 
-async function getTotalLearningPaths() { return prisma.path.count(); }
-async function getTotalSteps()         { return prisma.step.count(); }
-async function getTotalLessons()       { return prisma.lesson.count(); }
-async function getTotalStepQuizzes()   { return prisma.quiz.count(); }
+async function getTotalLearningPaths() { return prisma.theme.count(); }
+async function getTotalSteps()         { return prisma.subTheme.count(); }
+async function getTotalLessons()       { return prisma.content.count({ where: { contentType: 'course' } }); }
+async function getTotalStepQuizzes()   { return prisma.evaluation.count(); }
 async function getTotalLevels()        { return prisma.level.count(); }
 
 module.exports = {
