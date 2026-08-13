@@ -1,5 +1,6 @@
 const { prisma } = require('../../config/prisma');
-const { recalculateSubThemeProgress } = require('../progress/progress.service');
+const { recalculateFullChain } = require('../progress/progress.service');
+const { incrementExercisesCompleted, incrementLessonsCompleted } = require('../gamification/gamification.service');
 
 const CONTENT_SELECT = {
   id: true, subThemeId: true, contentType: true, title: true, index: true, isActive: true,
@@ -149,8 +150,9 @@ exports.submitExercise = async (contentId, userId, answer) => {
     }
   });
 
-  // Marquer ce contenu comme complété dans la progression du sous-thème (informatif, pas de blocage)
-  await recalculateSubThemeProgress(userId, content.subThemeId, { completedContentId: isCorrect ? contentId : null }).catch(() => {});
+  // Marquer ce contenu comme complété et propager le % jusqu'au module/niveau (informatif, pas de blocage)
+  await recalculateFullChain(userId, content.subThemeId, { completedContentId: isCorrect ? contentId : null }).catch(() => {});
+  if (isCorrect) await incrementExercisesCompleted(userId).catch(() => {});
 
   return {
     attemptId: attempt.id,

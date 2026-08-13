@@ -1,5 +1,5 @@
 const { prisma } = require('../../config/prisma');
-const { recalculateSubThemeProgress } = require('../progress/progress.service');
+const { recalculateFullChain } = require('../progress/progress.service');
 
 exports.createEvaluation = async (data) => {
   const subTheme = await prisma.subTheme.findUnique({ where: { id: data.subThemeId } });
@@ -67,7 +67,7 @@ exports.submitEvaluation = async (evaluationId, userId, userAnswers) => {
     }
   });
 
-  await recalculateSubThemeProgress(userId, evaluation.subThemeId, { evaluationScore: percentageScore }).catch(() => {});
+  await recalculateFullChain(userId, evaluation.subThemeId, { evaluationScore: percentageScore }).catch(() => {});
 
   return {
     attemptId: attempt.id,

@@ -181,12 +181,12 @@ class LevelService {
                     orderBy: { index: 'asc' },
                     select: {
                         id: true,
-                        name: true,
+                        title: true,
                         index: true,
                         isActive: true,
                         _count: {
                             select: {
-                                paths: {
+                                themes: {
                                     where: { isActive: true }
                                 }
                             }

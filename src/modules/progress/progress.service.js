@@ -129,3 +129,21 @@ exports.getUserSubThemeProgress = async (userId, subThemeId) => {
   const progress = await prisma.userSubThemeProgress.findUnique({ where: { userId_subThemeId: { userId, subThemeId } } });
   return progress || { userId, subThemeId, progressPercentage: 0, completedContentIds: [], evaluationScore: null };
 };
+
+// Point d'entrée unique pour les modules de contenu : recalcule le sous-thème
+// PUIS propage jusqu'au module et au niveau, pour que les % restent à jour
+// à tous les étages sans que chaque appelant ait à connaître la chaîne complète.
+exports.recalculateFullChain = async (userId, subThemeId, options = {}) => {
+  const subThemeProgress = await exports.recalculateSubThemeProgress(userId, subThemeId, options);
+
+  const subTheme = await prisma.subTheme.findUnique({
+    where: { id: subThemeId },
+    select: { theme: { select: { moduleId: true } } }
+  });
+
+  const moduleAndLevelProgress = subTheme?.theme?.moduleId
+    ? await exports.recalculateModuleAndLevelProgress(userId, subTheme.theme.moduleId)
+    : null;
+
+  return { subThemeProgress, ...moduleAndLevelProgress };
+};
