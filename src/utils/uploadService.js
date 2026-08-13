@@ -97,7 +97,7 @@ const uploadImage = multer({
 const uploadToCloudinary = (filePath, options = {}) => {
   return new Promise((resolve, reject) => {
     cloudinary.uploader.upload(filePath, {
-      folder: options.folder || 'lingualearn',
+      folder: options.folder || 'tibi',
       resource_type: options.resource_type || 'auto',
       ...options
     }, (error, result) => {

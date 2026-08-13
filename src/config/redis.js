@@ -16,7 +16,7 @@ function createRedisClient() {
         lazyConnect: true,
         enableOfflineQueue: false,
         connectTimeout: 5000,
-        keyPrefix: 'lingualearn:',
+        keyPrefix: 'tibi:',
     };
 
     const client = process.env.REDIS_URL

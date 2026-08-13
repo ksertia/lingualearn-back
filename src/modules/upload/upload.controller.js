@@ -11,7 +11,7 @@ const uploadImage = async (req, res) => {
 		}
 
 		const result = await uploadToCloudinary(req.file.path, {
-			folder: 'lingualearn/images',
+			folder: 'tibi/images',
 			resource_type: 'image'
 		});
 
@@ -50,7 +50,7 @@ const uploadContent = async (req, res) => {
 			: 'raw';
 
 		const result = await uploadToCloudinary(req.file.path, {
-			folder: 'lingualearn/content',
+			folder: 'tibi/content',
 			resource_type: resourceType
 		});
 
@@ -87,7 +87,7 @@ const uploadVideo = async (req, res) => {
 		}
 
 		const result = await uploadToCloudinary(req.file.path, {
-			folder: 'lingualearn/videos',
+			folder: 'tibi/videos',
 			resource_type: 'video'
 		});
 
@@ -122,7 +122,7 @@ const uploadAudio = async (req, res) => {
 		}
 
 		const result = await uploadToCloudinary(req.file.path, {
-			folder: 'lingualearn/audios',
+			folder: 'tibi/audios',
 			resource_type: 'video'
 		});
 
@@ -157,7 +157,7 @@ const uploadPdf = async (req, res) => {
 		}
 
 		const result = await uploadToCloudinary(req.file.path, {
-			folder: 'lingualearn/pdfs',
+			folder: 'tibi/pdfs',
 			resource_type: 'raw'
 		});
 

@@ -37,7 +37,7 @@ const { authMiddleware, allowRoles } = require('../../middleware/authMiddleware'
  *                 example: Langue française
  *               iconUrl:
  *                 type: string
- *                 example: https://cdn.lingualearn.com/icons/fr.png
+ *                 example: https://cdn.tibi.com/icons/fr.png
  *               isActive:
  *                 type: boolean
  *                 example: true

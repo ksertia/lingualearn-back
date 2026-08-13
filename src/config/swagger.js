@@ -11,7 +11,7 @@ const options = {
       description: 'API complète pour la plateforme Tibi - Authentication, Users & Admin',
       contact: {
         name: 'API Support',
-        email: 'support@lingualearn.com',
+        email: 'support@tibi.com',
       },
     },
     servers: [
@@ -48,7 +48,7 @@ const options = {
             code: { type: 'string', example: 'FR' },
             name: { type: 'string', example: 'Français' },
             description: { type: 'string', example: 'Langue française' },
-            iconUrl: { type: 'string', example: 'https://cdn.lingualearn.com/icons/fr.png' },
+            iconUrl: { type: 'string', example: 'https://cdn.tibi.com/icons/fr.png' },
             isActive: { type: 'boolean', example: true },
             index: { type: 'integer', example: 1 }
           }

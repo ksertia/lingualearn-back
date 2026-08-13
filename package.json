@@ -1,5 +1,5 @@
 {
-  "name": "lingualearn-back",
+  "name": "tibi-back",
   "version": "1.0.0",
   "description": "Authentication Backend API with Node.js, Express, Prisma and JWT",
   "main": "src/server.js",
