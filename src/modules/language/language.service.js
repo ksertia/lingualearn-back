@@ -1,5 +1,6 @@
 const { prisma } = require('../../config/prisma');
 const { cacheWrap, cacheDel, cacheInvalidatePattern, TTL } = require('../../utils/cache');
+const { deriveState } = require('../progress/progress.service');
 
 // Récupérer toutes les langues liées à un utilisateur (via userLanguageProgress)
 exports.getLanguagesByUserId = async (userId) => {
@@ -10,12 +11,12 @@ exports.getLanguagesByUserId = async (userId) => {
 		include: {
 			userProgress: {
 				where: { userId },
-				select: { status: true, overallProgress: true, totalXp: true, totalTimeMinutes: true, startedAt: true, completedAt: true, lastAccessedAt: true }
+				select: { overallProgress: true, totalXp: true, totalTimeMinutes: true, startedAt: true, completedAt: true, lastAccessedAt: true }
 			}
 		}
 	});
 
-	// Formater la réponse avec le statut
+	// Formater la réponse avec l'état dérivé (aucun blocage — purement informatif)
 	return languages.map(language => ({
 		id: language.id,
 		name: language.name,
@@ -23,12 +24,11 @@ exports.getLanguagesByUserId = async (userId) => {
 		flagUrl: language.flagUrl,
 		description: language.description,
 		isActive: language.isActive,
-		
+
 		// Progression (peut être null si jamais touché)
 		progress: language.userProgress[0] || null,
-		
-		// Statut calculé
-		status: language.userProgress[0]?.status || 'not_started',
+
+		state: deriveState({ progressPercentage: language.userProgress[0]?.overallProgress, startedAt: language.userProgress[0]?.startedAt, completedAt: language.userProgress[0]?.completedAt }),
 		overallProgress: language.userProgress[0]?.overallProgress || 0,
 		totalXp: language.userProgress[0]?.totalXp || 0,
 		totalTimeMinutes: language.userProgress[0]?.totalTimeMinutes || 0,
@@ -133,7 +133,7 @@ exports.getChildLanguages = async (parentId, childId) => {
         where: { isActive: true },
         orderBy: { createdAt: 'asc' },
         include: {
-            userProgress: { where: { userId: childId }, select: { status: true, overallProgress: true, totalXp: true, startedAt: true } }
+            userProgress: { where: { userId: childId }, select: { overallProgress: true, totalXp: true, startedAt: true, completedAt: true } }
         }
     });
 
@@ -145,7 +145,7 @@ exports.getChildLanguages = async (parentId, childId) => {
             name: lang.name,
             code: lang.code,
             flagUrl: lang.flagUrl,
-            status: lang.userProgress[0]?.status || 'not_started',
+            state: deriveState({ progressPercentage: lang.userProgress[0]?.overallProgress, startedAt: lang.userProgress[0]?.startedAt, completedAt: lang.userProgress[0]?.completedAt }),
             overallProgress: lang.userProgress[0]?.overallProgress || 0,
             totalXp: lang.userProgress[0]?.totalXp || 0,
             assignedAt: lang.userProgress[0]?.startedAt || null,

@@ -297,8 +297,8 @@ class AuthService {
             id: true, email: true, phone: true, username: true, passwordHash: true,
             accountType: true, parentId: true, isVerified: true, isActive: true,
             firstLogin: true, lastLogin: true,
-            languageProgress: { select: { status: true, overallProgress: true, language: { select: { id: true, name: true, code: true, flagUrl: true } } }, orderBy: { lastAccessedAt: 'desc' } },
-            levelProgress: { select: { status: true, progressPercentage: true, level: { select: { id: true, name: true, code: true, languageId: true } } }, orderBy: { lastAccessedAt: 'desc' } }
+            languageProgress: { select: { status: true, overallProgress: true, startedAt: true, completedAt: true, lastAccessedAt: true, language: { select: { id: true, name: true, code: true, flagUrl: true } } }, orderBy: { lastAccessedAt: 'desc' } },
+            levelProgress: { select: { status: true, progressPercentage: true, startedAt: true, completedAt: true, lastAccessedAt: true, level: { select: { id: true, name: true, code: true, index: true, languageId: true } } }, orderBy: { lastAccessedAt: 'desc' } }
         };
 
         const user = await findUserByLoginInfo(loginInfo, userSelect);
@@ -344,25 +344,29 @@ class AuthService {
 
         const { passwordHash, ...userWithoutPassword } = user;
 
-        // Un seul niveau par langue : le plus bas (index ASC) parmi unlocked/started,
-        // priorité started > unlocked > completed
-        const STATUS_RANK = { started: 0, unlocked: 1, completed: 2 };
+        // Un seul niveau par langue : le plus récemment accédé (accès libre —
+        // aucun blocage), puis le plus bas index en cas d'égalité/absence de date.
         const bestLevelByLang = new Map();
         for (const lp of (userWithoutPassword.levelProgress || [])) {
             const langId = lp.level?.languageId;
             if (!langId) continue;
             const existing = bestLevelByLang.get(langId);
             if (!existing) { bestLevelByLang.set(langId, lp); continue; }
-            const newRank = STATUS_RANK[lp.status] ?? 3;
-            const exRank  = STATUS_RANK[existing.status] ?? 3;
-            if (newRank < exRank || (newRank === exRank && (lp.level?.index ?? 99) < (existing.level?.index ?? 99))) {
+            const newDate = lp.lastAccessedAt ? new Date(lp.lastAccessedAt).getTime() : 0;
+            const exDate  = existing.lastAccessedAt ? new Date(existing.lastAccessedAt).getTime() : 0;
+            if (newDate > exDate || (newDate === exDate && (lp.level?.index ?? 99) < (existing.level?.index ?? 99))) {
                 bestLevelByLang.set(langId, lp);
             }
         }
-        const filteredLevelProgress = [...bestLevelByLang.values()];
+        const deriveState = require('../progress/progress.service').deriveState;
+        const filteredLevelProgress = [...bestLevelByLang.values()].map(({ status, ...lp }) => ({ ...lp, state: deriveState(lp) }));
+        const languageProgress = (userWithoutPassword.languageProgress || []).map(({ status, ...langProg }) => ({
+            ...langProg,
+            state: deriveState({ progressPercentage: langProg.overallProgress, startedAt: langProg.startedAt, completedAt: langProg.completedAt })
+        }));
 
         return {
-            user: { ...userWithoutPassword, levelProgress: filteredLevelProgress, firstLogin },
+            user: { ...userWithoutPassword, languageProgress, levelProgress: filteredLevelProgress, firstLogin },
             tokens
         };
     }

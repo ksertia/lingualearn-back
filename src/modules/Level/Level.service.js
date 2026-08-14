@@ -1,6 +1,7 @@
 const { prisma } = require('../../config/prisma');
 const { cacheGet, cacheSet, cacheDel, cacheInvalidatePattern, TTL } = require('../../utils/cache');
 const { syncAllUsersProgression } = require('../../utils/progressionSync');
+const { deriveState } = require('../progress/progress.service');
 
 class LevelService {
     async invalidateCache(levelId = null, languageId = null) {
@@ -50,11 +51,9 @@ class LevelService {
                 userProgress: {
                     where: { userId },
                     select: {
-                        status: true,
                         progressPercentage: true,
                         totalXp: true,
                         timeSpentMinutes: true,
-                        unlockedAt: true,
                         startedAt: true,
                         completedAt: true,
                         lastAccessedAt: true
@@ -82,11 +81,11 @@ class LevelService {
             
             // Progression (peut être null si jamais touché)
             progress: level.userProgress[0] || null,
-            
+
+            state: deriveState(level.userProgress[0] || {}),
             progressPercentage: level.userProgress[0]?.progressPercentage || 0,
             totalXp: level.userProgress[0]?.totalXp || 0,
             timeSpentMinutes: level.userProgress[0]?.timeSpentMinutes || 0,
-            unlockedAt: level.userProgress[0]?.unlockedAt || null,
             startedAt: level.userProgress[0]?.startedAt || null,
             completedAt: level.userProgress[0]?.completedAt || null,
             lastAccessedAt: level.userProgress[0]?.lastAccessedAt || null

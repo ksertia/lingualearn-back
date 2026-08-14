@@ -1,5 +1,16 @@
 const { prisma } = require('../../config/prisma');
 
+// Dérive un état lisible à partir des données réelles de progression —
+// remplace le champ `status` legacy (locked/unlocked), qui reste dans le
+// schéma pour compatibilité mais n'est plus jamais écrit ni fiable depuis
+// la suppression du blocage séquentiel. Ne bloque jamais rien, purement
+// informatif pour l'affichage (ex: badge "terminé" / "en cours").
+exports.deriveState = ({ progressPercentage, startedAt, completedAt } = {}) => {
+  if (completedAt || Number(progressPercentage) >= 100) return 'completed';
+  if (startedAt || Number(progressPercentage) > 0) return 'in_progress';
+  return 'not_started';
+};
+
 // Recalcule le % de progression d'un sous-thème pour un utilisateur.
 // Un sous-thème est "complété" une fois que tous ses contenus actifs sont dans
 // completedContentIds ET que l'évaluation (si elle existe) a été réussie.
