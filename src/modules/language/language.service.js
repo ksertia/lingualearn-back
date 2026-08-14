@@ -59,16 +59,19 @@ exports.assignLanguageToChild = async (parentId, childId, languageId) => {
         throw new AppError(404, 'Language not found or not active');
     }
 
+    const PROGRESS_SELECT = { id: true, overallProgress: true, totalXp: true, totalTimeMinutes: true, startedAt: true, completedAt: true, lastAccessedAt: true };
+
     // Vérifier si déjà assigné
     const existing = await prisma.userLanguageProgress.findUnique({
-        where: { userId_languageId: { userId: childId, languageId } }
+        where: { userId_languageId: { userId: childId, languageId } },
+        select: PROGRESS_SELECT
     });
 
     if (existing) {
         return {
             success: true,
             message: `Language "${language.name}" already assigned to ${child.username}`,
-            data: { language, progress: existing }
+            data: { language, progress: { ...existing, state: deriveState({ progressPercentage: existing.overallProgress, startedAt: existing.startedAt, completedAt: existing.completedAt }) } }
         };
     }
 
@@ -83,13 +86,14 @@ exports.assignLanguageToChild = async (parentId, childId, languageId) => {
     await cacheDel(`user:${childId}:progress`, `user-levels:${childId}`);
 
     const progress = await prisma.userLanguageProgress.findUnique({
-        where: { userId_languageId: { userId: childId, languageId } }
+        where: { userId_languageId: { userId: childId, languageId } },
+        select: PROGRESS_SELECT
     });
 
     return {
         success: true,
         message: `Language "${language.name}" assigned to ${child.username} — progression initialisée`,
-        data: { language, progress }
+        data: { language, progress: { ...progress, state: deriveState({ progressPercentage: progress.overallProgress, startedAt: progress.startedAt, completedAt: progress.completedAt }) } }
     };
 };
 
@@ -355,16 +359,17 @@ exports.assignLevelToChild = async (parentId, childId, languageId, levelId) => {
     if (!level) throw new AppError(404, 'Level not found for this language');
 
     // Sélectionner ce niveau pour l'enfant — accès libre, aucun déblocage requis
-    const progress = await prisma.userLevelProgress.upsert({
+    const rawProgress = await prisma.userLevelProgress.upsert({
         where: { userId_levelId: { userId: childId, levelId } },
         update: { lastAccessedAt: new Date() },
         create: { userId: childId, levelId, startedAt: new Date(), lastAccessedAt: new Date() }
     });
+    const { status, ...progress } = rawProgress;
 
     return {
         success: true,
         message: `Level "${level.name}" assigned to ${child.username}`,
-        data: { level, progress }
+        data: { level, progress: { ...progress, state: deriveState(progress) } }
     };
 };
 
@@ -373,7 +378,7 @@ exports.selectLanguageForUser = async (userId, languageId, levelId = null) => {
 	const levelService = require('../Level/Level.service');
 
 	// Créer la row langue si elle n'existe pas encore
-	const progress = await prisma.userLanguageProgress.upsert({
+	const rawProgress = await prisma.userLanguageProgress.upsert({
 		where: { userId_languageId: { userId, languageId } },
 		update: { lastAccessedAt: new Date() },
 		create: {
@@ -397,21 +402,26 @@ exports.selectLanguageForUser = async (userId, languageId, levelId = null) => {
 	// Pas d'auto-init si pas de levelId : selectLevel sera appelé juste après par le frontend
 
 	await cacheDel(`user:${userId}:progress`, `user-levels:${userId}`);
-	return progress;
+	const { status, ...progress } = rawProgress;
+	return { ...progress, state: deriveState(progress) };
 };
 
 exports.startLanguageForUser = async (userId, languageId) => {
-       return prisma.userLanguageProgress.update({
+       const rawProgress = await prisma.userLanguageProgress.update({
 	       where: { userId_languageId: { userId, languageId } },
 	       data: { startedAt: new Date() }
        });
+       const { status, ...progress } = rawProgress;
+       return { ...progress, state: deriveState(progress) };
 };
 
 exports.completeLanguageForUser = async (userId, languageId) => {
-       return prisma.userLanguageProgress.update({
+       const rawProgress = await prisma.userLanguageProgress.update({
 	       where: { userId_languageId: { userId, languageId } },
 	       data: { completedAt: new Date() }
        });
+       const { status, ...progress } = rawProgress;
+       return { ...progress, state: deriveState(progress) };
 };
 
 exports.create = async (data) => {

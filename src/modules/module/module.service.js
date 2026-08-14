@@ -2,6 +2,7 @@ const { prisma } = require('../../config/prisma');
 const { cacheWrap, cacheDel, TTL } = require('../../utils/cache');
 const { notifyLearnersNewContent } = require('../../utils/contentNotifier');
 const { syncAllUsersProgression } = require('../../utils/progressionSync');
+const { deriveState } = require('../progress/progress.service');
 
 // Récupérer tous les modules liés à un utilisateur (via userModuleProgress) — accès libre, aucun blocage
 exports.getModulesByUserId = async (userId, levelId = null) => {
@@ -51,16 +52,19 @@ exports.startModuleForUser = async (userId, moduleId) => {
 
   if (mod) await cacheDel(`user:${userId}:modules:level:${mod.levelId}`);
 
-  return progress;
+  const { status, ...rest } = progress;
+  return { ...rest, state: deriveState(rest) };
 };
 
 exports.completeModuleForUser = async (userId, moduleId) => {
   const mod = await prisma.module.findUnique({ where: { id: moduleId }, select: { levelId: true } });
   if (mod) await cacheDel(`user:${userId}:modules:level:${mod.levelId}`);
-  return prisma.userModuleProgress.update({
+  const progress = await prisma.userModuleProgress.update({
     where: { userId_moduleId: { userId, moduleId } },
     data: { completedAt: new Date(), progressPercentage: 100 }
   });
+  const { status, ...rest } = progress;
+  return { ...rest, state: deriveState(rest) };
 };
 
 exports.create = async (data) => {

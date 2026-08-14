@@ -1,6 +1,7 @@
 const { prisma, serializeBigInt } = require('../../config/prisma');
 const { AppError } = require('../../middleware/errorHandler');
 const { cacheWrap, cacheDel, cacheGet, cacheSet, TTL } = require('../../utils/cache');
+const { deriveState } = require('../progress/progress.service');
 
 // Sélecteurs réutilisables
 const PROFILE_SELECT = { id: true, firstName: true, lastName: true, displayName: true, avatarUrl: true, timezone: true, preferredLanguage: true, birthDate: true };
@@ -65,7 +66,7 @@ class UserService {
             if (!user) throw new AppError(404, 'User not found');
 
             // Progressions langues + toutes progressions en parallèle (1 requête chacune)
-            const [langProgressList, levelProgress, moduleProgress, subThemeProgress] = await Promise.all([
+            const [rawLangProgressList, levelProgress, moduleProgress, subThemeProgress] = await Promise.all([
                 prisma.userLanguageProgress.findMany({
                     where: { userId },
                     include: { language: { select: { id: true, code: true, name: true, description: true, isActive: true } } },
@@ -75,6 +76,9 @@ class UserService {
                 prisma.userModuleProgress.findMany({ where: { userId }, select: { moduleId: true, progressPercentage: true } }),
                 prisma.userSubThemeProgress.findMany({ where: { userId }, select: { subThemeId: true, progressPercentage: true, evaluationScore: true } }),
             ]);
+
+            // Retire le champ status legacy (jamais mis à jour depuis la suppression du blocage) et expose un state dérivé
+            const langProgressList = rawLangProgressList.map(({ status, ...lp }) => ({ ...lp, state: deriveState({ progressPercentage: lp.overallProgress, startedAt: lp.startedAt, completedAt: lp.completedAt }) }));
 
             // Maps pour accès O(1)
             const levelMap    = new Map(levelProgress.map(p => [p.levelId, p]));
@@ -133,10 +137,15 @@ class UserService {
         // Mise à jour lastActive en arrière-plan (non bloquant)
         prisma.user.update({ where: { id: userId }, data: { lastActive: new Date() } }).catch(() => {});
 
+        // Retire le champ status legacy et expose un state dérivé (aucun blocage — purement informatif)
+        const currentLanguageProgress = langProgress
+            ? (({ status, ...lp }) => ({ ...lp, state: deriveState({ progressPercentage: lp.overallProgress, startedAt: lp.startedAt, completedAt: lp.completedAt }) }))(langProgress)
+            : null;
+
         const result = serializeBigInt({
             user: { ...user, selectedLanguageId: langProgress?.language?.id || null, selectedLevelId: currentState?.currentLevel?.id || null },
             currentLanguage: langProgress?.language || null,
-            currentLanguageProgress: langProgress,
+            currentLanguageProgress,
             currentState
         });
 

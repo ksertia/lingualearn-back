@@ -246,17 +246,21 @@ class LevelService {
 
         await this.invalidateCache(null, level.languageId);
         await cacheDel(`user:${userId}:progress`, `user-levels:${userId}`);
-        return prisma.userLevelProgress.findUnique({
+        const progress = await prisma.userLevelProgress.findUnique({
             where: { userId_levelId: { userId, levelId } }
         });
+        const { status, ...rest } = progress;
+        return { ...rest, state: deriveState(rest) };
     }
 
     async startLevelForUser(userId, levelId) {
         try {
-            return await prisma.userLevelProgress.update({
+            const progress = await prisma.userLevelProgress.update({
                 where: { userId_levelId: { userId, levelId } },
                 data: { startedAt: new Date(), lastAccessedAt: new Date() }
             });
+            const { status, ...rest } = progress;
+            return { ...rest, state: deriveState(rest) };
         } catch (err) {
             if (err.code === 'P2025') throw new Error('Niveau non sélectionné pour cet utilisateur');
             throw err;
@@ -270,7 +274,8 @@ class LevelService {
             data: { completedAt: new Date(), progressPercentage: 100 }
         });
         await this.invalidateCache(levelId, levelData?.languageId);
-        return result;
+        const { status, ...rest } = result;
+        return { ...rest, state: deriveState(rest) };
     }
 
     async activateLevel(id) {
