@@ -161,4 +161,20 @@ exports.submitExercise = async (contentId, userId, answer) => {
   };
 };
 
+// ─── COMPLÉTION (course / video / resource) ────────────────────────────────────
+// Marque un contenu non-exercice comme vu/consulté. Les exercices passent par
+// submitExercise (leur complétion dépend de la justesse de la réponse).
+exports.completeContent = async (contentId, userId) => {
+  const content = await prisma.content.findUnique({ where: { id: contentId } });
+  if (!content) throw new Error('Contenu non trouvé');
+  if (content.contentType === 'exercise') {
+    throw new Error('Un exercice doit être complété via /submit, pas /complete');
+  }
+
+  const { subThemeProgress } = await recalculateFullChain(userId, content.subThemeId, { completedContentId: contentId });
+  if (content.contentType === 'course') await incrementLessonsCompleted(userId).catch(() => {});
+
+  return { contentId, subThemeId: content.subThemeId, progressPercentage: subThemeProgress.progressPercentage };
+};
+
 module.exports = exports;

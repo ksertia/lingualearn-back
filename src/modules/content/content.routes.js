@@ -221,6 +221,39 @@ router.delete('/:id', controller.deleteContent);
  */
 router.post('/:id/submit', controller.submitExercise);
 
+/**
+ * @swagger
+ * /api/v1/contents/{id}/complete:
+ *   post:
+ *     summary: Marquer un contenu (course, video, resource) comme vu/consulté
+ *     description: |
+ *       Pour les contenus non-exercice, qui n'ont pas de notion de "bonne réponse".
+ *       Ajoute ce contenu à completedContentIds du sous-thème et recalcule le %
+ *       de progression jusqu'au module et au niveau. Un exercise doit passer par
+ *       /submit à la place (409 sinon).
+ *     tags: [Content]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [userId]
+ *             properties:
+ *               userId: { type: string }
+ *     responses:
+ *       200:
+ *         description: Contenu marqué comme vu, progression recalculée
+ *       404:
+ *         description: Contenu non trouvé
+ */
+router.post('/:id/complete', controller.completeContent);
+
 // ─── Blocs (contentType = course) ───────────────────────────────────────────────
 
 /**

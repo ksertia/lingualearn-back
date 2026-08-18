@@ -2,7 +2,7 @@ const contentService = require('./content.service');
 const {
   createContentSchema, updateContentSchema,
   createBlockSchema, updateBlockSchema, reorderBlocksSchema,
-  submitExerciseSchema
+  submitExerciseSchema, completeContentSchema
 } = require('./content.schema');
 
 // ─── CONTENU ────────────────────────────────────────────────────────────────────
@@ -139,8 +139,20 @@ const submitExercise = async (req, res, next) => {
   }
 };
 
+const completeContent = async (req, res, next) => {
+  try {
+    const { error, value } = completeContentSchema.validate(req.body);
+    if (error) return res.status(400).json({ success: false, message: error.details[0].message });
+    const result = await contentService.completeContent(req.params.id, value.userId);
+    res.status(200).json({ success: true, data: result, message: 'Contenu marqué comme vu.' });
+  } catch (err) {
+    const status = err.message?.includes('non trouvé') ? 404 : 400;
+    res.status(status).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   getContents, getContentsBySubThemeId, getContent, createContent, updateContent, deleteContent,
   addBlock, updateBlock, deleteBlock, reorderBlocks,
-  submitExercise
+  submitExercise, completeContent
 };

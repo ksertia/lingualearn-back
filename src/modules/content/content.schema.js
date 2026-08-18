@@ -92,9 +92,14 @@ const submitExerciseSchema = Joi.object({
   answer: Joi.alternatives(Joi.string(), Joi.array()).required(),
 });
 
+// ─── Complétion (course / video / resource) ────────────────────────────────────
+const completeContentSchema = Joi.object({
+  userId: Joi.string().required(),
+});
+
 module.exports = {
   createContentSchema, updateContentSchema,
   createBlockSchema, updateBlockSchema, reorderBlocksSchema,
-  submitExerciseSchema,
+  submitExerciseSchema, completeContentSchema,
   CONTENT_TYPES, SECTION_TYPES, BLOCK_TYPES, RESOURCE_TYPES
 };
