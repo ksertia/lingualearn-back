@@ -178,6 +178,7 @@ model SubTheme {
   description  String?                @db.Text
   index        Int                    @default(0)
   isActive     Boolean                @default(true)
+  isDemo       Boolean                @default(false)
   createdAt    DateTime               @default(now())
   updatedAt    DateTime               @updatedAt
   theme        Theme                  @relation(fields: [themeId], references: [id], onDelete: Cascade)
@@ -713,58 +714,6 @@ model Transaction {
 
   @@index([userId, createdAt])
   @@map("transactions")
-}
-
-// ==================== DISCOVER ====================
-
-model DiscoverSection {
-  id        String   @id @default(cuid())
-  title     String   @db.VarChar(200)
-  type      String   @db.VarChar(20)  // lesson | exercise
-  language  String   @db.VarChar(100) // texte libre : "Français", "Wolof", etc.
-  order     Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  contents DiscoverContent[]
-
-  @@map("discover_sections")
-}
-
-model DiscoverContent {
-  id        String @id @default(cuid())
-  sectionId String
-  order     Int    @default(0)
-
-  // Question
-  questionType  String  @db.VarChar(20) // text | audio | image | video | file
-  questionValue String  @db.Text
-
-  // Answer — pour les sections de type lesson
-  answerType  String? @db.VarChar(20)
-  answerValue String? @db.Text
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  section DiscoverSection  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  options DiscoverOption[]
-
-  @@index([sectionId])
-  @@map("discover_contents")
-}
-
-model DiscoverOption {
-  id        String  @id @default(cuid())
-  contentId String
-  value     String  @db.VarChar(500)
-  isCorrect Boolean @default(false)
-  order     Int     @default(0)
-
-  content DiscoverContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
-
-  @@index([contentId])
-  @@map("discover_options")
 }
 
 // ==================== MESSAGERIE ====================

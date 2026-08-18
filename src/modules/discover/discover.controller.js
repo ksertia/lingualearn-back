@@ -1,81 +1,40 @@
-const service = require('./discover.service');
+const discoverService = require('./discover.service');
+const { tryDemoSchema } = require('./discover.schema');
 
-async function listLanguages(req, res) {
-  const languages = await service.getLanguages();
-  res.json({ success: true, data: languages });
-}
-
-async function listByLanguage(req, res) {
-  const data = await service.getSectionsByLanguage(req.params.language);
-  res.json({ success: true, data });
-}
-
-async function listLessons(req, res) {
-  const sections = await service.getSectionsByLanguageAndType(req.params.language, 'lesson');
-  res.json({ success: true, data: sections });
-}
-
-async function listExercises(req, res) {
-  const sections = await service.getSectionsByLanguageAndType(req.params.language, 'exercise');
-  res.json({ success: true, data: sections });
-}
-
-// ── SECTIONS ─────────────────────────────────────────────────────────────────
-
-async function listSections(req, res) {
-  const sections = await service.getSections();
-  res.json({ success: true, data: sections });
-}
-
-async function getSection(req, res) {
-  const section = await service.getSectionById(req.params.id);
-  if (!section) return res.status(404).json({ success: false, message: 'Section not found' });
-  res.json({ success: true, data: section });
-}
-
-async function createSection(req, res) {
-  const section = await service.createSection(req.body);
-  res.status(201).json({ success: true, data: section });
-}
-
-async function updateSection(req, res) {
-  const section = await service.updateSection(req.params.id, req.body);
-  res.json({ success: true, data: section });
-}
-
-async function deleteSection(req, res) {
-  await service.deleteSection(req.params.id);
-  res.json({ success: true, message: 'Section deleted' });
-}
-
-// ── CONTENTS ─────────────────────────────────────────────────────────────────
-
-async function createContent(req, res) {
-  const content = await service.createContent(req.params.sectionId, req.body);
-  res.status(201).json({ success: true, data: content });
-}
-
-async function updateContent(req, res) {
-  const content = await service.updateContent(req.params.contentId, req.body);
-  res.json({ success: true, data: content });
-}
-
-async function deleteContent(req, res) {
-  await service.deleteContent(req.params.contentId);
-  res.json({ success: true, message: 'Content deleted' });
-}
-
-module.exports = {
-  listLanguages,
-  listByLanguage,
-  listLessons,
-  listExercises,
-  listSections,
-  getSection,
-  createSection,
-  updateSection,
-  deleteSection,
-  createContent,
-  updateContent,
-  deleteContent,
+const getLanguages = async (req, res, next) => {
+  try {
+    const languages = await discoverService.getDiscoverableLanguages();
+    res.status(200).json({ success: true, data: languages });
+  } catch (err) { next(err); }
 };
+
+const getPreview = async (req, res, next) => {
+  try {
+    const preview = await discoverService.getLanguagePreview(req.params.code);
+    if (!preview) return res.status(404).json({ success: false, message: 'Langue non trouvée.' });
+    res.status(200).json({ success: true, data: preview });
+  } catch (err) { next(err); }
+};
+
+const getDemo = async (req, res, next) => {
+  try {
+    const demo = await discoverService.getLanguageDemo(req.params.code);
+    if (!demo) return res.status(404).json({ success: false, message: 'Aucune démonstration disponible pour cette langue.' });
+    res.status(200).json({ success: true, data: demo });
+  } catch (err) { next(err); }
+};
+
+const tryDemoExercise = async (req, res, next) => {
+  try {
+    const { error, value } = tryDemoSchema.validate(req.body);
+    if (error) return res.status(400).json({ success: false, message: error.details[0].message });
+
+    const result = await discoverService.tryDemo(req.params.contentId, value.answer);
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    const status = err.message?.includes('non trouvé') ? 404 : 400;
+    res.status(status).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getLanguages, getPreview, getDemo, tryDemoExercise };

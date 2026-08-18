@@ -1,149 +1,128 @@
 const { prisma } = require('../../config/prisma');
-const { cacheWrap, cacheDel, TTL } = require('../../utils/cache');
+const { cacheWrap, TTL } = require('../../utils/cache');
 
-// ── SECTIONS ─────────────────────────────────────────────────────────────────
-
-const DISCOVER_INCLUDE = { contents: { orderBy: { order: 'asc' }, include: { options: { orderBy: { order: 'asc' } } } } };
-
-async function getLanguages() {
+const getDiscoverableLanguages = async () => {
   return cacheWrap('discover:languages', async () => {
-    const sections = await prisma.discoverSection.findMany({ select: { language: true }, distinct: ['language'], orderBy: { language: 'asc' } });
-    return sections.map((s) => s.language);
+    return prisma.language.findMany({
+      where: { isActive: true },
+      select: { id: true, code: true, name: true, description: true, flagUrl: true },
+      orderBy: { name: 'asc' },
+    });
   }, TTL.LONG);
-}
+};
 
-async function getSectionsByLanguage(language) {
-  return cacheWrap(`discover:lang:${language}`, async () => {
-    const [lessons, exercises] = await Promise.all([
-      prisma.discoverSection.findMany({ where: { language, type: 'lesson' }, orderBy: { order: 'asc' }, include: DISCOVER_INCLUDE }),
-      prisma.discoverSection.findMany({ where: { language, type: 'exercise' }, orderBy: { order: 'asc' }, include: DISCOVER_INCLUDE }),
-    ]);
-    return { lessons, exercises };
+const getLanguagePreview = async (code) => {
+  return cacheWrap(`discover:preview:${code}`, async () => {
+    const language = await prisma.language.findFirst({
+      where: { code, isActive: true },
+      select: { id: true, code: true, name: true, description: true, flagUrl: true },
+    });
+    if (!language) return null;
+
+    const level = await prisma.level.findFirst({
+      where: { languageId: language.id, isActive: true },
+      orderBy: { index: 'asc' },
+      select: { id: true, name: true, code: true, description: true, index: true },
+    });
+    if (!level) return { ...language, level: null };
+
+    const modules = await prisma.module.findMany({
+      where: { levelId: level.id, isActive: true },
+      orderBy: { index: 'asc' },
+      select: { id: true, title: true, description: true, index: true },
+    });
+    const moduleIds = modules.map((m) => m.id);
+
+    const themes = moduleIds.length > 0
+      ? await prisma.theme.findMany({
+        where: { moduleId: { in: moduleIds }, isActive: true },
+        orderBy: { index: 'asc' },
+        select: { id: true, moduleId: true, title: true, description: true, index: true },
+      })
+      : [];
+
+    const themesMap = new Map();
+    themes.forEach((t) => {
+      if (!themesMap.has(t.moduleId)) themesMap.set(t.moduleId, []);
+      themesMap.get(t.moduleId).push(t);
+    });
+
+    return {
+      ...language,
+      level: {
+        ...level,
+        modules: modules.map((m) => ({ ...m, themes: themesMap.get(m.id) || [] })),
+      },
+    };
   }, TTL.LONG);
-}
+};
 
-async function getSectionsByLanguageAndType(language, type) {
-  return cacheWrap(`discover:lang:${language}:type:${type}`, () =>
-    prisma.discoverSection.findMany({ where: { language, type }, orderBy: { order: 'asc' }, include: DISCOVER_INCLUDE }),
-    TTL.LONG
-  );
-}
+const getLanguageDemo = async (code) => {
+  return cacheWrap(`discover:demo:${code}`, async () => {
+    const language = await prisma.language.findFirst({
+      where: { code, isActive: true },
+      select: { id: true },
+    });
+    if (!language) return null;
 
-async function getSections() {
-  return cacheWrap('discover:all', () =>
-    prisma.discoverSection.findMany({ orderBy: { order: 'asc' }, include: DISCOVER_INCLUDE }),
-    TTL.LONG
-  );
-}
+    const subTheme = await prisma.subTheme.findFirst({
+      where: {
+        isDemo: true,
+        isActive: true,
+        theme: { module: { level: { languageId: language.id } } },
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        theme: { select: { id: true, title: true } },
+      },
+    });
+    if (!subTheme) return null;
 
-async function getSectionById(id) {
-  return cacheWrap(`discover:section:${id}`, () =>
-    prisma.discoverSection.findUnique({ where: { id }, include: DISCOVER_INCLUDE }),
-    TTL.LONG
-  );
-}
+    const contents = await prisma.content.findMany({
+      where: { subThemeId: subTheme.id, isActive: true, contentType: { in: ['course', 'exercise'] } },
+      orderBy: { index: 'asc' },
+      select: {
+        id: true,
+        contentType: true,
+        title: true,
+        index: true,
+        summary: true,
+        statement: true,
+        question: true,
+        possibleAnswers: true,
+        blocks: {
+          orderBy: { index: 'asc' },
+          select: { id: true, sectionType: true, blockType: true, content: true, caption: true, index: true },
+        },
+      },
+    });
 
-async function _invalidateDiscover(sectionId = null, language = null) {
-  const keys = ['discover:all', 'discover:languages'];
-  if (sectionId) keys.push(`discover:section:${sectionId}`);
-  if (language) keys.push(`discover:lang:${language}`, `discover:lang:${language}:type:lesson`, `discover:lang:${language}:type:exercise`);
-  await cacheDel(...keys);
-}
+    return {
+      subTheme: { id: subTheme.id, title: subTheme.title, description: subTheme.description, theme: subTheme.theme },
+      contents,
+    };
+  }, TTL.MEDIUM);
+};
 
-async function createSection(data) {
-  const { title, type, language } = data;
-  const count = await prisma.discoverSection.count();
-  const result = await prisma.discoverSection.create({ data: { title, type, language, order: count + 1 } });
-  await _invalidateDiscover(null, language);
-  return result;
-}
-
-async function updateSection(id, data) {
-  const { title, type, language } = data;
-  const result = await prisma.discoverSection.update({
-    where: { id },
-    data: { ...(title !== undefined && { title }), ...(type !== undefined && { type }), ...(language !== undefined && { language }) },
-  });
-  await _invalidateDiscover(id, result.language);
-  return result;
-}
-
-async function deleteSection(id) {
-  const section = await prisma.discoverSection.findUnique({ where: { id }, select: { language: true } });
-  const result = await prisma.discoverSection.delete({ where: { id } });
-  await _invalidateDiscover(id, section?.language);
-  return result;
-}
-
-// ── CONTENTS ─────────────────────────────────────────────────────────────────
-
-async function _invalidateDiscoverSection(sectionId) {
-  const section = await prisma.discoverSection.findUnique({ where: { id: sectionId }, select: { language: true } });
-  await _invalidateDiscover(sectionId, section?.language);
-}
-
-async function createContent(sectionId, data) {
-  const { order, questionType, questionValue, answerType, answerValue, options } = data;
-  const result = await prisma.discoverContent.create({
-    data: {
-      sectionId,
-      order: order ?? 0,
-      questionType,
-      questionValue,
-      answerType,
-      answerValue,
-      ...(options && options.length > 0 && {
-        options: { create: options.map((opt, i) => ({ value: opt.value, isCorrect: opt.isCorrect ?? false, order: opt.order ?? i })) },
-      }),
+const tryDemo = async (contentId, answer) => {
+  const content = await prisma.content.findFirst({
+    where: {
+      id: contentId,
+      contentType: 'exercise',
+      isActive: true,
+      subTheme: { isDemo: true, isActive: true },
     },
-    include: { options: { orderBy: { order: 'asc' } } },
+    select: { id: true, correctAnswer: true, explanation: true },
   });
-  await _invalidateDiscoverSection(sectionId);
-  return result;
-}
-
-async function updateContent(id, data) {
-  const { order, questionType, questionValue, answerType, answerValue, options } = data;
-
-  if (options !== undefined) {
-    await prisma.discoverOption.deleteMany({ where: { contentId: id } });
+  if (!content) {
+    throw new Error('Exercice de démonstration non trouvé.');
   }
 
-  const result = await prisma.discoverContent.update({
-    where: { id },
-    data: {
-      ...(order !== undefined && { order }),
-      ...(questionType !== undefined && { questionType }),
-      ...(questionValue !== undefined && { questionValue }),
-      ...(answerType !== undefined && { answerType }),
-      ...(answerValue !== undefined && { answerValue }),
-      ...(options !== undefined && {
-        options: { create: options.map((opt, i) => ({ value: opt.value, isCorrect: opt.isCorrect ?? false, order: opt.order ?? i })) },
-      }),
-    },
-    include: { options: { orderBy: { order: 'asc' } } },
-  });
-  await _invalidateDiscoverSection(result.sectionId);
-  return result;
-}
+  const isCorrect = JSON.stringify(answer) === JSON.stringify(content.correctAnswer);
 
-async function deleteContent(id) {
-  const content = await prisma.discoverContent.findUnique({ where: { id }, select: { sectionId: true } });
-  const result = await prisma.discoverContent.delete({ where: { id } });
-  if (content) await _invalidateDiscoverSection(content.sectionId);
-  return result;
-}
-
-module.exports = {
-  getLanguages,
-  getSections,
-  getSectionsByLanguage,
-  getSectionsByLanguageAndType,
-  getSectionById,
-  createSection,
-  updateSection,
-  deleteSection,
-  createContent,
-  updateContent,
-  deleteContent,
+  return { isCorrect, explanation: content.explanation || null };
 };
+
+module.exports = { getDiscoverableLanguages, getLanguagePreview, getLanguageDemo, tryDemo };

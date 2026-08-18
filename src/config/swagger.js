@@ -93,11 +93,7 @@ const options = {
       },
       {
         name: 'Discover',
-        description: 'Découverte de l\'application, choix de langue, exercices de découverte, etc.'
-      },
-      {
-        name: 'Evaluation',
-        description: 'Test de niveau à l\'inscription (lié à Discover) — distinct du tag Evaluations (sous-thèmes)'
+        description: 'Découverte publique du contenu pédagogique, sans compte utilisateur'
       },
       {
         name: 'Progress',
@@ -121,7 +117,7 @@ const options = {
       },
       {
         name: 'Evaluations',
-        description: 'Évaluation de fin de sous-thème (distinct du module evaluation lié à Discover)'
+        description: 'Évaluation de fin de sous-thème'
       },
     ],
   },
@@ -144,7 +140,6 @@ const options = {
     './src/modules/upload/upload.routes.js',
     './src/modules/module/module.routes.js',
     './src/modules/language/language.routes.js',
-    './src/modules/evaluation/evaluation.routes.js',
     './src/modules/discover/discover.routes.js',
     './src/modules/app_setting/app_setting.routes.js',
     './src/modules/referral/referral.routes.js',

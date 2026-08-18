@@ -22,7 +22,6 @@ const notificationRoutes = require('../modules/notification/notification.routes'
 const moduleRoutes = require('../modules/module/module.routes');
 const languageRoutes = require('../modules/language/language.routes');
 const discoverRoutes = require('../modules/discover/discover.routes');
-const evaluationRoutes = require('../modules/evaluation/evaluation.routes');
 const uploadRoutes = require('../modules/upload/upload.routes');
 const paymentRoutes = require('../modules/payment/payment.routes');
 const transactionRoutes = require('../modules/transaction/transaction.routes');
@@ -48,7 +47,6 @@ router.use('/messages-ws',        authMiddleware, messageWsRoutes);
 router.use('/levels',             authMiddleware, levelRoutes);
 router.use('/payment',            authMiddleware, paymentRoutes);
 router.use('/transactions',       authMiddleware, transactionRoutes);
-router.use('/evaluation',         authMiddleware, evaluationRoutes);
 
 // ─── Modules : visibles sans abonnement, mais contenu détaillé nécessite un abonnement ──
 router.use('/modules',       authMiddleware, moduleRoutes);

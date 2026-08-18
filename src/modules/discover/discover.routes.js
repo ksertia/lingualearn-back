@@ -1,282 +1,109 @@
 const express = require('express');
+const controller = require('./discover.controller');
 const router = express.Router();
-const ctrl = require('./discover.controller');
-const { asyncHandler } = require('../../middleware/asyncHandler');
 
 /**
  * @swagger
  * tags:
  *   name: Discover
- *   description: Section découverte — gestion des sections et contenus par l'admin
+ *   description: |
+ *     Découverte publique du contenu pédagogique, sans compte utilisateur.
+ *     Lecture seule sur le vrai contenu (Language/Level/Module/Theme/SubTheme/Content) —
+ *     aucune donnée dupliquée, aucune écriture en base. Le test de niveau à l'inscription
+ *     n'est pas couvert ici.
  */
 
 /**
  * @swagger
  * /api/v1/discover/languages:
  *   get:
- *     summary: Get all distinct languages from discover sections
+ *     summary: Liste des langues disponibles à la découverte
  *     tags: [Discover]
  *     responses:
  *       200:
- *         description: List of unique languages
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: array
- *                   items:
- *                     type: string
- *                   example: ["Français", "Wolof", "Arabe"]
+ *         description: Liste des langues actives
  */
-router.get('/languages', asyncHandler(ctrl.listLanguages));
+router.get('/languages', controller.getLanguages);
 
 /**
  * @swagger
- * /api/v1/discover/languages/{language}/lessons:
+ * /api/v1/discover/languages/{code}/preview:
  *   get:
- *     summary: Get all lesson sections for a given language
+ *     summary: Aperçu de la structure pédagogique d'une langue (premier niveau)
+ *     description: |
+ *       Retourne le premier niveau de la langue avec ses modules et thèmes
+ *       (titres/descriptions uniquement — aucun contenu détaillé, aucun exercice).
  *     tags: [Discover]
  *     parameters:
  *       - in: path
- *         name: language
+ *         name: code
  *         required: true
- *         schema:
- *           type: string
- *         example: "Wolof"
+ *         schema: { type: string }
+ *         description: Code de la langue (ex. DYU, MOS)
  *     responses:
  *       200:
- *         description: List of lesson sections
- */
-/**
- * @swagger
- * /api/v1/discover/languages/{language}:
- *   get:
- *     summary: Get all lessons and exercises for a given language
- *     tags: [Discover]
- *     parameters:
- *       - in: path
- *         name: language
- *         required: true
- *         schema:
- *           type: string
- *         example: "Wolof"
- *     responses:
- *       200:
- *         description: Lessons and exercises grouped by type
- */
-router.get('/languages/:language', asyncHandler(ctrl.listByLanguage));
-
-router.get('/languages/:language/lessons', asyncHandler(ctrl.listLessons));
-
-/**
- * @swagger
- * /api/v1/discover/languages/{language}/exercises:
- *   get:
- *     summary: Get all exercise sections for a given language
- *     tags: [Discover]
- *     parameters:
- *       - in: path
- *         name: language
- *         required: true
- *         schema:
- *           type: string
- *         example: "Wolof"
- *     responses:
- *       200:
- *         description: List of exercise sections
- */
-router.get('/languages/:language/exercises', asyncHandler(ctrl.listExercises));
-
-// ── SECTIONS ─────────────────────────────────────────────────────────────────
-
-/**
- * @swagger
- * /api/v1/discover/sections:
- *   get:
- *     summary: List all discover sections with their contents
- *     tags: [Discover]
- *     responses:
- *       200:
- *         description: List of sections
- */
-router.get('/sections', asyncHandler(ctrl.listSections));
-
-/**
- * @swagger
- * /api/v1/discover/sections/{id}:
- *   get:
- *     summary: Get a section with its contents
- *     tags: [Discover]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Section detail
+ *         description: Aperçu de la langue
  *       404:
- *         description: Section not found
+ *         description: Langue non trouvée
  */
-router.get('/sections/:id', asyncHandler(ctrl.getSection));
+router.get('/languages/:code/preview', controller.getPreview);
 
 /**
  * @swagger
- * /api/v1/discover/sections:
- *   post:
- *     summary: Create a discover section
+ * /api/v1/discover/languages/{code}/demo:
+ *   get:
+ *     summary: Sous-thème de démonstration d'une langue (cours + exercice)
+ *     description: |
+ *       Retourne le sous-thème marqué comme démo pour cette langue, avec son cours
+ *       (blocks inclus) et son exercice — sans la réponse correcte ni l'explication,
+ *       qui ne sont révélées qu'après une tentative via POST /demo/{contentId}/try.
  *     tags: [Discover]
+ *     parameters:
+ *       - in: path
+ *         name: code
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Contenu de démonstration
+ *       404:
+ *         description: Aucune démonstration disponible pour cette langue
+ */
+router.get('/languages/:code/demo', controller.getDemo);
+
+/**
+ * @swagger
+ * /api/v1/discover/demo/{contentId}/try:
+ *   post:
+ *     summary: Tenter l'exercice de démonstration (sans compte)
+ *     description: |
+ *       Compare la réponse à la bonne réponse et retourne isCorrect + explanation.
+ *       Aucune écriture en base (pas de ContentAttempt). Le contentId doit appartenir
+ *       à un sous-thème marqué comme démo, sinon 404 — empêche de sonder le catalogue réel.
+ *     tags: [Discover]
+ *     parameters:
+ *       - in: path
+ *         name: contentId
+ *         required: true
+ *         schema: { type: string }
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [title, type, language]
+ *             required: [answer]
  *             properties:
- *               title:
- *                 type: string
- *                 example: "Introduction au Wolof"
- *               type:
- *                 type: string
- *                 enum: [lesson, exercise]
- *               language:
- *                 type: string
- *                 example: "Wolof"
- *     responses:
- *       201:
- *         description: Section created
- */
-router.post('/sections', asyncHandler(ctrl.createSection));
-
-/**
- * @swagger
- * /api/v1/discover/sections/{id}:
- *   patch:
- *     summary: Update a discover section
- *     tags: [Discover]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
+ *               answer:
+ *                 oneOf:
+ *                   - type: string
+ *                   - type: array
  *     responses:
  *       200:
- *         description: Section updated
+ *         description: Résultat de la tentative
+ *       404:
+ *         description: Exercice de démonstration non trouvé
  */
-router.patch('/sections/:id', asyncHandler(ctrl.updateSection));
-
-/**
- * @swagger
- * /api/v1/discover/sections/{id}:
- *   delete:
- *     summary: Delete a discover section
- *     tags: [Discover]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Section deleted
- */
-router.delete('/sections/:id', asyncHandler(ctrl.deleteSection));
-
-// ── CONTENTS ─────────────────────────────────────────────────────────────────
-
-/**
- * @swagger
- * /api/v1/discover/sections/{sectionId}/contents:
- *   post:
- *     summary: Add a content item to a section
- *     tags: [Discover]
- *     parameters:
- *       - in: path
- *         name: sectionId
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [questionType, questionValue]
- *             properties:
- *               order:
- *                 type: integer
- *               questionType:
- *                 type: string
- *                 enum: [text, audio, image, video, file]
- *               questionValue:
- *                 type: string
- *               answerType:
- *                 type: string
- *                 enum: [text, audio, image, video, file]
- *               answerValue:
- *                 type: string
- *               options:
- *                 type: array
- *                 description: For exercise sections only
- *                 items:
- *                   type: object
- *                   required: [value, isCorrect]
- *                   properties:
- *                     value:
- *                       type: string
- *                     isCorrect:
- *                       type: boolean
- *                     order:
- *                       type: integer
- *     responses:
- *       201:
- *         description: Content created
- */
-router.post('/sections/:sectionId/contents', asyncHandler(ctrl.createContent));
-
-/**
- * @swagger
- * /api/v1/discover/contents/{contentId}:
- *   patch:
- *     summary: Update a content item
- *     tags: [Discover]
- *     parameters:
- *       - in: path
- *         name: contentId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Content updated
- */
-router.patch('/contents/:contentId', asyncHandler(ctrl.updateContent));
-
-/**
- * @swagger
- * /api/v1/discover/contents/{contentId}:
- *   delete:
- *     summary: Delete a content item
- *     tags: [Discover]
- *     parameters:
- *       - in: path
- *         name: contentId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Content deleted
- */
-router.delete('/contents/:contentId', asyncHandler(ctrl.deleteContent));
+router.post('/demo/:contentId/try', controller.tryDemoExercise);
 
 module.exports = router;

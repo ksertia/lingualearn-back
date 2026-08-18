@@ -67,11 +67,29 @@ const authLimiter = rateLimit({
     message: { success: false, error: 'Trop de tentatives. Réessayez dans 15 minutes.' },
 });
 
+const discoverLimiter = rateLimit({
+    windowMs: 60 * 1000,        // 1 minute
+    max: 30,                    // 30 requêtes/min par IP — accès public sans compte
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: 'Trop de requêtes de découverte. Réessayez dans une minute.' },
+});
+
+const discoverTryLimiter = rateLimit({
+    windowMs: 60 * 1000,        // 1 minute
+    max: 10,                    // 10 essais/min par IP — plus strict, se cumule avec discoverLimiter
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: 'Trop d\'essais. Réessayez dans une minute.' },
+});
+
 app.use(globalLimiter);
 // Appliquer le limiter strict sur les routes auth
 app.use('/api/v1/auth/login', authLimiter);
 app.use('/api/v1/auth/register', authLimiter);
 app.use('/api/v1/auth/forgot-password', authLimiter);
+app.use('/api/v1/discover', discoverLimiter);
+app.use('/api/v1/discover/demo', discoverTryLimiter);
 
 // Supprimer headers qui causent des warnings Swagger
 app.use((req, res, next) => {
