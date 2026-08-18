@@ -40,46 +40,7 @@ const options = {
           'x-persistAuthorization': true
         },
       },
-      schemas: {
-        Language: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', example: 'clq1x2abc0000v2l3k9x9x9x9' },
-            code: { type: 'string', example: 'FR' },
-            name: { type: 'string', example: 'Français' },
-            description: { type: 'string', example: 'Langue française' },
-            iconUrl: { type: 'string', example: 'https://cdn.tibi.com/icons/fr.png' },
-            isActive: { type: 'boolean', example: true },
-            index: { type: 'integer', example: 1 }
-          }
-        },
-        UserProgress: {
-          type: 'object',
-          description: 'Progression informative — aucun blocage, uniquement un pourcentage.',
-          properties: {
-            id: { type: 'string', example: 'progress123' },
-            progressPercentage: { type: 'number', example: 65.5 },
-            startedAt: { type: 'string', example: '2024-01-15T10:35:00Z' },
-            completedAt: { type: 'string', example: null },
-            lastAccessedAt: { type: 'string', example: '2024-01-15T14:20:00Z' }
-          }
-        },
-        ApiResponse: {
-          type: 'object',
-          properties: {
-            success: { type: 'boolean', example: true },
-            message: { type: 'string', example: 'Progression initialisée avec succès' },
-            data: { type: 'object' }
-          }
-        },
-        ErrorResponse: {
-          type: 'object',
-          properties: {
-            success: { type: 'boolean', example: false },
-            error: { type: 'string', example: 'Utilisateur non trouvé' }
-          }
-        }
-      }
+      schemas: {}
     },
     security: [
       {
@@ -88,20 +49,12 @@ const options = {
     ],
     tags: [
       {
+        name: 'Discover',
+        description: 'Découverte publique du contenu pédagogique, sans compte utilisateur — lecture seule, aucune écriture'
+      },
+      {
         name: 'Languages',
         description: 'Gestion des langues et de leurs niveaux/modules'
-      },
-      {
-        name: 'Discover',
-        description: 'Découverte publique du contenu pédagogique, sans compte utilisateur'
-      },
-      {
-        name: 'Progress',
-        description: 'Suivi de progression informatif — aucun blocage, uniquement un pourcentage d\'avancement'
-      },
-      {
-        name: 'AppSettings',
-        description: 'Paramètres globaux de la plateforme — durée du trial, etc. (admin uniquement)'
       },
       {
         name: 'Theme',
@@ -109,7 +62,7 @@ const options = {
       },
       {
         name: 'SubTheme',
-        description: 'Gestion des sous-thèmes (regroupent plusieurs contenus + une évaluation optionnelle)'
+        description: 'Gestion des sous-thèmes (regroupent plusieurs contenus + une évaluation optionnelle). isDemo marque le sous-thème vitrine exposé publiquement par Discover.'
       },
       {
         name: 'Content',
@@ -118,6 +71,18 @@ const options = {
       {
         name: 'Evaluations',
         description: 'Évaluation de fin de sous-thème'
+      },
+      {
+        name: 'Progress',
+        description: 'Suivi de progression informatif — aucun blocage, uniquement un pourcentage d\'avancement'
+      },
+      {
+        name: 'Users',
+        description: 'Gestion des comptes utilisateurs'
+      },
+      {
+        name: 'AppSettings',
+        description: 'Paramètres globaux de la plateforme — durée du trial, etc. (admin uniquement)'
       },
     ],
   },
