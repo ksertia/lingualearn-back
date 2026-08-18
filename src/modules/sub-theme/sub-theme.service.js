@@ -1,5 +1,6 @@
 const { prisma } = require('../../config/prisma');
 const { deriveState } = require('../progress/progress.service');
+const { cacheInvalidatePattern } = require('../../utils/cache');
 
 const CONTENT_SELECT = {
   id: true, contentType: true, title: true, index: true, isActive: true,
@@ -85,15 +86,38 @@ exports.getSubTheme = async (id) => {
 };
 
 exports.updateSubTheme = async (id, data) => {
-  const subTheme = await prisma.subTheme.findUnique({ where: { id } });
+  const subTheme = await prisma.subTheme.findUnique({
+    where: { id },
+    include: { theme: { select: { module: { select: { level: { select: { language: { select: { id: true, code: true } } } } } } } } }
+  });
   if (!subTheme) throw new Error('Sous-thème non trouvé');
 
   const validData = {};
-  ['title', 'description', 'index', 'isActive'].forEach(f => {
+  ['title', 'description', 'index', 'isActive', 'isDemo'].forEach(f => {
     if (data[f] !== undefined) validData[f] = data[f];
   });
 
-  return prisma.subTheme.update({ where: { id }, data: validData });
+  const language = subTheme.theme.module.level.language;
+
+  // Un seul sous-thème démo par langue — évite l'ambiguïté sur GET /discover/languages/:code/demo
+  if (validData.isDemo === true) {
+    await prisma.subTheme.updateMany({
+      where: {
+        isDemo: true,
+        id: { not: id },
+        theme: { module: { level: { languageId: language.id } } }
+      },
+      data: { isDemo: false }
+    });
+  }
+
+  const updated = await prisma.subTheme.update({ where: { id }, data: validData });
+
+  if (validData.isDemo !== undefined) {
+    await cacheInvalidatePattern(`discover:demo:${language.code}`);
+  }
+
+  return updated;
 };
 
 exports.deleteSubTheme = async (id) => {

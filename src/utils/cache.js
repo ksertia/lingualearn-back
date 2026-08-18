@@ -41,11 +41,18 @@ async function cacheDel(...keys) {
 async function cacheInvalidatePattern(pattern) {
     if (!isRedisAvailable()) return;
     try {
+        // SCAN/MATCH opère sur les clés physiques et n'applique pas keyPrefix
+        // automatiquement (contrairement à GET/SET/DEL) — il faut le préfixer ici,
+        // puis le retirer avant de rappeler del() qui, lui, le réapplique.
+        const prefix = redis.options.keyPrefix || '';
         let cursor = '0';
         do {
-            const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+            const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', `${prefix}${pattern}`, 'COUNT', 100);
             cursor = nextCursor;
-            if (keys.length > 0) await redis.del(...keys);
+            if (keys.length > 0) {
+                const unprefixed = keys.map((k) => (prefix && k.startsWith(prefix) ? k.slice(prefix.length) : k));
+                await redis.del(...unprefixed);
+            }
         } while (cursor !== '0');
     } catch (err) {
         logger.warn(`cache.invalidatePattern [${pattern}]: ${err.message}`);

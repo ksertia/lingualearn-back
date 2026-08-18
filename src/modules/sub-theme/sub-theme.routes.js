@@ -24,6 +24,7 @@ const router = express.Router();
  *         description: { type: string, nullable: true }
  *         index:       { type: integer }
  *         isActive:    { type: boolean }
+ *         isDemo:      { type: boolean, description: "Sous-thème vitrine exposé publiquement via /discover/languages/{code}/demo. Un seul par langue — en marquer un second démarque automatiquement l'ancien." }
  *
  *     SubThemeCreate:
  *       type: object
@@ -120,12 +121,27 @@ router.post('/', controller.createSubTheme);
  * /api/v1/sub-themes/{id}:
  *   patch:
  *     summary: Modifier un sous-thème
+ *     description: |
+ *       Passer isDemo=true marque ce sous-thème comme vitrine publique pour sa langue
+ *       (exposé via /discover/languages/{code}/demo) et démarque automatiquement tout
+ *       autre sous-thème démo de la même langue — un seul actif à la fois.
  *     tags: [SubTheme]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema: { type: string }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:       { type: string }
+ *               description: { type: string, nullable: true }
+ *               index:       { type: integer }
+ *               isActive:    { type: boolean }
+ *               isDemo:      { type: boolean }
  *     responses:
  *       200:
  *         description: Sous-thème mis à jour

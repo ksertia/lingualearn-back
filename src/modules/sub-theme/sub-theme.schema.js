@@ -12,6 +12,7 @@ const updateSubThemeSchema = Joi.object({
   description: Joi.string().allow('', null),
   index:       Joi.number().integer().min(0),
   isActive:    Joi.boolean(),
+  isDemo:      Joi.boolean(),
 });
 
 module.exports = { createSubThemeSchema, updateSubThemeSchema };

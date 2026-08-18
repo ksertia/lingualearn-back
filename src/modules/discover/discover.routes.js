@@ -29,9 +29,9 @@ router.get('/languages', controller.getLanguages);
  * @swagger
  * /api/v1/discover/languages/{code}/preview:
  *   get:
- *     summary: Aperçu de la structure pédagogique d'une langue (premier niveau)
+ *     summary: Aperçu de la structure pédagogique complète d'une langue
  *     description: |
- *       Retourne le premier niveau de la langue avec ses modules et thèmes
+ *       Retourne tous les niveaux actifs de la langue avec leurs modules et thèmes
  *       (titres/descriptions uniquement — aucun contenu détaillé, aucun exercice).
  *     tags: [Discover]
  *     parameters:

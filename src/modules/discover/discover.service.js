@@ -19,17 +19,18 @@ const getLanguagePreview = async (code) => {
     });
     if (!language) return null;
 
-    const level = await prisma.level.findFirst({
+    const levels = await prisma.level.findMany({
       where: { languageId: language.id, isActive: true },
       orderBy: { index: 'asc' },
       select: { id: true, name: true, code: true, description: true, index: true },
     });
-    if (!level) return { ...language, level: null };
+    if (levels.length === 0) return { ...language, levels: [] };
 
+    const levelIds = levels.map((l) => l.id);
     const modules = await prisma.module.findMany({
-      where: { levelId: level.id, isActive: true },
+      where: { levelId: { in: levelIds }, isActive: true },
       orderBy: { index: 'asc' },
-      select: { id: true, title: true, description: true, index: true },
+      select: { id: true, levelId: true, title: true, description: true, index: true },
     });
     const moduleIds = modules.map((m) => m.id);
 
@@ -47,12 +48,15 @@ const getLanguagePreview = async (code) => {
       themesMap.get(t.moduleId).push(t);
     });
 
+    const modulesMap = new Map();
+    modules.forEach((m) => {
+      if (!modulesMap.has(m.levelId)) modulesMap.set(m.levelId, []);
+      modulesMap.get(m.levelId).push({ ...m, themes: themesMap.get(m.id) || [] });
+    });
+
     return {
       ...language,
-      level: {
-        ...level,
-        modules: modules.map((m) => ({ ...m, themes: themesMap.get(m.id) || [] })),
-      },
+      levels: levels.map((level) => ({ ...level, modules: modulesMap.get(level.id) || [] })),
     };
   }, TTL.LONG);
 };
