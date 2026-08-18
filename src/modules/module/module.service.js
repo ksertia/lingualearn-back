@@ -32,6 +32,7 @@ exports.getModulesByUserId = async (userId, levelId = null) => {
       thumbnailUrl: module.thumbnailUrl,
       isActive: module.isActive,
       progress: module.userProgress[0] || null,
+      state: deriveState(module.userProgress[0] || {}),
       progressPercentage: module.userProgress[0]?.progressPercentage || 0,
       startedAt: module.userProgress[0]?.startedAt || null,
       completedAt: module.userProgress[0]?.completedAt || null,

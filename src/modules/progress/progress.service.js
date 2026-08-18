@@ -123,10 +123,12 @@ exports.getUserLevelProgressSummary = async (userId, levelId) => {
 
   return {
     levelId,
+    state: exports.deriveState(levelProgress || {}),
     progressPercentage: levelProgress?.progressPercentage || 0,
     modules: modules.map(m => ({
       id: m.id,
       title: m.title,
+      state: exports.deriveState(m.userProgress[0] || {}),
       progressPercentage: m.userProgress[0]?.progressPercentage || 0,
       startedAt: m.userProgress[0]?.startedAt || null,
       completedAt: m.userProgress[0]?.completedAt || null,
@@ -138,7 +140,8 @@ exports.getUserLevelProgressSummary = async (userId, levelId) => {
 // Détail de progression d'un utilisateur pour un sous-thème.
 exports.getUserSubThemeProgress = async (userId, subThemeId) => {
   const progress = await prisma.userSubThemeProgress.findUnique({ where: { userId_subThemeId: { userId, subThemeId } } });
-  return progress || { userId, subThemeId, progressPercentage: 0, completedContentIds: [], evaluationScore: null };
+  const result = progress || { userId, subThemeId, progressPercentage: 0, completedContentIds: [], evaluationScore: null };
+  return { ...result, state: exports.deriveState(result) };
 };
 
 // Suggère le prochain sous-thème à faire pour un utilisateur sur un niveau —
