@@ -18,7 +18,7 @@ const getSubThemes = async (req, res, next) => {
 
 const getSubThemesByThemeId = async (req, res, next) => {
   try {
-    const subThemes = await subThemeService.getSubThemesByThemeId(req.params.themeId);
+    const subThemes = await subThemeService.getSubThemesByThemeId(req.params.themeId, req.query.userId || null);
     res.status(200).json({ success: true, data: subThemes });
   } catch (err) { next(err); }
 };

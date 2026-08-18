@@ -64,12 +64,20 @@ router.get('/', controller.getThemes);
  * /api/v1/themes/module/{moduleId}:
  *   get:
  *     summary: Thèmes d'un module
+ *     description: |
+ *       Si userId est fourni, chaque thème est enrichi avec une progression (state,
+ *       progressPercentage) calculée à la volée — moyenne des sous-thèmes de ce thème
+ *       pour cet utilisateur. Pas de table dédiée, même principe que Module/Level.
  *     tags: [Theme]
  *     parameters:
  *       - in: path
  *         name: moduleId
  *         required: true
  *         schema: { type: string }
+ *       - in: query
+ *         name: userId
+ *         schema: { type: string }
+ *         description: Optionnel — enrichit la réponse avec la progression de cet utilisateur
  *     responses:
  *       200:
  *         description: Liste des thèmes du module

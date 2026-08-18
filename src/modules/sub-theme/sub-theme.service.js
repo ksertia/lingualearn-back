@@ -1,4 +1,5 @@
 const { prisma } = require('../../config/prisma');
+const { deriveState } = require('../progress/progress.service');
 
 const CONTENT_SELECT = {
   id: true, contentType: true, title: true, index: true, isActive: true,
@@ -43,8 +44,32 @@ exports.getSubThemes = async (filters = {}) => {
   return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
 };
 
-exports.getSubThemesByThemeId = async (themeId) => {
-  return prisma.subTheme.findMany({ where: { themeId, isActive: true }, orderBy: { index: 'asc' } });
+// userId optionnel : si fourni, enrichit chaque sous-thème avec sa progression (state, progressPercentage) pour cet utilisateur.
+exports.getSubThemesByThemeId = async (themeId, userId = null) => {
+  if (!userId) {
+    return prisma.subTheme.findMany({ where: { themeId, isActive: true }, orderBy: { index: 'asc' } });
+  }
+
+  const subThemes = await prisma.subTheme.findMany({
+    where: { themeId, isActive: true },
+    orderBy: { index: 'asc' },
+    include: { userProgress: { where: { userId }, select: { progressPercentage: true, startedAt: true, completedAt: true, lastAccessedAt: true } } }
+  });
+
+  return subThemes.map(st => ({
+    id: st.id,
+    themeId: st.themeId,
+    title: st.title,
+    description: st.description,
+    index: st.index,
+    isActive: st.isActive,
+    progress: st.userProgress[0] || null,
+    state: deriveState(st.userProgress[0] || {}),
+    progressPercentage: st.userProgress[0]?.progressPercentage || 0,
+    startedAt: st.userProgress[0]?.startedAt || null,
+    completedAt: st.userProgress[0]?.completedAt || null,
+    lastAccessedAt: st.userProgress[0]?.lastAccessedAt || null
+  }));
 };
 
 exports.getSubTheme = async (id) => {

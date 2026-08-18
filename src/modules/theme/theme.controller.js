@@ -18,7 +18,7 @@ const getThemes = async (req, res, next) => {
 
 const getThemesByModuleId = async (req, res, next) => {
   try {
-    const themes = await themeService.getThemesByModuleId(req.params.moduleId);
+    const themes = await themeService.getThemesByModuleId(req.params.moduleId, req.query.userId || null);
     res.status(200).json({ success: true, data: themes });
   } catch (err) { next(err); }
 };

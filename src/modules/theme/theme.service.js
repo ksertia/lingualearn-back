@@ -1,4 +1,5 @@
 const { prisma } = require('../../config/prisma');
+const { deriveState } = require('../progress/progress.service');
 
 exports.createTheme = async (data) => {
   const module_ = await prisma.module.findUnique({ where: { id: data.moduleId } });
@@ -36,8 +37,52 @@ exports.getThemes = async (filters = {}) => {
   return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
 };
 
-exports.getThemesByModuleId = async (moduleId) => {
-  return prisma.theme.findMany({ where: { moduleId, isActive: true }, orderBy: { index: 'asc' } });
+// userId optionnel : si fourni, enrichit chaque thème avec une progression calculée à la volée
+// (moyenne des UserSubThemeProgress de ses sous-thèmes actifs) — pas de table UserThemeProgress dédiée,
+// même logique que Module/Level mais sans persistance puisque le volume par thème reste faible.
+exports.getThemesByModuleId = async (moduleId, userId = null) => {
+  if (!userId) {
+    return prisma.theme.findMany({ where: { moduleId, isActive: true }, orderBy: { index: 'asc' } });
+  }
+
+  const themes = await prisma.theme.findMany({
+    where: { moduleId, isActive: true },
+    orderBy: { index: 'asc' },
+    include: {
+      subThemes: {
+        where: { isActive: true },
+        select: { id: true, userProgress: { where: { userId }, select: { progressPercentage: true, startedAt: true, completedAt: true, lastAccessedAt: true } } }
+      }
+    }
+  });
+
+  return themes.map(theme => {
+    const subProgresses = theme.subThemes.map(st => st.userProgress[0]).filter(Boolean);
+    const progressPercentage = subProgresses.length > 0
+      ? Math.round((subProgresses.reduce((acc, p) => acc + Number(p.progressPercentage), 0) / theme.subThemes.length) * 100) / 100
+      : 0;
+    const startedAt = subProgresses.map(p => p.startedAt).filter(Boolean).sort()[0] || null;
+    const lastAccessedDates = subProgresses.map(p => p.lastAccessedAt).filter(Boolean).sort();
+    const lastAccessedAt = lastAccessedDates.length > 0 ? lastAccessedDates[lastAccessedDates.length - 1] : null;
+    const completedAt = theme.subThemes.length > 0 && subProgresses.length === theme.subThemes.length && subProgresses.every(p => p.completedAt)
+      ? subProgresses.map(p => p.completedAt).sort()[subProgresses.length - 1]
+      : null;
+
+    return {
+      id: theme.id,
+      moduleId: theme.moduleId,
+      title: theme.title,
+      description: theme.description,
+      iconUrl: theme.iconUrl,
+      index: theme.index,
+      isActive: theme.isActive,
+      state: deriveState({ progressPercentage, startedAt, completedAt }),
+      progressPercentage,
+      startedAt,
+      completedAt,
+      lastAccessedAt
+    };
+  });
 };
 
 exports.getTheme = async (id) => {

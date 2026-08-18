@@ -64,12 +64,17 @@ router.get('/', controller.getSubThemes);
  * /api/v1/sub-themes/theme/{themeId}:
  *   get:
  *     summary: Sous-thèmes d'un thème
+ *     description: Si userId est fourni, chaque sous-thème est enrichi avec sa progression (state, progressPercentage) pour cet utilisateur.
  *     tags: [SubTheme]
  *     parameters:
  *       - in: path
  *         name: themeId
  *         required: true
  *         schema: { type: string }
+ *       - in: query
+ *         name: userId
+ *         schema: { type: string }
+ *         description: Optionnel — enrichit la réponse avec la progression de cet utilisateur
  *     responses:
  *       200:
  *         description: Liste des sous-thèmes du thème
