@@ -60,13 +60,13 @@ const router = express.Router();
  *           value: { subThemeId: "sub_abc", contentType: "course", title: "Les salutations", summary: "Apprendre à saluer" }
  *         video:
  *           summary: Contenu de type vidéo
- *           value: { subThemeId: "sub_abc", contentType: "video", title: "Vidéo introduction", videoUrl: "https://res.cloudinary.com/.../video.mp4", description: "Vidéo d'introduction", keyPoints: ["Point 1", "Point 2"] }
+ *           value: { subThemeId: "sub_abc", contentType: "video", title: "Vidéo introduction", videoUrl: "/media/hls/{assetId}/master.m3u8", description: "Vidéo d'introduction", keyPoints: ["Point 1", "Point 2"] }
  *         exercise:
  *           summary: Contenu de type exercice
  *           value: { subThemeId: "sub_abc", contentType: "exercise", title: "Exercice 1", statement: "Choisissez la bonne traduction", question: "Comment dit-on bonjour ?", possibleAnswers: ["I ni ce", "I ni wula"], correctAnswer: "I ni ce", explanation: "I ni ce signifie bonjour" }
  *         resource:
  *           summary: Contenu de type ressource
- *           value: { subThemeId: "sub_abc", contentType: "resource", title: "Fiche PDF", resourceType: "pdf", resourceUrl: "https://res.cloudinary.com/.../fiche.pdf" }
+ *           value: { subThemeId: "sub_abc", contentType: "resource", title: "Fiche PDF", resourceType: "pdf", resourceUrl: "/media/pdfs/fiche.pdf" }
  *
  *     BlockCreate:
  *       type: object

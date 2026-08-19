@@ -1,11 +1,12 @@
 const Joi = require('joi');
+const { mediaUrl } = require('../../utils/validators');
 
 const createBadgeSchema = Joi.object({
   badgeCode: Joi.string().max(50).required(),
   badgeName: Joi.string().max(100).required(),
   description: Joi.string().allow('', null),
   category: Joi.string().allow('', null),
-  iconUrl: Joi.string().uri().allow(null, ''),
+  iconUrl: mediaUrl().allow(null, ''),
   colorCode: Joi.string().max(7).allow(null, ''),
   isActive: Joi.boolean().default(true)
 });

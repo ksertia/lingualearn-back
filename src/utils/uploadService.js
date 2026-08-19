@@ -2,131 +2,81 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const cloudinary = require('cloudinary').v2;
 
-// Configuration Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
+// Racine de stockage local — tout ce qui est servi publiquement vit sous storage/uploads
+const storageRoot = path.join(__dirname, '../../storage/uploads');
+const tmpDir    = path.join(storageRoot, 'tmp');
+const imagesDir = path.join(storageRoot, 'images');
+const videosDir = path.join(storageRoot, 'videos');
+const audiosDir = path.join(storageRoot, 'audios');
+const pdfsDir   = path.join(storageRoot, 'pdfs');
+const hlsDir    = path.join(storageRoot, 'hls');
+
+[storageRoot, tmpDir, imagesDir, videosDir, audiosDir, pdfsDir, hlsDir].forEach((dir) => {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-// Créer les dossiers d'upload temporaires
-const uploadsDir = path.join(__dirname, '../../uploads');
-const coursesDir = path.join(uploadsDir, 'courses');
-const imagesDir = path.join(uploadsDir, 'images');
-
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-if (!fs.existsSync(coursesDir)) {
-  fs.mkdirSync(coursesDir, { recursive: true });
-}
-if (!fs.existsSync(imagesDir)) {
-  fs.mkdirSync(imagesDir, { recursive: true });
+function uniqueFilename(originalname) {
+    const ext = path.extname(originalname);
+    const suffix = Date.now() + '-' + crypto.randomBytes(6).toString('hex');
+    return `${suffix}${ext}`;
 }
 
-// Configuration de stockage pour multer
+// Tous les uploads passent d'abord par tmp/ — le worker (ou le controller pour
+// les images/pdf, traités synchroniquement car légers) déplace ensuite vers le
+// dossier final. Ça garantit qu'un fichier partiellement écrit n'est jamais
+// exposé sous une URL publique.
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    // Déterminer le dossier selon le type de fichier
-    let dir = coursesDir;
-    
-    if (file.mimetype.startsWith('image/')) {
-      dir = imagesDir;
-    }
-    
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    // Générer un nom de fichier unique
-    const uniqueSuffix = Date.now() + '-' + crypto.randomBytes(6).toString('hex');
-    const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext);
-    cb(null, `${name}-${uniqueSuffix}${ext}`);
-  }
+    destination: (req, file, cb) => cb(null, tmpDir),
+    filename: (req, file, cb) => cb(null, uniqueFilename(file.originalname)),
 });
 
-// Filtrer les fichiers autorisés
-const fileFilter = (req, file, cb) => {
-  // Types MIME autorisés
-  const allowedMimes = [
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp',
-    'video/mp4',
-    'video/webm',
-    'audio/mpeg',
-    'audio/wav',
-    'application/pdf'
-  ];
+const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const VIDEO_MIMES = ['video/mp4', 'video/webm', 'video/quicktime'];
+const AUDIO_MIMES = ['audio/mpeg', 'audio/wav', 'audio/mp4'];
+const PDF_MIMES   = ['application/pdf'];
 
-  if (allowedMimes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
+const fileFilter = (req, file, cb) => {
+    const allowed = [...IMAGE_MIMES, ...VIDEO_MIMES, ...AUDIO_MIMES, ...PDF_MIMES];
+    if (allowed.includes(file.mimetype)) return cb(null, true);
     cb(new Error(`Le type de fichier ${file.mimetype} n'est pas autorisé`), false);
-  }
 };
 
-// Créer les middlewares multer
 const uploadCourseContent = multer({
-  storage,
-  fileFilter,
-  limits: {
-    fileSize: 100 * 1024 * 1024 // 100MB max
-  }
+    storage,
+    fileFilter,
+    limits: { fileSize: 500 * 1024 * 1024 }, // 500MB max — vidéos pédagogiques
 });
 
 const uploadImage = multer({
-  storage,
-  fileFilter: (req, file, cb) => {
-    const allowedImageMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (allowedImageMimes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Seuls les fichiers image (JPEG, PNG, GIF, WebP) sont autorisés'), false);
-    }
-  },
-  limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB max pour les images
-  }
+    storage,
+    fileFilter: (req, file, cb) => {
+        if (IMAGE_MIMES.includes(file.mimetype)) return cb(null, true);
+        cb(new Error('Seuls les fichiers image (JPEG, PNG, GIF, WebP) sont autorisés'), false);
+    },
+    limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-// Upload vers Cloudinary
-const uploadToCloudinary = (filePath, options = {}) => {
-  return new Promise((resolve, reject) => {
-    cloudinary.uploader.upload(filePath, {
-      folder: options.folder || 'tibi',
-      resource_type: options.resource_type || 'auto',
-      ...options
-    }, (error, result) => {
-      // Supprimer le fichier temporaire local
-      fs.unlink(filePath, () => {});
-      if (error) return reject(error);
-      resolve(result);
-    });
-  });
-};
+function mediaTypeFromMime(mimetype) {
+    if (IMAGE_MIMES.includes(mimetype)) return 'image';
+    if (VIDEO_MIMES.includes(mimetype)) return 'video';
+    if (AUDIO_MIMES.includes(mimetype)) return 'audio';
+    if (PDF_MIMES.includes(mimetype)) return 'pdf';
+    return null;
+}
 
-// Générer l'URL du fichier (maintenant via Cloudinary)
-const getFileUrl = (cloudinaryUrl) => {
-  return cloudinaryUrl;
-};
-
-// Obtenir le chemin relatif du fichier uploadé
-const getUploadedFile = (filename) => {
-  return {
-    filename,
-    url: getFileUrl(filename),
-    path: path.join(uploadsDir, filename)
-  };
-};
+// Déplace un fichier léger (image/pdf) de tmp/ vers son dossier final et
+// retourne l'URL publique — traitement synchrone, pas besoin de job.
+function moveToFinalStorage(tmpPath, mediaType, originalname) {
+    const targetDir = { image: imagesDir, pdf: pdfsDir, audio: audiosDir }[mediaType];
+    const filename = uniqueFilename(originalname);
+    const finalPath = path.join(targetDir, filename);
+    fs.renameSync(tmpPath, finalPath);
+    return { filename, url: `/media/${mediaType === 'image' ? 'images' : mediaType === 'pdf' ? 'pdfs' : 'audios'}/${filename}` };
+}
 
 module.exports = {
-  uploadCourseContent,
-  uploadImage,
-  uploadToCloudinary,
-  getFileUrl,
-  getUploadedFile
+    storageRoot, tmpDir, imagesDir, videosDir, audiosDir, pdfsDir, hlsDir,
+    uploadCourseContent, uploadImage,
+    mediaTypeFromMime, moveToFinalStorage,
 };

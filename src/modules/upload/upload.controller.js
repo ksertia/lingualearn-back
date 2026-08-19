@@ -1,190 +1,101 @@
-const { uploadToCloudinary } = require('../../utils/uploadService');
+const fs = require('fs');
+const { prisma } = require('../../config/prisma');
+const { moveToFinalStorage, mediaTypeFromMime } = require('../../utils/uploadService');
+const { enqueueMediaJob } = require('../../queues/media.queue');
 
-// Upload image handler
-const uploadImage = async (req, res) => {
-	try {
-		if (!req.file) {
-			return res.status(400).json({
-				success: false,
-				message: 'Aucun fichier image fourni',
-			});
-		}
+// Traite un upload léger (image/audio/pdf) : déplacement synchrone, prêt immédiatement.
+async function handleSyncUpload(req, res, mediaType) {
+    if (!req.file) {
+        return res.status(400).json({ success: false, message: `Aucun fichier ${mediaType} fourni` });
+    }
+    try {
+        const { filename, url } = moveToFinalStorage(req.file.path, mediaType, req.file.originalname);
+        const asset = await prisma.mediaAsset.create({
+            data: {
+                mediaType,
+                status: 'ready',
+                originalName: req.file.originalname,
+                mimeType: req.file.mimetype,
+                sizeBytes: req.file.size,
+                url,
+            },
+        });
+        res.status(200).json({
+            success: true,
+            data: { assetId: asset.id, filename, url, status: 'ready', originalName: req.file.originalname, size: req.file.size, mimetype: req.file.mimetype },
+            message: `${mediaType} uploadé avec succès`,
+        });
+    } catch (error) {
+        fs.unlink(req.file.path, () => {});
+        res.status(500).json({ success: false, message: error.message || `Erreur lors de l'upload ${mediaType}` });
+    }
+}
 
-		const result = await uploadToCloudinary(req.file.path, {
-			folder: 'tibi/images',
-			resource_type: 'image'
-		});
+const uploadImage = (req, res) => handleSyncUpload(req, res, 'image');
+const uploadAudio = (req, res) => handleSyncUpload(req, res, 'audio');
+const uploadPdf   = (req, res) => handleSyncUpload(req, res, 'pdf');
 
-		res.status(200).json({
-			success: true,
-			data: {
-				filename: req.file.filename,
-				url: result.secure_url,
-				publicId: result.public_id,
-				originalName: req.file.originalname,
-				size: req.file.size,
-				mimetype: req.file.mimetype,
-			},
-			message: 'Image uploadée avec succès',
-		});
-	} catch (error) {
-		res.status(400).json({
-			success: false,
-			message: error.message || 'Erreur lors de l\'upload de l\'image',
-		});
-	}
-};
-
-// Upload content handler (vidéo, audio, PDF)
-const uploadContent = async (req, res) => {
-	try {
-		if (!req.file) {
-			return res.status(400).json({
-				success: false,
-				message: 'Aucun fichier de contenu fourni',
-			});
-		}
-
-		const resourceType = req.file.mimetype.startsWith('video/') ? 'video'
-			: req.file.mimetype.startsWith('audio/') ? 'video'
-			: 'raw';
-
-		const result = await uploadToCloudinary(req.file.path, {
-			folder: 'tibi/content',
-			resource_type: resourceType
-		});
-
-		res.status(200).json({
-			success: true,
-			data: {
-				filename: req.file.filename,
-				url: result.secure_url,
-				publicId: result.public_id,
-				originalName: req.file.originalname,
-				size: req.file.size,
-				mimetype: req.file.mimetype,
-			},
-			message: 'Contenu uploadé avec succès',
-		});
-	} catch (error) {
-		console.error('Erreur upload content:', error);
-		res.status(500).json({
-			success: false,
-			message: error.message || 'Erreur lors de l\'upload du contenu',
-			error: process.env.NODE_ENV === 'development' ? error.stack : undefined
-		});
-	}
-};
-
-// Upload video handler
+// Vidéo : mise en queue pour transcodage HLS en arrière-plan par le worker.
 const uploadVideo = async (req, res) => {
-	try {
-		if (!req.file) {
-			return res.status(400).json({
-				success: false,
-				message: 'Aucun fichier vidéo fourni',
-			});
-		}
+    if (!req.file) {
+        return res.status(400).json({ success: false, message: 'Aucun fichier vidéo fourni' });
+    }
+    try {
+        const asset = await prisma.mediaAsset.create({
+            data: {
+                mediaType: 'video',
+                status: 'processing',
+                originalName: req.file.originalname,
+                mimeType: req.file.mimetype,
+                sizeBytes: req.file.size,
+            },
+        });
 
-		const result = await uploadToCloudinary(req.file.path, {
-			folder: 'tibi/videos',
-			resource_type: 'video'
-		});
+        await enqueueMediaJob({
+            assetId: asset.id,
+            mediaType: 'video',
+            tmpFilePath: req.file.path,
+            originalName: req.file.originalname,
+            mimeType: req.file.mimetype,
+        });
 
-		res.status(200).json({
-			success: true,
-			data: {
-				filename: req.file.filename,
-				url: result.secure_url,
-				publicId: result.public_id,
-				originalName: req.file.originalname,
-				size: req.file.size,
-				mimetype: req.file.mimetype,
-			},
-			message: 'Vidéo uploadée avec succès',
-		});
-	} catch (error) {
-		res.status(400).json({
-			success: false,
-			message: error.message || 'Erreur lors de l\'upload de la vidéo',
-		});
-	}
+        res.status(202).json({
+            success: true,
+            data: { assetId: asset.id, status: 'processing' },
+            message: 'Vidéo reçue, transcodage HLS en cours. Consultez GET /uploads/:assetId pour suivre l\'avancement.',
+        });
+    } catch (error) {
+        fs.unlink(req.file.path, () => {});
+        res.status(500).json({ success: false, message: error.message || 'Erreur lors de la mise en file de la vidéo' });
+    }
 };
 
-// Upload audio handler
-const uploadAudio = async (req, res) => {
-	try {
-		if (!req.file) {
-			return res.status(400).json({
-				success: false,
-				message: 'Aucun fichier audio fourni',
-			});
-		}
+// Contenu générique : dispatch selon le mimetype réel.
+const uploadContent = async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ success: false, message: 'Aucun fichier de contenu fourni' });
+    }
+    const mediaType = mediaTypeFromMime(req.file.mimetype);
+    if (mediaType === 'video') return uploadVideo(req, res);
+    if (mediaType) return handleSyncUpload(req, res, mediaType);
 
-		const result = await uploadToCloudinary(req.file.path, {
-			folder: 'tibi/audios',
-			resource_type: 'video'
-		});
-
-		res.status(200).json({
-			success: true,
-			data: {
-				filename: req.file.filename,
-				url: result.secure_url,
-				publicId: result.public_id,
-				originalName: req.file.originalname,
-				size: req.file.size,
-				mimetype: req.file.mimetype,
-			},
-			message: 'Audio uploadé avec succès',
-		});
-	} catch (error) {
-		res.status(400).json({
-			success: false,
-			message: error.message || 'Erreur lors de l\'upload de l\'audio',
-		});
-	}
+    fs.unlink(req.file.path, () => {});
+    res.status(400).json({ success: false, message: `Type de fichier non supporté: ${req.file.mimetype}` });
 };
 
-// Upload PDF handler
-const uploadPdf = async (req, res) => {
-	try {
-		if (!req.file) {
-			return res.status(400).json({
-				success: false,
-				message: 'Aucun fichier PDF fourni',
-			});
-		}
-
-		const result = await uploadToCloudinary(req.file.path, {
-			folder: 'tibi/pdfs',
-			resource_type: 'raw'
-		});
-
-		res.status(200).json({
-			success: true,
-			data: {
-				filename: req.file.filename,
-				url: result.secure_url,
-				publicId: result.public_id,
-				originalName: req.file.originalname,
-				size: req.file.size,
-				mimetype: req.file.mimetype,
-			},
-			message: 'PDF uploadé avec succès',
-		});
-	} catch (error) {
-		res.status(400).json({
-			success: false,
-			message: error.message || 'Erreur lors de l\'upload du PDF',
-		});
-	}
+const getAssetStatus = async (req, res, next) => {
+    try {
+        const asset = await prisma.mediaAsset.findUnique({ where: { id: req.params.assetId } });
+        if (!asset) return res.status(404).json({ success: false, message: 'Média non trouvé' });
+        res.status(200).json({ success: true, data: asset });
+    } catch (err) { next(err); }
 };
 
 module.exports = {
-	uploadImage,
-	uploadContent,
-	uploadVideo,
-	uploadAudio,
-	uploadPdf,
+    uploadImage,
+    uploadContent,
+    uploadVideo,
+    uploadAudio,
+    uploadPdf,
+    getAssetStatus,
 };

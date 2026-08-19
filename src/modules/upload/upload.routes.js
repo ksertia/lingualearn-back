@@ -20,7 +20,30 @@ const handleMulterError = (err, req, res, next) => {
  * @swagger
  * tags:
  *   name: Upload
- *   description: Gestion des uploads de fichiers (images, vidéos, audios, PDFs)
+ *   description: |
+ *     Gestion des uploads de fichiers, stockés localement sur le serveur (dossier
+ *     storage/uploads, servi via /media). Images/audio/PDF sont traités
+ *     immédiatement (statut ready). Les vidéos sont mises en file d'attente
+ *     (BullMQ + Redis) et transcodées en HLS adaptatif (360p/480p/720p) par un
+ *     worker séparé (src/worker.js) — la réponse initiale renvoie un assetId à
+ *     interroger via GET /uploads/{assetId} jusqu'à passage en statut ready.
+ */
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     MediaAsset:
+ *       type: object
+ *       properties:
+ *         id:            { type: string }
+ *         mediaType:     { type: string, enum: [image, video, audio, pdf] }
+ *         status:        { type: string, enum: [processing, ready, failed] }
+ *         originalName:  { type: string }
+ *         mimeType:      { type: string }
+ *         sizeBytes:     { type: integer }
+ *         url:           { type: string, nullable: true, description: "Chemin public une fois ready (playlist .m3u8 pour vidéo)" }
+ *         errorMessage:  { type: string, nullable: true }
  */
 
 /**
@@ -72,7 +95,11 @@ router.post('/image', uploadImage.single('image'), handleMulterError, controller
  * @swagger
  * /api/v1/uploads/video:
  *   post:
- *     summary: Uploader une vidéo
+ *     summary: Uploader une vidéo (transcodage HLS asynchrone)
+ *     description: |
+ *       Le fichier est reçu puis mis en file d'attente pour transcodage HLS.
+ *       La réponse (202) contient un assetId — interroger GET /uploads/{assetId}
+ *       jusqu'à status=ready pour récupérer l'URL de la playlist HLS finale.
  *     tags: [Upload]
  *     requestBody:
  *       required: true
@@ -84,14 +111,40 @@ router.post('/image', uploadImage.single('image'), handleMulterError, controller
  *               video:
  *                 type: string
  *                 format: binary
- *                 description: Fichier vidéo (MP4, WebM)
+ *                 description: Fichier vidéo (MP4, WebM, MOV)
  *     responses:
- *       200:
- *         description: Vidéo uploadée avec succès
+ *       202:
+ *         description: Vidéo reçue, transcodage en cours
  *       400:
  *         description: Erreur d'upload
  */
 router.post('/video', uploadCourseContent.single('video'), handleMulterError, controller.uploadVideo);
+
+/**
+ * @swagger
+ * /api/v1/uploads/{assetId}:
+ *   get:
+ *     summary: Suivre le statut d'un média uploadé (utile pour les vidéos en transcodage)
+ *     tags: [Upload]
+ *     parameters:
+ *       - in: path
+ *         name: assetId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Statut du média
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 data: { $ref: '#/components/schemas/MediaAsset' }
+ *       404:
+ *         description: Média non trouvé
+ */
+router.get('/:assetId', controller.getAssetStatus);
 
 /**
  * @swagger

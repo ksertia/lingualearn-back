@@ -117,9 +117,14 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // =====================
-// Servir les fichiers uploadés
+// Servir les fichiers médias stockés localement (images, HLS, audio, pdf)
 // =====================
-app.use('/uploads', express.static(__dirname + '/../uploads'));
+app.use('/media', express.static(__dirname + '/../storage/uploads', {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.m3u8')) res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+        if (filePath.endsWith('.ts')) res.setHeader('Content-Type', 'video/mp2t');
+    },
+}));
 
 // =====================
 // Logging des requêtes

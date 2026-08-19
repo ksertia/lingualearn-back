@@ -1,4 +1,5 @@
 const Joi = require('joi');
+const { mediaUrl } = require('../../utils/validators');
 
 const CONTENT_TYPES = ['course', 'video', 'exercise', 'resource'];
 const SECTION_TYPES = ['introduction', 'lesson', 'example', 'key_point', 'summary'];
@@ -16,7 +17,7 @@ const createContentSchema = Joi.object({
   summary: Joi.when('contentType', { is: 'course', then: Joi.string().allow('', null).optional(), otherwise: Joi.forbidden() }),
 
   // video
-  videoUrl:    Joi.when('contentType', { is: 'video', then: Joi.string().uri().required(), otherwise: Joi.forbidden() }),
+  videoUrl:    Joi.when('contentType', { is: 'video', then: mediaUrl().required(), otherwise: Joi.forbidden() }),
   description: Joi.when('contentType', { is: 'video', then: Joi.string().allow('', null).optional(), otherwise: Joi.forbidden() }),
   keyPoints:   Joi.when('contentType', { is: 'video', then: Joi.array().items(Joi.string()).optional(), otherwise: Joi.forbidden() }),
 
@@ -29,7 +30,7 @@ const createContentSchema = Joi.object({
 
   // resource
   resourceType: Joi.when('contentType', { is: 'resource', then: Joi.string().valid(...RESOURCE_TYPES).required(), otherwise: Joi.forbidden() }),
-  resourceUrl:  Joi.when('contentType', { is: 'resource', then: Joi.string().uri().required(), otherwise: Joi.forbidden() }),
+  resourceUrl:  Joi.when('contentType', { is: 'resource', then: mediaUrl().required(), otherwise: Joi.forbidden() }),
 });
 
 const updateContentSchema = Joi.object({
@@ -39,7 +40,7 @@ const updateContentSchema = Joi.object({
 
   summary: Joi.string().allow('', null),
 
-  videoUrl:    Joi.string().uri(),
+  videoUrl:    mediaUrl(),
   description: Joi.string().allow('', null),
   keyPoints:   Joi.array().items(Joi.string()),
 
@@ -50,13 +51,13 @@ const updateContentSchema = Joi.object({
   explanation:     Joi.string().allow('', null),
 
   resourceType: Joi.string().valid(...RESOURCE_TYPES),
-  resourceUrl:  Joi.string().uri(),
+  resourceUrl:  mediaUrl(),
 });
 
 // ─── Bloc de contenu (contentType = course uniquement) ─────────────────────────
 const blockContentField = Joi.when('blockType', {
   is: Joi.valid('video', 'audio', 'pdf', 'image'),
-  then: Joi.string().uri().required(),
+  then: mediaUrl().required(),
   otherwise: Joi.string().required()
 });
 
@@ -73,7 +74,7 @@ const updateBlockSchema = Joi.object({
   blockType:   Joi.string().valid(...BLOCK_TYPES),
   content:     Joi.when('blockType', {
     is: Joi.valid('video', 'audio', 'pdf', 'image'),
-    then: Joi.string().uri(),
+    then: mediaUrl(),
     otherwise: Joi.string()
   }),
   caption:     Joi.string().max(500).allow('', null),
