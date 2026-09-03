@@ -74,7 +74,22 @@ redis.connect().then(() => {
     logger.warn('Redis: non disponible au démarrage — le serveur fonctionne sans cache');
 });
 
-process.on('SIGINT', async () => { if (redis) await redis.quit(); });
-process.on('SIGTERM', async () => { if (redis) await redis.quit(); });
+async function closeRedis() {
+    if (!redis) return;
+    // Ne pas tenter quit() si la connexion est déjà fermée/terminée
+    if (redis.status === 'end' || redis.status === 'close') {
+        redis.disconnect();
+        return;
+    }
+    try {
+        await redis.quit();
+    } catch (err) {
+        // Connexion déjà fermée pendant l'arrêt — ignorer
+        redis.disconnect();
+    }
+}
+
+process.on('SIGINT', closeRedis);
+process.on('SIGTERM', closeRedis);
 
 module.exports = { redis, isRedisAvailable: () => redisAvailable };
