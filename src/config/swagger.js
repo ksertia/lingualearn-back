@@ -81,6 +81,14 @@ const options = {
         description: 'Gestion des comptes utilisateurs'
       },
       {
+        name: 'SubscriptionPlans',
+        description: 'Catalogue des forfaits d\'abonnement — GET /subscription-plans liste les plans disponibles pour la souscription'
+      },
+      {
+        name: 'Subscriptions',
+        description: 'Abonnements utilisateurs — POST /subscriptions pour souscrire un utilisateur à un forfait, GET /subscriptions/my-status pour connaître le statut du compte connecté'
+      },
+      {
         name: 'AppSettings',
         description: 'Paramètres globaux de la plateforme — durée du trial, etc. (admin uniquement)'
       },

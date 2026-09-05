@@ -190,6 +190,20 @@ app.get('/health', async (req, res) => {
 });
 
 // =====================
+// security.txt (RFC 9116) — répond aux scanners qui cherchent /.well-known/security.txt
+// =====================
+const securityTxt = [
+    'Contact: mailto:security@sertia.io',
+    'Preferred-Languages: fr, en',
+    `Expires: ${new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()}`,
+    '',
+].join('\n');
+
+app.get(['/.well-known/security.txt', '/security.txt'], (req, res) => {
+    res.type('text/plain').send(securityTxt);
+});
+
+// =====================
 // Routes versionnées
 // =====================
 app.use(`/api/${appConfig.apiVersion}`, router);
