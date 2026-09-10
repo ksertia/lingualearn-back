@@ -152,4 +152,56 @@ router.patch('/:id', controller.updateTheme);
  */
 router.delete('/:id', controller.deleteTheme);
 
+/**
+ * @swagger
+ * /api/v1/users/{userId}/themes/{themeId}/start:
+ *   post:
+ *     summary: Démarrer un thème pour un utilisateur
+ *     description: |
+ *       Pose startedAt / lastAccessedAt sur UserThemeProgress sans modifier le
+ *       pourcentage. Idempotent — un second appel ne réinitialise pas startedAt.
+ *       Route montée dans src/routes/index.js (auth + abonnement requis).
+ *     tags: [Theme]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: themeId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Progression du thème (state, progressPercentage, startedAt...)
+ *       404:
+ *         description: Thème non trouvé
+ */
+
+/**
+ * @swagger
+ * /api/v1/users/{userId}/themes/{themeId}/complete:
+ *   post:
+ *     summary: Marquer un thème comme complété pour un utilisateur
+ *     description: |
+ *       Force progressPercentage à 100 et completedAt sur UserThemeProgress.
+ *       Ne propage pas vers les sous-thèmes ni vers le module (le module reste
+ *       calculé à partir des sous-thèmes réels). Route montée dans src/routes/index.js.
+ *     tags: [Theme]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: themeId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Progression du thème mise à jour
+ *       404:
+ *         description: Thème non trouvé
+ */
+
 module.exports = router;

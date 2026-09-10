@@ -67,4 +67,26 @@ const deleteTheme = async (req, res, next) => {
   }
 };
 
-module.exports = { getThemes, getThemesByModuleId, getTheme, createTheme, updateTheme, deleteTheme };
+const startTheme = async (req, res, next) => {
+  try {
+    const { userId, themeId } = req.params;
+    const progress = await themeService.startThemeForUser(userId, themeId);
+    res.status(200).json({ success: true, data: progress });
+  } catch (err) {
+    const status = err.message?.includes('non trouvé') ? 404 : 400;
+    res.status(status).json({ success: false, message: err.message });
+  }
+};
+
+const completeTheme = async (req, res, next) => {
+  try {
+    const { userId, themeId } = req.params;
+    const progress = await themeService.completeThemeForUser(userId, themeId);
+    res.status(200).json({ success: true, message: 'Thème complété avec succès.', data: progress });
+  } catch (err) {
+    const status = err.message?.includes('non trouvé') ? 404 : 400;
+    res.status(status).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getThemes, getThemesByModuleId, getTheme, createTheme, updateTheme, deleteTheme, startTheme, completeTheme };

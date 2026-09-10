@@ -1,5 +1,5 @@
 const { prisma } = require('../../config/prisma');
-const { deriveState } = require('../progress/progress.service');
+const { deriveState, recalculateThemeProgress, recalculateModuleAndLevelProgress } = require('../progress/progress.service');
 const { cacheInvalidatePattern } = require('../../utils/cache');
 
 const CONTENT_SELECT = {
@@ -83,6 +83,49 @@ exports.getSubTheme = async (id) => {
   });
   if (!subTheme) throw new Error('Sous-thème non trouvé');
   return subTheme;
+};
+
+// Démarre un sous-thème pour un utilisateur — pose startedAt/lastAccessedAt sans toucher au %.
+// Idempotent : un second appel ne réinitialise pas startedAt. Propage startedAt/lastAccessedAt
+// au thème parent pour cohérence d'affichage.
+exports.startSubThemeForUser = async (userId, subThemeId) => {
+  const subTheme = await prisma.subTheme.findUnique({ where: { id: subThemeId }, select: { themeId: true } });
+  if (!subTheme) throw new Error('Sous-thème non trouvé');
+
+  const now = new Date();
+  const existing = await prisma.userSubThemeProgress.findUnique({ where: { userId_subThemeId: { userId, subThemeId } } });
+  const progress = await prisma.userSubThemeProgress.upsert({
+    where: { userId_subThemeId: { userId, subThemeId } },
+    update: { startedAt: existing?.startedAt || now, lastAccessedAt: now },
+    create: { userId, subThemeId, startedAt: now, lastAccessedAt: now }
+  });
+
+  await recalculateThemeProgress(userId, subTheme.themeId);
+
+  return { ...progress, state: deriveState(progress) };
+};
+
+// Marque un sous-thème comme complété pour un utilisateur — force progressPercentage à 100
+// et completedAt, puis propage le recalcul au thème, au module et au niveau.
+exports.completeSubThemeForUser = async (userId, subThemeId) => {
+  const subTheme = await prisma.subTheme.findUnique({
+    where: { id: subThemeId },
+    select: { themeId: true, theme: { select: { moduleId: true } } }
+  });
+  if (!subTheme) throw new Error('Sous-thème non trouvé');
+
+  const now = new Date();
+  const existing = await prisma.userSubThemeProgress.findUnique({ where: { userId_subThemeId: { userId, subThemeId } } });
+  const progress = await prisma.userSubThemeProgress.upsert({
+    where: { userId_subThemeId: { userId, subThemeId } },
+    update: { progressPercentage: 100, completedAt: now, lastAccessedAt: now, startedAt: existing?.startedAt || now },
+    create: { userId, subThemeId, progressPercentage: 100, completedAt: now, startedAt: now, lastAccessedAt: now }
+  });
+
+  await recalculateThemeProgress(userId, subTheme.themeId);
+  if (subTheme.theme?.moduleId) await recalculateModuleAndLevelProgress(userId, subTheme.theme.moduleId);
+
+  return { ...progress, state: deriveState(progress) };
 };
 
 exports.updateSubTheme = async (id, data) => {

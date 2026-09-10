@@ -29,6 +29,8 @@ const referralRoutes = require('../modules/referral/referral.routes');
 const languageController = require('../modules/language/language.controller');
 const levelController = require('../modules/Level/Level.controller');
 const moduleController = require('../modules/module/module.controller');
+const themeController = require('../modules/theme/theme.controller');
+const subThemeController = require('../modules/sub-theme/sub-theme.controller');
 
 // ─── Routes publiques (aucun token requis) ────────────────────────────────────
 router.use('/languages', languageRoutes);
@@ -69,6 +71,12 @@ router.post('/users/:userId/levels/:levelId/select',         levelController.sel
 router.get('/users/:userId/modules',                            authMiddleware, moduleController.getByUserId);
 router.post('/users/:userId/modules/:moduleId/start',           authMiddleware, requireSubscription, moduleController.startModule);
 router.post('/users/:userId/modules/:moduleId/complete',        authMiddleware, requireSubscription, moduleController.completeModule);
+
+router.post('/users/:userId/themes/:themeId/start',             authMiddleware, requireSubscription, themeController.startTheme);
+router.post('/users/:userId/themes/:themeId/complete',          authMiddleware, requireSubscription, themeController.completeTheme);
+
+router.post('/users/:userId/sub-themes/:subThemeId/start',      authMiddleware, requireSubscription, subThemeController.startSubTheme);
+router.post('/users/:userId/sub-themes/:subThemeId/complete',   authMiddleware, requireSubscription, subThemeController.completeSubTheme);
 
 router.get('/', (req, res) => {
   res.json({

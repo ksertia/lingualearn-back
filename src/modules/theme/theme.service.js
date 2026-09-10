@@ -85,6 +85,39 @@ exports.getThemesByModuleId = async (moduleId, userId = null) => {
   });
 };
 
+// Démarre un thème pour un utilisateur — pose startedAt/lastAccessedAt sans toucher au %.
+// Idempotent : un second appel ne réinitialise pas startedAt.
+exports.startThemeForUser = async (userId, themeId) => {
+  const theme = await prisma.theme.findUnique({ where: { id: themeId }, select: { id: true } });
+  if (!theme) throw new Error('Thème non trouvé');
+
+  const now = new Date();
+  const existing = await prisma.userThemeProgress.findUnique({ where: { userId_themeId: { userId, themeId } } });
+  const progress = await prisma.userThemeProgress.upsert({
+    where: { userId_themeId: { userId, themeId } },
+    update: { startedAt: existing?.startedAt || now, lastAccessedAt: now },
+    create: { userId, themeId, startedAt: now, lastAccessedAt: now }
+  });
+  return { ...progress, state: deriveState(progress) };
+};
+
+// Marque un thème comme complété pour un utilisateur — force progressPercentage à 100
+// et completedAt. Ne propage pas vers les sous-thèmes (action explicite de l'utilisateur
+// au niveau thème) ni vers le module (le module reste calculé depuis les sous-thèmes réels).
+exports.completeThemeForUser = async (userId, themeId) => {
+  const theme = await prisma.theme.findUnique({ where: { id: themeId }, select: { id: true } });
+  if (!theme) throw new Error('Thème non trouvé');
+
+  const now = new Date();
+  const existing = await prisma.userThemeProgress.findUnique({ where: { userId_themeId: { userId, themeId } } });
+  const progress = await prisma.userThemeProgress.upsert({
+    where: { userId_themeId: { userId, themeId } },
+    update: { progressPercentage: 100, completedAt: now, lastAccessedAt: now, startedAt: existing?.startedAt || now },
+    create: { userId, themeId, progressPercentage: 100, completedAt: now, startedAt: now, lastAccessedAt: now }
+  });
+  return { ...progress, state: deriveState(progress) };
+};
+
 exports.getTheme = async (id) => {
   const theme = await prisma.theme.findUnique({
     where: { id },

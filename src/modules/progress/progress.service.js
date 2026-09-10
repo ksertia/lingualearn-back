@@ -60,6 +60,46 @@ exports.recalculateSubThemeProgress = async (userId, subThemeId, { completedCont
   });
 };
 
+// Moyenne des % de tous les sous-thèmes d'un thème pour un utilisateur, remontée à UserThemeProgress.
+// Le thème n'est pas dans la chaîne de propagation vers le module (le module se calcule
+// directement à partir des sous-thèmes) — cette table sert uniquement à exposer une
+// progression persistée par thème (start/complete explicites, affichage).
+exports.recalculateThemeProgress = async (userId, themeId) => {
+  const subThemes = await prisma.subTheme.findMany({
+    where: { themeId, isActive: true },
+    select: { id: true }
+  });
+
+  let themeProgress = 0;
+  if (subThemes.length > 0) {
+    const progresses = await prisma.userSubThemeProgress.findMany({
+      where: { userId, subThemeId: { in: subThemes.map(s => s.id) } },
+      select: { progressPercentage: true }
+    });
+    const sum = progresses.reduce((acc, p) => acc + Number(p.progressPercentage), 0);
+    themeProgress = Math.round((sum / subThemes.length) * 100) / 100;
+  }
+
+  const now = new Date();
+  const existing = await prisma.userThemeProgress.findUnique({ where: { userId_themeId: { userId, themeId } } });
+  return prisma.userThemeProgress.upsert({
+    where: { userId_themeId: { userId, themeId } },
+    update: {
+      progressPercentage: themeProgress,
+      lastAccessedAt: now,
+      startedAt: existing?.startedAt || (themeProgress > 0 ? now : null),
+      completedAt: themeProgress >= 100 ? now : null
+    },
+    create: {
+      userId, themeId,
+      progressPercentage: themeProgress,
+      startedAt: themeProgress > 0 ? now : null,
+      lastAccessedAt: now,
+      completedAt: themeProgress >= 100 ? now : null
+    }
+  });
+};
+
 // Moyenne des % de tous les sous-thèmes d'un module pour un utilisateur, remontée à UserModuleProgress/UserLevelProgress.
 exports.recalculateModuleAndLevelProgress = async (userId, moduleId) => {
   const module_ = await prisma.module.findUnique({ where: { id: moduleId }, select: { levelId: true } });
@@ -212,12 +252,16 @@ exports.recalculateFullChain = async (userId, subThemeId, options = {}) => {
 
   const subTheme = await prisma.subTheme.findUnique({
     where: { id: subThemeId },
-    select: { theme: { select: { moduleId: true } } }
+    select: { themeId: true, theme: { select: { moduleId: true } } }
   });
+
+  const themeProgress = subTheme?.themeId
+    ? await exports.recalculateThemeProgress(userId, subTheme.themeId)
+    : null;
 
   const moduleAndLevelProgress = subTheme?.theme?.moduleId
     ? await exports.recalculateModuleAndLevelProgress(userId, subTheme.theme.moduleId)
     : null;
 
-  return { subThemeProgress, ...moduleAndLevelProgress };
+  return { subThemeProgress, themeProgress, ...moduleAndLevelProgress };
 };

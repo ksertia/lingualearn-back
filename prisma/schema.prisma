@@ -47,6 +47,7 @@ model User {
   languageProgress    UserLanguageProgress[]
   levelProgress       UserLevelProgress[]
   moduleProgress      UserModuleProgress[]
+  themeProgress       UserThemeProgress[]
   subThemeProgress    UserSubThemeProgress[]
   stats               UserStats?
   createdByUser       User?                  @relation("CreatedBy", fields: [createdBy], references: [id])
@@ -166,6 +167,7 @@ model Theme {
   updatedAt   DateTime   @updatedAt
   module      Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   subThemes   SubTheme[]
+  userProgress UserThemeProgress[]
 
   @@index([moduleId])
   @@map("themes")
@@ -319,6 +321,25 @@ model UserSubThemeProgress {
   @@index([subThemeId])
   @@index([userId])
   @@map("user_sub_theme_progress")
+}
+
+model UserThemeProgress {
+  id                 String    @id @default(cuid())
+  userId             String
+  themeId            String
+  progressPercentage Decimal   @default(0.00) @db.Decimal(5, 2)
+  startedAt          DateTime?
+  completedAt        DateTime?
+  lastAccessedAt     DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  theme              Theme     @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, themeId])
+  @@index([themeId])
+  @@index([userId])
+  @@map("user_theme_progress")
 }
 
 model UserLanguageProgress {

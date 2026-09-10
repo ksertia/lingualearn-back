@@ -165,4 +165,56 @@ router.patch('/:id', controller.updateSubTheme);
  */
 router.delete('/:id', controller.deleteSubTheme);
 
+/**
+ * @swagger
+ * /api/v1/users/{userId}/sub-themes/{subThemeId}/start:
+ *   post:
+ *     summary: Démarrer un sous-thème pour un utilisateur
+ *     description: |
+ *       Pose startedAt / lastAccessedAt sur UserSubThemeProgress sans modifier le
+ *       pourcentage, puis recalcule la progression du thème parent. Idempotent.
+ *       Route montée dans src/routes/index.js (auth + abonnement requis).
+ *     tags: [SubTheme]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: subThemeId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Progression du sous-thème (state, progressPercentage, startedAt...)
+ *       404:
+ *         description: Sous-thème non trouvé
+ */
+
+/**
+ * @swagger
+ * /api/v1/users/{userId}/sub-themes/{subThemeId}/complete:
+ *   post:
+ *     summary: Marquer un sous-thème comme complété pour un utilisateur
+ *     description: |
+ *       Force progressPercentage à 100 et completedAt sur UserSubThemeProgress,
+ *       puis propage le recalcul au thème, au module et au niveau.
+ *       Route montée dans src/routes/index.js.
+ *     tags: [SubTheme]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: subThemeId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Progression du sous-thème mise à jour, chaîne recalculée
+ *       404:
+ *         description: Sous-thème non trouvé
+ */
+
 module.exports = router;

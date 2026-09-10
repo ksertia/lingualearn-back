@@ -67,4 +67,26 @@ const deleteSubTheme = async (req, res, next) => {
   }
 };
 
-module.exports = { getSubThemes, getSubThemesByThemeId, getSubTheme, createSubTheme, updateSubTheme, deleteSubTheme };
+const startSubTheme = async (req, res, next) => {
+  try {
+    const { userId, subThemeId } = req.params;
+    const progress = await subThemeService.startSubThemeForUser(userId, subThemeId);
+    res.status(200).json({ success: true, data: progress });
+  } catch (err) {
+    const status = err.message?.includes('non trouvé') ? 404 : 400;
+    res.status(status).json({ success: false, message: err.message });
+  }
+};
+
+const completeSubTheme = async (req, res, next) => {
+  try {
+    const { userId, subThemeId } = req.params;
+    const progress = await subThemeService.completeSubThemeForUser(userId, subThemeId);
+    res.status(200).json({ success: true, message: 'Sous-thème complété avec succès.', data: progress });
+  } catch (err) {
+    const status = err.message?.includes('non trouvé') ? 404 : 400;
+    res.status(status).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getSubThemes, getSubThemesByThemeId, getSubTheme, createSubTheme, updateSubTheme, deleteSubTheme, startSubTheme, completeSubTheme };
