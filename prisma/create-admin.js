@@ -4,9 +4,9 @@ const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 
 const ADMIN = {
-  email: 'admin@tibi.com',
+  email: process.env.ADMIN_EMAIL || 'admin@tibi.com',
   username: 'admin',
-  password: 'Admin@1234',
+  password: process.env.ADMIN_PASSWORD || 'Admin@1234',
   firstName: 'Admin',
   lastName: 'Tibi',
 };
