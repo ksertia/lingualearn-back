@@ -391,6 +391,29 @@ router.get('/active', controller.getActiveLanguages);
 
 /**
  * @swagger
+ * /api/v1/languages/my-language/{languageId}/switch:
+ *   post:
+ *     summary: Changer la langue active de l'utilisateur connecté
+ *     tags: [Languages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: languageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la langue à activer
+ *     responses:
+ *       200:
+ *         description: Langue active mise à jour
+ *       404:
+ *         description: Langue non trouvée
+ */
+router.post('/my-language/:languageId/switch', authMiddleware, controller.switchLanguage);
+
+/**
+ * @swagger
  * /api/v1/languages/children/{childId}/languages:
  *   get:
  *     summary: Voir les langues d'un compte enfant (parent uniquement)
@@ -412,8 +435,6 @@ router.get('/active', controller.getActiveLanguages);
  *       404:
  *         description: Enfant introuvable
  */
-router.post('/my-language/:languageId/switch', authMiddleware, controller.switchLanguage);
-
 router.get('/children/:childId/languages', authMiddleware, allowRoles('learner'), controller.getChildLanguages);
 
 /**
@@ -470,6 +491,36 @@ router.get('/children/:childId/progress', authMiddleware, allowRoles('learner'),
  *         description: Enfant ou langue introuvable
  */
 router.post('/children/:childId/languages/:languageId/assign', authMiddleware, allowRoles('learner'), controller.assignLanguageToChild);
+
+/**
+ * @swagger
+ * /api/v1/languages/children/{childId}/languages/{languageId}/unassign:
+ *   delete:
+ *     summary: Retirer une langue assignée à un compte enfant (parent uniquement)
+ *     tags: [Languages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: childId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID du compte enfant
+ *       - in: path
+ *         name: languageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la langue à retirer
+ *     responses:
+ *       200:
+ *         description: Langue retirée avec succès
+ *       403:
+ *         description: Accès refusé
+ *       404:
+ *         description: Enfant ou langue introuvable
+ */
 router.delete('/children/:childId/languages/:languageId/unassign', authMiddleware, allowRoles('learner'), controller.unassignLanguageFromChild);
 
 

@@ -13,7 +13,7 @@ const { authMiddleware, allowRoles } = require('../../middleware/authMiddleware'
 
 /**
  * @swagger
- * api/v1/admin/dashboard:
+ * /api/v1/admin/dashboard:
  *   get:
  *     summary: Récupère les statistiques globales de l'application
  *     tags: [AdminDashboard]
