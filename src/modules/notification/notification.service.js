@@ -27,6 +27,10 @@ async function getUnreadCount(userId) {
   );
 }
 
+async function getNotificationById(id) {
+  return prisma.notification.findUnique({ where: { id }, select: { id: true, userId: true } });
+}
+
 async function markAsRead(id) {
   const notif = await prisma.notification.update({
     where: { id },
@@ -59,6 +63,6 @@ async function deleteAllByUser(userId) {
 }
 
 module.exports = {
-  createNotification, getUserNotifications, getUnreadCount,
+  createNotification, getUserNotifications, getUnreadCount, getNotificationById,
   markAsRead, markAllAsRead, deleteNotification, deleteAllByUser
 };

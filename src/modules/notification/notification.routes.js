@@ -1,5 +1,6 @@
 const express = require('express');
 const controller = require('./notification.controller');
+const { allowSelfOrRoles, allowRoles } = require('../../middleware/authMiddleware');
 const router = express.Router();
 
 /**
@@ -40,7 +41,7 @@ const router = express.Router();
  *       201:
  *         description: Notification créée et envoyée
  */
-router.post('/', controller.create);
+router.post('/', allowRoles('admin', 'plateform_manager'), controller.create);
 
 /**
  * @swagger
@@ -70,7 +71,7 @@ router.post('/', controller.create);
  *       200:
  *         description: Liste paginée avec unreadCount
  */
-router.get('/user/:userId', controller.getUserNotifications);
+router.get('/user/:userId', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.getUserNotifications);
 
 /**
  * @swagger
@@ -90,7 +91,7 @@ router.get('/user/:userId', controller.getUserNotifications);
  *       200:
  *         description: Toutes marquées comme lues
  */
-router.put('/user/:userId/read-all', controller.markAllAsRead);
+router.put('/user/:userId/read-all', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.markAllAsRead);
 
 /**
  * @swagger
@@ -119,7 +120,7 @@ router.put('/user/:userId/read-all', controller.markAllAsRead);
  *                 deleted:
  *                   type: integer
  */
-router.delete('/user/:userId', controller.removeAllByUser);
+router.delete('/user/:userId', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.removeAllByUser);
 
 /**
  * @swagger

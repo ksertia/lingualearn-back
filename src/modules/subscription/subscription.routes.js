@@ -1,6 +1,14 @@
 const express = require('express');
 const controller = require('./subscription.controller');
+const { allowRoles } = require('../../middleware/authMiddleware');
 const router = express.Router();
+
+// Gestion administrative brute des abonnements (créer/lister/modifier/supprimer n'importe
+// lequel) — réservée à l'admin/plateform_manager. authMiddleware est déjà appliqué au montage
+// de ce routeur (router.use('/subscriptions', authMiddleware, ...) dans src/routes/index.js).
+// Le vrai flux de souscription utilisateur passe par POST /payment/initiate+confirm ou
+// /payment/coins, pas par ces routes.
+const adminOnly = allowRoles('admin', 'plateform_manager');
 
 /**
  * @swagger
@@ -166,7 +174,7 @@ const router = express.Router();
  *                   type: string
  *                   example: '"userId" is required'
  */
-router.post('/', controller.create);
+router.post('/', adminOnly, controller.create);
 
 /**
  * @swagger
@@ -220,7 +228,7 @@ router.get('/my-status', (req, res, next) => { res.set('Cache-Control', 'no-stor
  *               items:
  *                 $ref: '#/components/schemas/SubscriptionResponse'
  */
-router.get('/', controller.getAll);
+router.get('/', adminOnly, controller.getAll);
 
 /**
  * @swagger
@@ -253,7 +261,7 @@ router.get('/', controller.getAll);
  *                   type: string
  *                   example: Subscription not found
  */
-router.get('/:id', controller.getById);
+router.get('/:id', adminOnly, controller.getById);
 
 /**
  * @swagger
@@ -309,7 +317,7 @@ router.get('/:id', controller.getById);
  *                   type: string
  *                   example: Subscription not found
  */
-router.put('/:id', controller.update);
+router.put('/:id', adminOnly, controller.update);
 
 /**
  * @swagger
@@ -339,6 +347,6 @@ router.put('/:id', controller.update);
  *                   type: string
  *                   example: Subscription not found
  */
-router.delete('/:id', controller.remove);
+router.delete('/:id', adminOnly, controller.remove);
 
 module.exports = router;

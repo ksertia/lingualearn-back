@@ -26,6 +26,12 @@ async function getUserNotifications(req, res, next) {
 
 async function markAsRead(req, res, next) {
   try {
+    const existing = await service.getNotificationById(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Notification introuvable.' });
+    const isPrivileged = ['admin', 'plateform_manager'].includes(req.user.accountType);
+    if (!isPrivileged && existing.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Vous ne pouvez modifier que vos propres notifications.' });
+    }
     const notif = await service.markAsRead(req.params.id);
     res.json(notif);
   } catch (err) {
@@ -44,6 +50,12 @@ async function markAllAsRead(req, res, next) {
 
 async function remove(req, res, next) {
   try {
+    const existing = await service.getNotificationById(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Notification introuvable.' });
+    const isPrivileged = ['admin', 'plateform_manager'].includes(req.user.accountType);
+    if (!isPrivileged && existing.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Vous ne pouvez supprimer que vos propres notifications.' });
+    }
     await service.deleteNotification(req.params.id);
     res.status(204).send();
   } catch (err) {

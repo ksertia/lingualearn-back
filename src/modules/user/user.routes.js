@@ -1,6 +1,6 @@
 const express = require('express');
 const { userController } = require('./user.controller');
-const { authMiddleware, allowRoles } = require('../../middleware/authMiddleware');
+const { authMiddleware, allowRoles, allowSelfOrRoles } = require('../../middleware/authMiddleware');
 
 const router = express.Router();
 
@@ -234,10 +234,12 @@ router.get('/stats', allowRoles('admin'), userController.getStats);
  *         description: User retrieved successfully
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - can only view your own profile unless admin
  *       404:
  *         description: User not found
  */
-router.get('/:id', userController.getUserById);
+router.get('/:id', allowSelfOrRoles('id', 'admin', 'plateform_manager'), userController.getUserById);
 
 /**
  * @swagger
@@ -273,10 +275,12 @@ router.get('/:id', userController.getUserById);
  *         description: User successfully updated
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - can only update your own profile unless admin
  *       404:
  *         description: User not found
  */
-router.put('/:id', userController.updateUser);
+router.put('/:id', allowSelfOrRoles('id', 'admin', 'plateform_manager'), userController.updateUser);
 
 /**
  * @swagger
@@ -300,9 +304,11 @@ router.put('/:id', userController.updateUser);
  *         description: User successfully deleted
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - can only delete your own account unless admin
  *       404:
  *         description: User not found
  */
-router.delete('/:id', userController.deleteUser);
+router.delete('/:id', allowSelfOrRoles('id', 'admin', 'plateform_manager'), userController.deleteUser);
 
 module.exports = router;

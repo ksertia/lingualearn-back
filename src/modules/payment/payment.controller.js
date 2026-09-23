@@ -19,7 +19,9 @@ async function initiate(req, res, next) {
   try {
     const { error, value } = initiateSchema.validate(req.body);
     if (error) return res.status(400).json({ error: error.details[0].message });
-    const result = await service.initiatePayment(value);
+    // userId forcé à l'appelant — même si le body en porte un autre, on ne paie/souscrit
+    // jamais pour un tiers via cette route (le body garde le champ pour compat schéma).
+    const result = await service.initiatePayment({ ...value, userId: req.user.id });
     res.status(201).json(result);
   } catch (err) {
     next(err);
@@ -30,7 +32,7 @@ async function confirm(req, res, next) {
   try {
     const { error, value } = confirmSchema.validate(req.body);
     if (error) return res.status(400).json({ error: error.details[0].message });
-    const subscription = await service.confirmPayment(value);
+    const subscription = await service.confirmPayment(value, req.user);
     res.status(200).json({ message: 'Paiement confirmé. Abonnement activé.', subscription });
   } catch (err) {
     next(err);

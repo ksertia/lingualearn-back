@@ -1,6 +1,12 @@
 const express = require('express');
 const controller = require('./subscription_plan.controller');
+const { allowRoles } = require('../../middleware/authMiddleware');
 const router = express.Router();
+
+// authMiddleware déjà appliqué au montage (router.use('/subscription-plans', authMiddleware, ...)
+// dans src/routes/index.js). Écriture réservée à l'admin/plateform_manager ; lecture (catalogue
+// de plans) ouverte à tout utilisateur authentifié.
+const adminOnly = allowRoles('admin', 'plateform_manager');
 
 /**
  * @swagger
@@ -149,7 +155,7 @@ const router = express.Router();
  *                   type: string
  *                   example: '"planCode" is required'
  */
-router.post('/', controller.create);
+router.post('/', adminOnly, controller.create);
 
 /**
  * @swagger
@@ -253,7 +259,7 @@ router.get('/:id', controller.getById);
  *                   type: string
  *                   example: SubscriptionPlan not found
  */
-router.put('/:id', controller.update);
+router.put('/:id', adminOnly, controller.update);
 
 /**
  * @swagger
@@ -282,6 +288,6 @@ router.put('/:id', controller.update);
  *                   type: string
  *                   example: SubscriptionPlan not found
  */
-router.delete('/:id', controller.remove);
+router.delete('/:id', adminOnly, controller.remove);
 
 module.exports = router;

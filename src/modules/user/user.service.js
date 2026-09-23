@@ -203,9 +203,16 @@ class UserService {
     }
 
     // ─── MUTATIONS ─────────────────────────────────────────────────────────────
-    async updateUser(id, data) {
+    // requesterAccountType : défense en profondeur — la route garantit déjà que seul
+    // l'intéressé ou un admin/plateform_manager peut atteindre cette fonction (id === requesterId
+    // ou rôle privilégié), mais on restreint quand même les champs sensibles (accountType,
+    // isActive, isVerified, subscriptionEndsAt) au self-service : même agissant sur son propre
+    // compte, un learner/sub_account_learner ne peut pas s'auto-promouvoir ni se réactiver/désactiver.
+    async updateUser(id, data, requesterId, requesterAccountType) {
         const existingUser = await prisma.user.findUnique({ where: { id }, select: { id: true, username: true } });
         if (!existingUser) throw new AppError(404, 'User not found');
+
+        const isPrivileged = ['admin', 'plateform_manager'].includes(requesterAccountType);
 
         const updateData = {};
 
@@ -215,9 +222,11 @@ class UserService {
             updateData.username = data.username;
         }
 
-        ['accountType', 'isActive', 'isVerified', 'firstLogin', 'subscriptionEndsAt'].forEach(f => {
-            if (data[f] !== undefined) updateData[f] = data[f];
-        });
+        if (isPrivileged) {
+            ['accountType', 'isActive', 'isVerified', 'firstLogin', 'subscriptionEndsAt'].forEach(f => {
+                if (data[f] !== undefined) updateData[f] = data[f];
+            });
+        }
 
         if (Object.keys(updateData).length === 0) throw new AppError(400, 'No valid fields to update');
 

@@ -1,5 +1,6 @@
 const express = require('express');
 const controller = require('./gamification.controller');
+const { allowSelfOrRoles, allowRoles } = require('../../middleware/authMiddleware');
 const router = express.Router();
 
 /**
@@ -94,7 +95,7 @@ const router = express.Router();
  *                     totalBadges:
  *                       type: integer
  */
-router.get('/users/:userId/stats', controller.getUserStats);
+router.get('/users/:userId/stats', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.getUserStats);
 
 /**
  * @swagger
@@ -126,7 +127,7 @@ router.get('/users/:userId/stats', controller.getUserStats);
  *       200:
  *         description: Récompenses ajoutées
  */
-router.post('/users/:userId/rewards', controller.addRewards);
+router.post('/users/:userId/rewards', allowRoles('admin', 'plateform_manager'), controller.addRewards);
 
 /**
  * @swagger
@@ -156,7 +157,7 @@ router.get('/badges', controller.getAllBadges);
  *       200:
  *         description: Badges de l'utilisateur
  */
-router.get('/users/:userId/badges', controller.getUserBadges);
+router.get('/users/:userId/badges', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.getUserBadges);
 
 /**
  * @swagger
@@ -175,7 +176,7 @@ router.get('/users/:userId/badges', controller.getUserBadges);
  *       200:
  *         description: Badges vérifiés
  */
-router.post('/users/:userId/badges/check', controller.checkBadges);
+router.post('/users/:userId/badges/check', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.checkBadges);
 
 /**
  * @swagger
@@ -194,7 +195,7 @@ router.post('/users/:userId/badges/check', controller.checkBadges);
  *       200:
  *         description: Streak mis à jour
  */
-router.post('/users/:userId/streak', controller.updateStreak);
+router.post('/users/:userId/streak', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.updateStreak);
 
 /**
  * @swagger
@@ -232,6 +233,6 @@ router.get('/leaderboard', controller.getLeaderboard);
  *       200:
  *         description: Rang de l'utilisateur
  */
-router.get('/users/:userId/rank', controller.getUserRank);
+router.get('/users/:userId/rank', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.getUserRank);
 
 module.exports = router;

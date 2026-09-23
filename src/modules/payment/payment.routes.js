@@ -1,5 +1,6 @@
 const express = require('express');
 const controller = require('./payment.controller');
+const { allowSelfOrRoles } = require('../../middleware/authMiddleware');
 const router = express.Router();
 
 /**
@@ -315,7 +316,7 @@ router.post('/confirm', controller.confirm);
  *               items:
  *                 $ref: '#/components/schemas/PaymentHistoryItem'
  */
-router.get('/history/:userId', controller.history);
+router.get('/history/:userId', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.history);
 
 /**
  * @swagger

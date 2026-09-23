@@ -94,13 +94,18 @@ async function initiatePayment({ userId, planId, billingCycle, paymentMethod, ph
 }
 
 // ─── ÉTAPE 2 : Confirmer le paiement avec l'OTP ──────────────────────────────
-async function confirmPayment({ paymentRequestId, otpCode }) {
+// requester : req.user du controller — empêche quiconque connaissant/devinant un
+// paymentRequestId d'un tiers de le confirmer à sa place (sauf admin/plateform_manager).
+async function confirmPayment({ paymentRequestId, otpCode }, requester = null) {
   const paymentRequest = await prisma.paymentRequest.findUnique({
     where: { id: paymentRequestId },
     include: { plan: true },
   });
 
   if (!paymentRequest)                         throw new AppError(404, 'Demande de paiement introuvable.');
+  if (requester && paymentRequest.userId !== requester.id && !['admin', 'plateform_manager'].includes(requester.accountType)) {
+    throw new AppError(403, 'Vous ne pouvez confirmer que vos propres demandes de paiement.');
+  }
   if (paymentRequest.status !== 'pending')     throw new AppError(400, `Cette demande est déjà ${paymentRequest.status}.`);
   if (new Date() > new Date(paymentRequest.otpExpiresAt)) {
     await prisma.paymentRequest.update({ where: { id: paymentRequestId }, data: { status: 'failed', failureReason: 'OTP expiré' } });

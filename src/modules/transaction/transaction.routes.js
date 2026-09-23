@@ -1,5 +1,6 @@
 const express = require('express');
 const controller = require('./transaction.controller');
+const { allowSelfOrRoles } = require('../../middleware/authMiddleware');
 const router = express.Router();
 
 /**
@@ -147,7 +148,7 @@ const router = express.Router();
  */
 router.get('/wallet/my', controller.getMyWallet);
 
-router.get('/user/:userId', controller.listByUser);
+router.get('/user/:userId', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.listByUser);
 
 /**
  * @swagger

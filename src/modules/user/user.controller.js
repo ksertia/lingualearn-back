@@ -2,16 +2,8 @@ const { asyncHandler } = require('../../middleware/asyncHandler');
 const { userService } = require('./user.service');
 
 const userController = {
-    // Récupérer tous les utilisateurs (admin seulement)
+    // Récupérer tous les utilisateurs (admin seulement — allowRoles sur la route)
     getAllUsers: asyncHandler(async (req, res) => {
-        // Vérifier si l'utilisateur est admin
-        // if (req.user.accountType !== 'admin') {
-        //     return res.status(403).json({
-        //         success: false,
-        //         error: 'Only administrators can access this resource'
-        //     });
-        // }
-        
         const filters = {
             page: req.query.page,
             limit: req.query.limit,
@@ -51,18 +43,9 @@ const userController = {
         });
     }),
     
-    // Récupérer un utilisateur par ID
+    // Récupérer un utilisateur par ID (soi-même, ou admin — allowSelfOrRoles sur la route)
     getUserById: asyncHandler(async (req, res) => {
         const { id } = req.params;
-        
-        // Vérifier les permissions
-        // if (req.user.accountType !== 'admin' && req.user.id !== id) {
-        //     return res.status(403).json({
-        //         success: false,
-        //         error: 'You can only view your own profile'
-        //     });
-        // }
-        
         const user = await userService.getUserDetailsById(id);
         
         res.json({

@@ -65,4 +65,27 @@ const allowRoles = (...roles) => {
     };
 };
 
-module.exports = { authMiddleware, allowRoles, invalidateAuthCache };
+// Autorise l'utilisateur agissant sur son propre id (req.params[paramName] === req.user.id),
+// ou un utilisateur ayant l'un des rôles listés (ex: admin) agissant sur n'importe quel id.
+// Empêche un utilisateur authentifié quelconque d'accéder aux données d'un autre via un
+// :userId/:id arbitraire dans l'URL.
+const allowSelfOrRoles = (paramName, ...roles) => {
+    return (req, res, next) => {
+        if (!req.user) {
+            return next(new AppError(401, 'Authentication required.'));
+        }
+
+        const targetId = req.params[paramName];
+        if (req.user.id === targetId) {
+            return next();
+        }
+
+        if (roles.includes(req.user.accountType)) {
+            return next();
+        }
+
+        return next(new AppError(403, 'Insufficient permissions.'));
+    };
+};
+
+module.exports = { authMiddleware, allowRoles, allowSelfOrRoles, invalidateAuthCache };

@@ -122,7 +122,7 @@ async function getUserStats(userId) {
     const userBadges = await prisma.userBadge.findMany({
       where: { userId },
       include: { badge: true },
-      orderBy: { earnedAt: 'desc' }
+      orderBy: { unlockedAt: 'desc' }
     });
 
     return {
@@ -146,7 +146,7 @@ async function getUserStats(userId) {
         name: ub.badge.name,
         description: ub.badge.description,
         icon: ub.badge.icon,
-        earnedAt: ub.earnedAt
+        unlockedAt: ub.unlockedAt
       })),
       totalBadges: userBadges.length,
       createdAt: stats.createdAt,
@@ -343,7 +343,7 @@ async function checkAndAwardBadges(userId) {
     data: toAward.map(b => ({
       userId,
       badgeId: badgeMap.get(b.id).id,
-      earnedAt: new Date()
+      unlockedAt: new Date()
     })),
     skipDuplicates: true
   });
@@ -372,7 +372,7 @@ async function getUserBadges(userId) {
   const userBadges = await prisma.userBadge.findMany({
     where: { userId },
     include: { badge: true },
-    orderBy: { earnedAt: 'desc' }
+    orderBy: { unlockedAt: 'desc' }
   });
 
   return userBadges.map(ub => ({
@@ -380,7 +380,7 @@ async function getUserBadges(userId) {
     name: ub.badge.name,
     description: ub.badge.description,
     icon: ub.badge.icon,
-    earnedAt: ub.earnedAt
+    unlockedAt: ub.unlockedAt
   }));
 }
 

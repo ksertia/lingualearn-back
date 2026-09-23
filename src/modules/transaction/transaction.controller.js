@@ -16,6 +16,10 @@ async function listByUser(req, res, next) {
 async function getOne(req, res, next) {
   try {
     const tx = await service.getTransactionById(req.params.id);
+    const isPrivileged = ['admin', 'plateform_manager'].includes(req.user.accountType);
+    if (!isPrivileged && tx.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Vous ne pouvez consulter que vos propres transactions.' });
+    }
     res.json(tx);
   } catch (err) {
     next(err);
