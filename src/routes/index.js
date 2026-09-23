@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { authMiddleware } = require('../middleware/authMiddleware');
+const { authMiddleware, allowSelfOrRoles } = require('../middleware/authMiddleware');
 const { requireSubscription } = require('../middleware/requireSubscription');
 
 const adminDashboardRoutes = require('../modules/admin_dashboard/admin_dashboard.routes');
@@ -57,17 +57,20 @@ router.use('/progress',      authMiddleware, requireSubscription, progressRoutes
 router.use('/gamification',  authMiddleware, requireSubscription, gamificationRoutes);
 router.use('/referral',      authMiddleware, referralRoutes);
 
-// ─── Routes utilisateur : languages et levels publiques ──────────────────────
-router.get('/users/:userId/languages',                       languageController.getByUserId);
-router.post('/users/:userId/languages/:languageId/select',   languageController.selectLanguage);
-router.get('/users/:userId/levels',                          levelController.getByUserId);
-router.post('/users/:userId/levels/:levelId/select',         levelController.selectLevel);
+// ─── Routes utilisateur : languages, levels, thèmes, sous-thèmes ─────────────
+// allowSelfOrRoles : l'utilisateur ne peut agir que sur son propre userId (ou un
+// admin/plateform_manager sur n'importe qui) — empêche un utilisateur authentifié
+// quelconque de démarrer/compléter/sélectionner du contenu au nom d'un tiers.
+router.get('/users/:userId/languages',                       authMiddleware, allowSelfOrRoles('userId', 'admin', 'plateform_manager'), languageController.getByUserId);
+router.post('/users/:userId/languages/:languageId/select',   authMiddleware, allowSelfOrRoles('userId', 'admin', 'plateform_manager'), languageController.selectLanguage);
+router.get('/users/:userId/levels',                          authMiddleware, allowSelfOrRoles('userId', 'admin', 'plateform_manager'), levelController.getByUserId);
+router.post('/users/:userId/levels/:levelId/select',         authMiddleware, allowSelfOrRoles('userId', 'admin', 'plateform_manager'), levelController.selectLevel);
 
-router.post('/users/:userId/themes/:themeId/start',             authMiddleware, requireSubscription, themeController.startTheme);
-router.post('/users/:userId/themes/:themeId/complete',          authMiddleware, requireSubscription, themeController.completeTheme);
+router.post('/users/:userId/themes/:themeId/start',             authMiddleware, requireSubscription, allowSelfOrRoles('userId', 'admin', 'plateform_manager'), themeController.startTheme);
+router.post('/users/:userId/themes/:themeId/complete',          authMiddleware, requireSubscription, allowSelfOrRoles('userId', 'admin', 'plateform_manager'), themeController.completeTheme);
 
-router.post('/users/:userId/sub-themes/:subThemeId/start',      authMiddleware, requireSubscription, subThemeController.startSubTheme);
-router.post('/users/:userId/sub-themes/:subThemeId/complete',   authMiddleware, requireSubscription, subThemeController.completeSubTheme);
+router.post('/users/:userId/sub-themes/:subThemeId/start',      authMiddleware, requireSubscription, allowSelfOrRoles('userId', 'admin', 'plateform_manager'), subThemeController.startSubTheme);
+router.post('/users/:userId/sub-themes/:subThemeId/complete',   authMiddleware, requireSubscription, allowSelfOrRoles('userId', 'admin', 'plateform_manager'), subThemeController.completeSubTheme);
 
 router.get('/', (req, res) => {
   res.json({

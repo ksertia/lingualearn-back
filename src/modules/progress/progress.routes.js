@@ -1,6 +1,13 @@
 const express = require('express');
 const controller = require('./progress.controller');
+const { allowSelfOrRoles } = require('../../middleware/authMiddleware');
 const router = express.Router();
+
+// authMiddleware + requireSubscription déjà appliqués au montage
+// (router.use('/progress', authMiddleware, requireSubscription, ...) dans src/routes/index.js).
+// allowSelfOrRoles empêche un utilisateur authentifié quelconque de lire/recalculer la
+// progression d'un autre userId que le sien (sauf admin/plateform_manager).
+const selfOrAdmin = allowSelfOrRoles('userId', 'admin', 'plateform_manager');
 
 /**
  * @swagger
@@ -30,7 +37,7 @@ const router = express.Router();
  *       200:
  *         description: Résumé de progression
  */
-router.get('/user/:userId/level/:levelId', controller.getUserLevelProgress);
+router.get('/user/:userId/level/:levelId', selfOrAdmin, controller.getUserLevelProgress);
 
 /**
  * @swagger
@@ -51,7 +58,7 @@ router.get('/user/:userId/level/:levelId', controller.getUserLevelProgress);
  *       200:
  *         description: Détail de progression
  */
-router.get('/user/:userId/sub-theme/:subThemeId', controller.getUserSubThemeProgress);
+router.get('/user/:userId/sub-theme/:subThemeId', selfOrAdmin, controller.getUserSubThemeProgress);
 
 /**
  * @swagger
@@ -80,7 +87,7 @@ router.get('/user/:userId/sub-theme/:subThemeId', controller.getUserSubThemeProg
  *       404:
  *         description: Niveau non trouvé
  */
-router.get('/user/:userId/level/:levelId/next', controller.getNextRecommended);
+router.get('/user/:userId/level/:levelId/next', selfOrAdmin, controller.getNextRecommended);
 
 /**
  * @swagger
@@ -101,6 +108,6 @@ router.get('/user/:userId/level/:levelId/next', controller.getNextRecommended);
  *       200:
  *         description: Progression recalculée
  */
-router.post('/user/:userId/level/:levelId/recalculate', controller.recalculateLevel);
+router.post('/user/:userId/level/:levelId/recalculate', selfOrAdmin, controller.recalculateLevel);
 
 module.exports = router;
