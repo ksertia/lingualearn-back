@@ -453,7 +453,7 @@ router.get('/check-auth', authMiddleware, authController.checkAuth);
  *       201:
  *         description: Child account created successfully
  *       403:
- *         description: Not a learner, or subscription limit reached
+ *         description: Not a learner, no active subscription, subscription expired/inactive, or child account limit reached for the plan (maxSubAccounts)
  *       400:
  *         description: Email or phone already in use
  */

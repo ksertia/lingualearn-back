@@ -149,6 +149,30 @@ class AuthService {
             throw new AppError(403, 'Only learner accounts can create child accounts');
         }
 
+        // Vérifier l'abonnement actif du parent et le nombre de slots enfants restants
+        const subscription = await prisma.subscription.findUnique({
+            where: { userId: parentId },
+            include: { plan: { select: { maxSubAccounts: true, planName: true } } }
+        });
+
+        if (!subscription) {
+            throw new AppError(403, 'No active subscription. Subscribe to a plan before creating a child account.');
+        }
+        if (subscription.status !== 'active') {
+            throw new AppError(403, 'Your subscription is inactive or canceled.');
+        }
+        if (new Date() > new Date(subscription.currentPeriodEnd)) {
+            throw new AppError(403, 'Your subscription has expired. Renew it to create a child account.');
+        }
+
+        const maxSubAccounts = subscription.plan.maxSubAccounts ?? 0;
+        const existingChildrenCount = await prisma.user.count({
+            where: { parentId, accountType: 'sub_account_learner' }
+        });
+        if (existingChildrenCount >= maxSubAccounts) {
+            throw new AppError(403, `Child account limit reached for your plan "${subscription.plan.planName}" (${maxSubAccounts} max). Upgrade your plan to add more.`);
+        }
+
         // Vérifier unicité email/phone si fournis
         if (email) {
             const existingEmail = await prisma.user.findUnique({ where: { email } });

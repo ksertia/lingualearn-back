@@ -16,8 +16,8 @@ async function main() {
       priceMonthly: 0,
       priceYearly: 0,
       currency: 'XOF',
-      features: JSON.stringify({ trial: true, maxSubAccounts: 0 }),
-      maxSubAccounts: 0,
+      features: JSON.stringify({ trial: true, maxSubAccounts: 2 }),
+      maxSubAccounts: 2,
       isActive: true,
     },
   });
