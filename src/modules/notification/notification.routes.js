@@ -40,6 +40,8 @@ const router = express.Router();
  *     responses:
  *       201:
  *         description: Notification créée et envoyée
+ *       403:
+ *         description: Réservé à l'admin/plateform_manager
  */
 router.post('/', allowRoles('admin', 'plateform_manager'), controller.create);
 
@@ -70,6 +72,8 @@ router.post('/', allowRoles('admin', 'plateform_manager'), controller.create);
  *     responses:
  *       200:
  *         description: Liste paginée avec unreadCount
+ *       403:
+ *         description: Vous ne pouvez consulter que vos propres notifications, sauf admin/plateform_manager
  */
 router.get('/user/:userId', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.getUserNotifications);
 
@@ -90,6 +94,8 @@ router.get('/user/:userId', allowSelfOrRoles('userId', 'admin', 'plateform_manag
  *     responses:
  *       200:
  *         description: Toutes marquées comme lues
+ *       403:
+ *         description: Vous ne pouvez marquer comme lues que vos propres notifications, sauf admin/plateform_manager
  */
 router.put('/user/:userId/read-all', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.markAllAsRead);
 
@@ -119,6 +125,8 @@ router.put('/user/:userId/read-all', allowSelfOrRoles('userId', 'admin', 'platef
  *                   type: boolean
  *                 deleted:
  *                   type: integer
+ *       403:
+ *         description: Vous ne pouvez supprimer que vos propres notifications, sauf admin/plateform_manager
  */
 router.delete('/user/:userId', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.removeAllByUser);
 
@@ -139,6 +147,10 @@ router.delete('/user/:userId', allowSelfOrRoles('userId', 'admin', 'plateform_ma
  *     responses:
  *       200:
  *         description: Notification mise à jour
+ *       403:
+ *         description: Vous ne pouvez modifier que vos propres notifications, sauf admin/plateform_manager
+ *       404:
+ *         description: Notification introuvable
  */
 router.put('/:id/read', controller.markAsRead);
 
@@ -159,6 +171,10 @@ router.put('/:id/read', controller.markAsRead);
  *     responses:
  *       204:
  *         description: Supprimée
+ *       403:
+ *         description: Vous ne pouvez supprimer que vos propres notifications, sauf admin/plateform_manager
+ *       404:
+ *         description: Notification introuvable
  */
 router.delete('/:id', controller.remove);
 

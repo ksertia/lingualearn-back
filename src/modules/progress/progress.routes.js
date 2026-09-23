@@ -36,6 +36,8 @@ const selfOrAdmin = allowSelfOrRoles('userId', 'admin', 'plateform_manager');
  *     responses:
  *       200:
  *         description: Résumé de progression
+ *       403:
+ *         description: Vous ne pouvez consulter que votre propre progression, sauf admin/plateform_manager
  */
 router.get('/user/:userId/level/:levelId', selfOrAdmin, controller.getUserLevelProgress);
 
@@ -57,6 +59,8 @@ router.get('/user/:userId/level/:levelId', selfOrAdmin, controller.getUserLevelP
  *     responses:
  *       200:
  *         description: Détail de progression
+ *       403:
+ *         description: Vous ne pouvez consulter que votre propre progression, sauf admin/plateform_manager
  */
 router.get('/user/:userId/sub-theme/:subThemeId', selfOrAdmin, controller.getUserSubThemeProgress);
 
@@ -84,6 +88,8 @@ router.get('/user/:userId/sub-theme/:subThemeId', selfOrAdmin, controller.getUse
  *     responses:
  *       200:
  *         description: Sous-thème recommandé, ou subTheme null si le niveau est terminé
+ *       403:
+ *         description: Vous ne pouvez consulter que votre propre recommandation, sauf admin/plateform_manager
  *       404:
  *         description: Niveau non trouvé
  */
@@ -107,6 +113,8 @@ router.get('/user/:userId/level/:levelId/next', selfOrAdmin, controller.getNextR
  *     responses:
  *       200:
  *         description: Progression recalculée
+ *       403:
+ *         description: Vous ne pouvez recalculer que votre propre progression, sauf admin/plateform_manager
  */
 router.post('/user/:userId/level/:levelId/recalculate', selfOrAdmin, controller.recalculateLevel);
 

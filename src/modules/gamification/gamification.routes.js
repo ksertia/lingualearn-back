@@ -94,6 +94,8 @@ const router = express.Router();
  *                             format: date-time
  *                     totalBadges:
  *                       type: integer
+ *       403:
+ *         description: Vous ne pouvez consulter que vos propres statistiques, sauf admin/plateform_manager
  */
 router.get('/users/:userId/stats', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.getUserStats);
 
@@ -101,9 +103,14 @@ router.get('/users/:userId/stats', allowSelfOrRoles('userId', 'admin', 'platefor
  * @swagger
  * /api/v1/gamification/users/{userId}/rewards:
  *   post:
- *     summary: Ajouter des récompenses à un utilisateur
- *     description: Ajoute de l'XP et des coins à un utilisateur et vérifie les nouveaux badges
+ *     summary: Ajouter des récompenses à un utilisateur (admin/plateform_manager uniquement)
+ *     description: |
+ *       Octroi manuel/compensation. Ajoute de l'XP et des coins à un utilisateur et vérifie les
+ *       nouveaux badges. Les vraies récompenses de jeu sont attribuées automatiquement côté
+ *       serveur (incrementExercisesCompleted/incrementLessonsCompleted), jamais via cette route.
  *     tags: [Gamification]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: userId
@@ -126,6 +133,8 @@ router.get('/users/:userId/stats', allowSelfOrRoles('userId', 'admin', 'platefor
  *     responses:
  *       200:
  *         description: Récompenses ajoutées
+ *       403:
+ *         description: Réservé à l'admin/plateform_manager
  */
 router.post('/users/:userId/rewards', allowRoles('admin', 'plateform_manager'), controller.addRewards);
 
@@ -156,6 +165,8 @@ router.get('/badges', controller.getAllBadges);
  *     responses:
  *       200:
  *         description: Badges de l'utilisateur
+ *       403:
+ *         description: Vous ne pouvez consulter que vos propres badges, sauf admin/plateform_manager
  */
 router.get('/users/:userId/badges', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.getUserBadges);
 
@@ -175,6 +186,8 @@ router.get('/users/:userId/badges', allowSelfOrRoles('userId', 'admin', 'platefo
  *     responses:
  *       200:
  *         description: Badges vérifiés
+ *       403:
+ *         description: Vous ne pouvez vérifier que vos propres badges, sauf admin/plateform_manager
  */
 router.post('/users/:userId/badges/check', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.checkBadges);
 
@@ -194,6 +207,8 @@ router.post('/users/:userId/badges/check', allowSelfOrRoles('userId', 'admin', '
  *     responses:
  *       200:
  *         description: Streak mis à jour
+ *       403:
+ *         description: Vous ne pouvez mettre à jour que votre propre streak, sauf admin/plateform_manager
  */
 router.post('/users/:userId/streak', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.updateStreak);
 
@@ -232,6 +247,8 @@ router.get('/leaderboard', controller.getLeaderboard);
  *     responses:
  *       200:
  *         description: Rang de l'utilisateur
+ *       403:
+ *         description: Vous ne pouvez consulter que votre propre rang, sauf admin/plateform_manager
  */
 router.get('/users/:userId/rank', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.getUserRank);
 

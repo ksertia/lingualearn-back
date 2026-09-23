@@ -140,12 +140,16 @@ const adminOnly = allowRoles('admin', 'plateform_manager');
  * @swagger
  * /api/v1/subscriptions:
  *   post:
- *     summary: Créer un nouvel abonnement
+ *     summary: Créer un nouvel abonnement (admin/plateform_manager uniquement)
  *     description: |
  *       Lie un utilisateur (`learner`) à un plan d'abonnement.
  *       Met automatiquement à jour `subscriptionId` et `subscriptionEndsAt` sur le compte utilisateur.
  *       Les sous-comptes (`sub_account_learner`) héritent de cet abonnement automatiquement.
+ *       Réservé à l'admin/plateform_manager — le vrai flux de souscription utilisateur
+ *       passe par POST /payment/initiate+confirm ou /payment/coins.
  *     tags: [Subscriptions]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -173,6 +177,8 @@ const adminOnly = allowRoles('admin', 'plateform_manager');
  *                 error:
  *                   type: string
  *                   example: '"userId" is required'
+ *       403:
+ *         description: Réservé à l'admin/plateform_manager
  */
 router.post('/', adminOnly, controller.create);
 
@@ -215,9 +221,11 @@ router.get('/my-status', (req, res, next) => { res.set('Cache-Control', 'no-stor
  * @swagger
  * /api/v1/subscriptions:
  *   get:
- *     summary: Récupérer tous les abonnements
+ *     summary: Récupérer tous les abonnements (admin/plateform_manager uniquement)
  *     description: Retourne tous les abonnements avec le plan et l'utilisateur associés.
  *     tags: [Subscriptions]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Liste de tous les abonnements
@@ -227,6 +235,8 @@ router.get('/my-status', (req, res, next) => { res.set('Cache-Control', 'no-stor
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/SubscriptionResponse'
+ *       403:
+ *         description: Réservé à l'admin/plateform_manager
  */
 router.get('/', adminOnly, controller.getAll);
 
@@ -234,8 +244,10 @@ router.get('/', adminOnly, controller.getAll);
  * @swagger
  * /api/v1/subscriptions/{id}:
  *   get:
- *     summary: Récupérer un abonnement par ID
+ *     summary: Récupérer un abonnement par ID (admin/plateform_manager uniquement)
  *     tags: [Subscriptions]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -250,6 +262,8 @@ router.get('/', adminOnly, controller.getAll);
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/SubscriptionResponse'
+ *       403:
+ *         description: Réservé à l'admin/plateform_manager
  *       404:
  *         description: Abonnement non trouvé
  *         content:
@@ -267,11 +281,13 @@ router.get('/:id', adminOnly, controller.getById);
  * @swagger
  * /api/v1/subscriptions/{id}:
  *   put:
- *     summary: Modifier un abonnement (mise à jour partielle)
+ *     summary: Modifier un abonnement (mise à jour partielle, admin/plateform_manager uniquement)
  *     description: |
  *       Tous les champs sont optionnels.
  *       Si `currentPeriodEnd` est modifié, `subscriptionEndsAt` sur le compte utilisateur est resynchronisé automatiquement.
  *     tags: [Subscriptions]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -306,6 +322,8 @@ router.get('/:id', adminOnly, controller.getById);
  *                 error:
  *                   type: string
  *                   example: '"status" must be one of [active, canceled, pending]'
+ *       403:
+ *         description: Réservé à l'admin/plateform_manager
  *       404:
  *         description: Abonnement non trouvé
  *         content:
@@ -323,9 +341,11 @@ router.put('/:id', adminOnly, controller.update);
  * @swagger
  * /api/v1/subscriptions/{id}:
  *   delete:
- *     summary: Supprimer un abonnement
+ *     summary: Supprimer un abonnement (admin/plateform_manager uniquement)
  *     description: Supprime l'abonnement et réinitialise `subscriptionId` et `subscriptionEndsAt` sur le compte utilisateur.
  *     tags: [Subscriptions]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -336,6 +356,8 @@ router.put('/:id', adminOnly, controller.update);
  *     responses:
  *       204:
  *         description: Abonnement supprimé avec succès
+ *       403:
+ *         description: Réservé à l'admin/plateform_manager
  *       404:
  *         description: Abonnement non trouvé
  *         content:

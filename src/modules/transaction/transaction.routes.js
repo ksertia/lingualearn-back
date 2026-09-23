@@ -111,6 +111,8 @@ const router = express.Router();
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/TransactionListResponse'
+ *       403:
+ *         description: Vous ne pouvez consulter que vos propres transactions, sauf admin/plateform_manager
  */
 /**
  * @swagger
@@ -172,6 +174,8 @@ router.get('/user/:userId', allowSelfOrRoles('userId', 'admin', 'plateform_manag
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Transaction'
+ *       403:
+ *         description: Vous ne pouvez consulter que vos propres transactions, sauf admin/plateform_manager
  *       404:
  *         description: Transaction introuvable
  *         content:

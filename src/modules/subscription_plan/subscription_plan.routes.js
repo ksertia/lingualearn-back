@@ -115,8 +115,10 @@ const adminOnly = allowRoles('admin', 'plateform_manager');
  * @swagger
  * /api/v1/subscription-plans:
  *   post:
- *     summary: Créer un nouveau plan d'abonnement
+ *     summary: Créer un nouveau plan d'abonnement (admin/plateform_manager uniquement)
  *     tags: [SubscriptionPlans]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -154,6 +156,8 @@ const adminOnly = allowRoles('admin', 'plateform_manager');
  *                 error:
  *                   type: string
  *                   example: '"planCode" is required'
+ *       403:
+ *         description: Réservé à l'admin/plateform_manager
  */
 router.post('/', adminOnly, controller.create);
 
@@ -212,9 +216,11 @@ router.get('/:id', controller.getById);
  * @swagger
  * /api/v1/subscription-plans/{id}:
  *   put:
- *     summary: Modifier un plan d'abonnement (mise à jour partielle)
+ *     summary: Modifier un plan d'abonnement (mise à jour partielle, admin/plateform_manager uniquement)
  *     description: Tous les champs sont optionnels. Le champ `percentage` est recalculé automatiquement si `priceMonthly` ou `reducePrice` est modifié.
  *     tags: [SubscriptionPlans]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -248,6 +254,8 @@ router.get('/:id', controller.getById);
  *                 error:
  *                   type: string
  *                   example: '"reducePrice" must be greater than or equal to 0'
+ *       403:
+ *         description: Réservé à l'admin/plateform_manager
  *       404:
  *         description: Plan non trouvé
  *         content:
@@ -265,8 +273,10 @@ router.put('/:id', adminOnly, controller.update);
  * @swagger
  * /api/v1/subscription-plans/{id}:
  *   delete:
- *     summary: Supprimer un plan d'abonnement
+ *     summary: Supprimer un plan d'abonnement (admin/plateform_manager uniquement)
  *     tags: [SubscriptionPlans]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -277,6 +287,8 @@ router.put('/:id', adminOnly, controller.update);
  *     responses:
  *       204:
  *         description: Plan supprimé avec succès
+ *       403:
+ *         description: Réservé à l'admin/plateform_manager
  *       404:
  *         description: Plan non trouvé
  *         content:

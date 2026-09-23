@@ -315,6 +315,8 @@ router.post('/confirm', controller.confirm);
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/PaymentHistoryItem'
+ *       403:
+ *         description: Vous ne pouvez consulter que votre propre historique, sauf admin/plateform_manager
  */
 router.get('/history/:userId', allowSelfOrRoles('userId', 'admin', 'plateform_manager'), controller.history);
 
