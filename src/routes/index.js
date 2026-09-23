@@ -19,7 +19,6 @@ const subscriptionRoutes = require('../modules/subscription/subscription.routes'
 const messageWsRoutes = require('../modules/message_ws/message_ws.routes');
 const gamificationRoutes = require('../modules/gamification/gamification.routes');
 const notificationRoutes = require('../modules/notification/notification.routes');
-const moduleRoutes = require('../modules/module/module.routes');
 const languageRoutes = require('../modules/language/language.routes');
 const discoverRoutes = require('../modules/discover/discover.routes');
 const uploadRoutes = require('../modules/upload/upload.routes');
@@ -28,7 +27,6 @@ const transactionRoutes = require('../modules/transaction/transaction.routes');
 const referralRoutes = require('../modules/referral/referral.routes');
 const languageController = require('../modules/language/language.controller');
 const levelController = require('../modules/Level/Level.controller');
-const moduleController = require('../modules/module/module.controller');
 const themeController = require('../modules/theme/theme.controller');
 const subThemeController = require('../modules/sub-theme/sub-theme.controller');
 
@@ -50,9 +48,6 @@ router.use('/levels',             authMiddleware, levelRoutes);
 router.use('/payment',            authMiddleware, paymentRoutes);
 router.use('/transactions',       authMiddleware, transactionRoutes);
 
-// ─── Modules : visibles sans abonnement, mais contenu détaillé nécessite un abonnement ──
-router.use('/modules',       authMiddleware, moduleRoutes);
-
 // ─── Routes nécessitant authentification + abonnement actif ───────────────────
 router.use('/themes',        authMiddleware, requireSubscription, themeRoutes);
 router.use('/sub-themes',    authMiddleware, requireSubscription, subThemeRoutes);
@@ -67,10 +62,6 @@ router.get('/users/:userId/languages',                       languageController.
 router.post('/users/:userId/languages/:languageId/select',   languageController.selectLanguage);
 router.get('/users/:userId/levels',                          levelController.getByUserId);
 router.post('/users/:userId/levels/:levelId/select',         levelController.selectLevel);
-
-router.get('/users/:userId/modules',                            authMiddleware, moduleController.getByUserId);
-router.post('/users/:userId/modules/:moduleId/start',           authMiddleware, requireSubscription, moduleController.startModule);
-router.post('/users/:userId/modules/:moduleId/complete',        authMiddleware, requireSubscription, moduleController.completeModule);
 
 router.post('/users/:userId/themes/:themeId/start',             authMiddleware, requireSubscription, themeController.startTheme);
 router.post('/users/:userId/themes/:themeId/complete',          authMiddleware, requireSubscription, themeController.completeTheme);

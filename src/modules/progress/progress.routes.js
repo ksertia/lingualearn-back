@@ -15,7 +15,7 @@ const router = express.Router();
  * @swagger
  * /api/v1/progress/user/{userId}/level/{levelId}:
  *   get:
- *     summary: Progression d'un utilisateur pour un niveau (par module)
+ *     summary: Progression d'un utilisateur pour un niveau (par thème)
  *     tags: [Progress]
  *     parameters:
  *       - in: path
@@ -60,7 +60,7 @@ router.get('/user/:userId/sub-theme/:subThemeId', controller.getUserSubThemeProg
  *     summary: Suggère la prochaine étape (sous-thème) à faire pour cet utilisateur
  *     description: |
  *       Purement indicatif — aucun blocage. Retourne le premier sous-thème actif
- *       (dans l'ordre Module > Thème > Sous-thème) dont la progression est
+ *       (dans l'ordre Thème > Sous-thème) dont la progression est
  *       inférieure à 100%. L'utilisateur reste libre d'accéder à n'importe
  *       quel autre sous-thème, cette route sert uniquement à guider
  *       l'affichage d'une carte "Continuer avec...".
@@ -84,9 +84,9 @@ router.get('/user/:userId/level/:levelId/next', controller.getNextRecommended);
 
 /**
  * @swagger
- * /api/v1/progress/user/{userId}/module/{moduleId}/recalculate:
+ * /api/v1/progress/user/{userId}/level/{levelId}/recalculate:
  *   post:
- *     summary: Forcer le recalcul de la progression d'un module (et du niveau associé)
+ *     summary: Forcer le recalcul de la progression d'un niveau (moyenne de ses thèmes)
  *     tags: [Progress]
  *     parameters:
  *       - in: path
@@ -94,13 +94,13 @@ router.get('/user/:userId/level/:levelId/next', controller.getNextRecommended);
  *         required: true
  *         schema: { type: string }
  *       - in: path
- *         name: moduleId
+ *         name: levelId
  *         required: true
  *         schema: { type: string }
  *     responses:
  *       200:
  *         description: Progression recalculée
  */
-router.post('/user/:userId/module/:moduleId/recalculate', controller.recalculateModule);
+router.post('/user/:userId/level/:levelId/recalculate', controller.recalculateLevel);
 
 module.exports = router;

@@ -61,9 +61,8 @@ exports.recalculateSubThemeProgress = async (userId, subThemeId, { completedCont
 };
 
 // Moyenne des % de tous les sous-thèmes d'un thème pour un utilisateur, remontée à UserThemeProgress.
-// Le thème n'est pas dans la chaîne de propagation vers le module (le module se calcule
-// directement à partir des sous-thèmes) — cette table sert uniquement à exposer une
-// progression persistée par thème (start/complete explicites, affichage).
+// Le niveau (Level) se calcule directement à partir des thèmes — cette table sert
+// uniquement à exposer une progression persistée par thème (start/complete explicites, affichage).
 exports.recalculateThemeProgress = async (userId, themeId) => {
   const subThemes = await prisma.subTheme.findMany({
     where: { themeId, isActive: true },
@@ -100,60 +99,41 @@ exports.recalculateThemeProgress = async (userId, themeId) => {
   });
 };
 
-// Moyenne des % de tous les sous-thèmes d'un module pour un utilisateur, remontée à UserModuleProgress/UserLevelProgress.
-exports.recalculateModuleAndLevelProgress = async (userId, moduleId) => {
-  const module_ = await prisma.module.findUnique({ where: { id: moduleId }, select: { levelId: true } });
-  if (!module_) throw new Error('Module non trouvé');
+// Moyenne des % de tous les thèmes d'un niveau pour un utilisateur, remontée à UserLevelProgress.
+// Part directement de UserThemeProgress déjà à jour — l'appelant doit garantir que
+// recalculateThemeProgress a été appelé avant pour le(s) thème(s) concerné(s).
+exports.recalculateLevelProgress = async (userId, levelId) => {
+  const level = await prisma.level.findUnique({ where: { id: levelId }, select: { id: true } });
+  if (!level) throw new Error('Niveau non trouvé');
 
-  const subThemes = await prisma.subTheme.findMany({
-    where: { theme: { moduleId }, isActive: true },
-    select: { id: true }
-  });
+  const themes = await prisma.theme.findMany({ where: { levelId, isActive: true }, select: { id: true } });
 
-  let moduleProgress = 0;
-  if (subThemes.length > 0) {
-    const progresses = await prisma.userSubThemeProgress.findMany({
-      where: { userId, subThemeId: { in: subThemes.map(s => s.id) } },
+  let levelProgress = 0;
+  if (themes.length > 0) {
+    const progresses = await prisma.userThemeProgress.findMany({
+      where: { userId, themeId: { in: themes.map(t => t.id) } },
       select: { progressPercentage: true }
     });
     const sum = progresses.reduce((acc, p) => acc + Number(p.progressPercentage), 0);
-    moduleProgress = Math.round((sum / subThemes.length) * 100) / 100;
+    levelProgress = Math.round((sum / themes.length) * 100) / 100;
   }
 
   const now = new Date();
-  await prisma.userModuleProgress.upsert({
-    where: { userId_moduleId: { userId, moduleId } },
-    update: { progressPercentage: moduleProgress, lastAccessedAt: now, completedAt: moduleProgress >= 100 ? now : null },
-    create: { userId, moduleId, progressPercentage: moduleProgress, startedAt: now, lastAccessedAt: now }
-  });
-
-  // Moyenne des modules du level
-  const modules = await prisma.module.findMany({ where: { levelId: module_.levelId, isActive: true }, select: { id: true } });
-  let levelProgress = 0;
-  if (modules.length > 0) {
-    const moduleProgresses = await prisma.userModuleProgress.findMany({
-      where: { userId, moduleId: { in: modules.map(m => m.id) } },
-      select: { progressPercentage: true }
-    });
-    const sum = moduleProgresses.reduce((acc, p) => acc + Number(p.progressPercentage), 0);
-    levelProgress = Math.round((sum / modules.length) * 100) / 100;
-  }
-
   await prisma.userLevelProgress.upsert({
-    where: { userId_levelId: { userId, levelId: module_.levelId } },
+    where: { userId_levelId: { userId, levelId } },
     update: { progressPercentage: levelProgress, lastAccessedAt: now, completedAt: levelProgress >= 100 ? now : null },
-    create: { userId, levelId: module_.levelId, progressPercentage: levelProgress, startedAt: now, lastAccessedAt: now }
+    create: { userId, levelId, progressPercentage: levelProgress, startedAt: now, lastAccessedAt: now }
   });
 
-  return { moduleProgress, levelProgress };
+  return { levelProgress };
 };
 
-// Résumé de progression d'un utilisateur pour un level : liste des modules avec leur %.
+// Résumé de progression d'un utilisateur pour un level : liste des thèmes avec leur %.
 exports.getUserLevelProgressSummary = async (userId, levelId) => {
   const level = await prisma.level.findUnique({ where: { id: levelId } });
   if (!level) throw new Error('Niveau non trouvé');
 
-  const modules = await prisma.module.findMany({
+  const themes = await prisma.theme.findMany({
     where: { levelId, isActive: true },
     orderBy: { index: 'asc' },
     include: { userProgress: { where: { userId }, select: { progressPercentage: true, startedAt: true, completedAt: true, lastAccessedAt: true } } }
@@ -165,14 +145,14 @@ exports.getUserLevelProgressSummary = async (userId, levelId) => {
     levelId,
     state: exports.deriveState(levelProgress || {}),
     progressPercentage: levelProgress?.progressPercentage || 0,
-    modules: modules.map(m => ({
-      id: m.id,
-      title: m.title,
-      state: exports.deriveState(m.userProgress[0] || {}),
-      progressPercentage: m.userProgress[0]?.progressPercentage || 0,
-      startedAt: m.userProgress[0]?.startedAt || null,
-      completedAt: m.userProgress[0]?.completedAt || null,
-      lastAccessedAt: m.userProgress[0]?.lastAccessedAt || null
+    themes: themes.map(t => ({
+      id: t.id,
+      title: t.title,
+      state: exports.deriveState(t.userProgress[0] || {}),
+      progressPercentage: t.userProgress[0]?.progressPercentage || 0,
+      startedAt: t.userProgress[0]?.startedAt || null,
+      completedAt: t.userProgress[0]?.completedAt || null,
+      lastAccessedAt: t.userProgress[0]?.lastAccessedAt || null
     }))
   };
 };
@@ -186,41 +166,32 @@ exports.getUserSubThemeProgress = async (userId, subThemeId) => {
 
 // Suggère le prochain sous-thème à faire pour un utilisateur sur un niveau —
 // purement indicatif, ne bloque jamais l'accès aux autres sous-thèmes.
-// Ordre naturel : Module.index -> Theme.index -> SubTheme.index. Le premier
+// Ordre naturel : Theme.index -> SubTheme.index. Le premier
 // sous-thème actif dont la progression est < 100% (ou jamais commencé) est
 // suggéré ; si tout est terminé, retourne subTheme: null.
 exports.getNextRecommendedSubTheme = async (userId, levelId) => {
   const level = await prisma.level.findUnique({ where: { id: levelId } });
   if (!level) throw new Error('Niveau non trouvé');
 
-  const modules = await prisma.module.findMany({
+  const themes = await prisma.theme.findMany({
     where: { levelId, isActive: true },
     orderBy: { index: 'asc' },
     select: {
       id: true, title: true, index: true,
-      themes: {
-        where: { isActive: true },
-        orderBy: { index: 'asc' },
-        select: {
-          id: true, title: true, index: true,
-          subThemes: { where: { isActive: true }, orderBy: { index: 'asc' }, select: { id: true, title: true, index: true } }
-        }
-      }
+      subThemes: { where: { isActive: true }, orderBy: { index: 'asc' }, select: { id: true, title: true, index: true } }
     }
   });
 
-  // Aplatit la hiérarchie en une liste ordonnée module -> theme -> subTheme
+  // Aplatit la hiérarchie en une liste ordonnée theme -> subTheme
   const orderedSubThemes = [];
-  for (const module_ of modules) {
-    for (const theme of module_.themes) {
-      for (const subTheme of theme.subThemes) {
-        orderedSubThemes.push({ module: module_, theme, subTheme });
-      }
+  for (const theme of themes) {
+    for (const subTheme of theme.subThemes) {
+      orderedSubThemes.push({ theme, subTheme });
     }
   }
 
   if (orderedSubThemes.length === 0) {
-    return { subTheme: null, theme: null, module: null, progressPercentage: 0, message: 'Aucun contenu disponible pour ce niveau.' };
+    return { subTheme: null, theme: null, progressPercentage: 0, message: 'Aucun contenu disponible pour ce niveau.' };
   }
 
   const progresses = await prisma.userSubThemeProgress.findMany({
@@ -232,36 +203,35 @@ exports.getNextRecommendedSubTheme = async (userId, levelId) => {
   const next = orderedSubThemes.find(e => (progressMap.get(e.subTheme.id) || 0) < 100);
 
   if (!next) {
-    return { subTheme: null, theme: null, module: null, progressPercentage: 100, message: 'Niveau terminé — tous les sous-thèmes sont complétés.' };
+    return { subTheme: null, theme: null, progressPercentage: 100, message: 'Niveau terminé — tous les sous-thèmes sont complétés.' };
   }
 
   return {
     subTheme: { id: next.subTheme.id, title: next.subTheme.title, index: next.subTheme.index },
     theme: { id: next.theme.id, title: next.theme.title },
-    module: { id: next.module.id, title: next.module.title },
     progressPercentage: progressMap.get(next.subTheme.id) || 0,
     message: `Continuez avec "${next.subTheme.title}".`
   };
 };
 
 // Point d'entrée unique pour les modules de contenu : recalcule le sous-thème
-// PUIS propage jusqu'au module et au niveau, pour que les % restent à jour
+// PUIS propage jusqu'au thème et au niveau, pour que les % restent à jour
 // à tous les étages sans que chaque appelant ait à connaître la chaîne complète.
 exports.recalculateFullChain = async (userId, subThemeId, options = {}) => {
   const subThemeProgress = await exports.recalculateSubThemeProgress(userId, subThemeId, options);
 
   const subTheme = await prisma.subTheme.findUnique({
     where: { id: subThemeId },
-    select: { themeId: true, theme: { select: { moduleId: true } } }
+    select: { themeId: true, theme: { select: { levelId: true } } }
   });
 
   const themeProgress = subTheme?.themeId
     ? await exports.recalculateThemeProgress(userId, subTheme.themeId)
     : null;
 
-  const moduleAndLevelProgress = subTheme?.theme?.moduleId
-    ? await exports.recalculateModuleAndLevelProgress(userId, subTheme.theme.moduleId)
+  const levelProgress = subTheme?.theme?.levelId
+    ? await exports.recalculateLevelProgress(userId, subTheme.theme.levelId)
     : null;
 
-  return { subThemeProgress, themeProgress, ...moduleAndLevelProgress };
+  return { subThemeProgress, themeProgress, ...levelProgress };
 };

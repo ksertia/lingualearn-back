@@ -122,7 +122,7 @@ router.get('/:id', controller.getById);
  *                             type: string
  *                           index:
  *                             type: integer
- *                           modules:
+ *                           themes:
  *                             type: array
  *                             items:
  *                               type: object
@@ -133,9 +133,9 @@ router.get('/:languageId/levels', controller.getLanguageLevels);
 
 /**
  * @swagger
- * /api/v1/languages/{languageId}/levels/{levelId}/modules:
+ * /api/v1/languages/{languageId}/levels/{levelId}/themes:
  *   get:
- *     summary: Récupérer tous les modules d'un niveau spécifique d'une langue
+ *     summary: Récupérer tous les thèmes d'un niveau spécifique d'une langue
  *     tags: [Languages]
  *     parameters:
  *       - in: path
@@ -152,7 +152,7 @@ router.get('/:languageId/levels', controller.getLanguageLevels);
  *         description: ID du niveau
  *     responses:
  *       200:
- *         description: Modules récupérés avec succès
+ *         description: Thèmes récupérés avec succès
  *         content:
  *           application/json:
  *             schema:
@@ -169,61 +169,31 @@ router.get('/:languageId/levels', controller.getLanguageLevels);
  *                       type: string
  *                     levelName:
  *                       type: string
- *                     modules:
+ *                     themes:
  *                       type: array
  *                       items:
  *                         type: object
  *                         properties:
  *                           id:
  *                             type: string
- *                           name:
+ *                           title:
  *                             type: string
  *                           description:
  *                             type: string
  *                           index:
  *                             type: integer
- *                           paths:
+ *                           subThemes:
  *                             type: array
  *                             items:
  *                               type: object
  *       404:
  *         description: Langue ou niveau non trouvé
  */
-router.get('/:languageId/levels/:levelId/modules', controller.getLevelModules);
+router.get('/:languageId/levels/:levelId/themes', controller.getLevelThemes);
 
 /**
  * @swagger
- * /api/v1/languages/{languageId}/levels/{levelId}/modules/{moduleId}/themes:
- *   get:
- *     summary: Récupérer tous les thèmes d'un module spécifique
- *     tags: [Languages]
- *     parameters:
- *       - in: path
- *         name: languageId
- *         required: true
- *         schema:
- *           type: string
- *       - in: path
- *         name: levelId
- *         required: true
- *         schema:
- *           type: string
- *       - in: path
- *         name: moduleId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Thèmes récupérés avec succès
- *       404:
- *         description: Langue, niveau ou module non trouvé
- */
-router.get('/:languageId/levels/:levelId/modules/:moduleId/themes', controller.getModuleThemes);
-
-/**
- * @swagger
- * /api/v1/languages/{languageId}/levels/{levelId}/modules/{moduleId}/themes/{themeId}/sub-themes:
+ * /api/v1/languages/{languageId}/levels/{levelId}/themes/{themeId}/sub-themes:
  *   get:
  *     summary: Récupérer tous les sous-thèmes d'un thème spécifique
  *     tags: [Languages]
@@ -239,11 +209,6 @@ router.get('/:languageId/levels/:levelId/modules/:moduleId/themes', controller.g
  *         schema:
  *           type: string
  *       - in: path
- *         name: moduleId
- *         required: true
- *         schema:
- *           type: string
- *       - in: path
  *         name: themeId
  *         required: true
  *         schema:
@@ -252,13 +217,13 @@ router.get('/:languageId/levels/:levelId/modules/:moduleId/themes', controller.g
  *       200:
  *         description: Sous-thèmes récupérés avec succès
  *       404:
- *         description: Langue, niveau, module ou thème non trouvé
+ *         description: Langue, niveau ou thème non trouvé
  */
-router.get('/:languageId/levels/:levelId/modules/:moduleId/themes/:themeId/sub-themes', controller.getThemeSubThemes);
+router.get('/:languageId/levels/:levelId/themes/:themeId/sub-themes', controller.getThemeSubThemes);
 
 /**
  * @swagger
- * /api/v1/languages/{languageId}/levels/{levelId}/modules/{moduleId}/themes/{themeId}/sub-themes/{subThemeId}/content:
+ * /api/v1/languages/{languageId}/levels/{levelId}/themes/{themeId}/sub-themes/{subThemeId}/content:
  *   get:
  *     summary: Récupérer le contenu complet d'un sous-thème (cours, vidéos, exercices, ressources, évaluation)
  *     tags: [Languages]
@@ -270,11 +235,6 @@ router.get('/:languageId/levels/:levelId/modules/:moduleId/themes/:themeId/sub-t
  *           type: string
  *       - in: path
  *         name: levelId
- *         required: true
- *         schema:
- *           type: string
- *       - in: path
- *         name: moduleId
  *         required: true
  *         schema:
  *           type: string
@@ -292,9 +252,9 @@ router.get('/:languageId/levels/:levelId/modules/:moduleId/themes/:themeId/sub-t
  *       200:
  *         description: Contenu du sous-thème récupéré avec succès
  *       404:
- *         description: Langue, niveau, module, thème ou sous-thème non trouvé
+ *         description: Langue, niveau, thème ou sous-thème non trouvé
  */
-router.get('/:languageId/levels/:levelId/modules/:moduleId/themes/:themeId/sub-themes/:subThemeId/content', controller.getSubThemeContent);
+router.get('/:languageId/levels/:levelId/themes/:themeId/sub-themes/:subThemeId/content', controller.getSubThemeContent);
 
 /**
  * @swagger
@@ -442,7 +402,7 @@ router.get('/children/:childId/languages', authMiddleware, allowRoles('learner')
  * /api/v1/languages/children/{childId}/progress:
  *   get:
  *     summary: Progression complète d'un enfant (parent uniquement)
- *     description: Retourne langue → niveau → module → parcours → étape avec taux de complétion calculé à chaque niveau
+ *     description: Retourne langue → niveau → thème → sous-thème avec taux de complétion calculé à chaque niveau
  *     tags: [Languages]
  *     security:
  *       - bearerAuth: []
@@ -677,7 +637,7 @@ router.patch('/:id/deactivate', authMiddleware, allowRoles('admin', 'plateform_m
  *                           _count:
  *                             type: object
  *                             properties:
- *                               modules:
+ *                               themes:
  *                                 type: integer
  *       404:
  *         description: Langue non trouvée

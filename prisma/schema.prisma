@@ -68,14 +68,14 @@ model User {
 }
 
 model Referral {
-  id          String    @id @default(cuid())
-  parrainId   String
-  filleulId   String    @unique
-  status      String    @default("pending") @db.VarChar(20) // pending | rewarded
-  rewardedAt  DateTime?
-  createdAt   DateTime  @default(now())
-  parrain     User      @relation("ReferralParrain", fields: [parrainId], references: [id], onDelete: Cascade)
-  filleul     User      @relation("ReferralFilleul", fields: [filleulId], references: [id], onDelete: Cascade)
+  id         String    @id @default(cuid())
+  parrainId  String
+  filleulId  String    @unique
+  status     String    @default("pending") @db.VarChar(20) // pending | rewarded
+  rewardedAt DateTime?
+  createdAt  DateTime  @default(now())
+  parrain    User      @relation("ReferralParrain", fields: [parrainId], references: [id], onDelete: Cascade)
+  filleul    User      @relation("ReferralFilleul", fields: [filleulId], references: [id], onDelete: Cascade)
 
   @@index([parrainId])
   @@map("referrals")
@@ -109,9 +109,9 @@ model Language {
   createdAt    DateTime               @default(now())
   updatedAt    DateTime               @updatedAt
   flagUrl      String?                @db.VarChar(500)
-  certificates     Certificate[]
-  levels           Level[]
-  userProgress     UserLanguageProgress[]
+  certificates Certificate[]
+  levels       Level[]
+  userProgress UserLanguageProgress[]
 
   @@index([index])
   @@map("languages")
@@ -129,6 +129,7 @@ model Level {
   updatedAt    DateTime            @updatedAt
   language     Language            @relation(fields: [languageId], references: [id], onDelete: Cascade)
   modules      Module[]
+  themes       Theme[]
   userProgress UserLevelProgress[]
 
   @@unique([languageId, code])
@@ -156,20 +157,23 @@ model Module {
 }
 
 model Theme {
-  id          String     @id @default(cuid())
-  moduleId    String
-  title       String     @db.VarChar(200)
-  description String?    @db.Text
-  iconUrl     String?    @db.VarChar(500)
-  index       Int        @default(0)
-  isActive    Boolean    @default(true)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  module      Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  subThemes   SubTheme[]
+  id           String              @id @default(cuid())
+  moduleId     String?
+  levelId      String?
+  title        String              @db.VarChar(200)
+  description  String?             @db.Text
+  iconUrl      String?             @db.VarChar(500)
+  index        Int                 @default(0)
+  isActive     Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  module       Module?             @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  level        Level?              @relation(fields: [levelId], references: [id], onDelete: SetNull)
+  subThemes    SubTheme[]
   userProgress UserThemeProgress[]
 
   @@index([moduleId])
+  @@index([levelId])
   @@map("themes")
 }
 
@@ -194,22 +198,22 @@ model SubTheme {
 
 // contentType: course | video | exercise | resource
 model Content {
-  id         String @id @default(cuid())
-  subThemeId String
-  contentType String @db.VarChar(20)
-  title      String @db.VarChar(200)
-  index      Int    @default(0)
-  isActive   Boolean @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String   @id @default(cuid())
+  subThemeId  String
+  contentType String   @db.VarChar(20)
+  title       String   @db.VarChar(200)
+  index       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // ── course ──
-  summary         String? @db.Text
+  summary String? @db.Text
 
   // ── video ──
-  videoUrl        String? @db.VarChar(500)
-  description     String? @db.Text
-  keyPoints       Json?
+  videoUrl    String? @db.VarChar(500)
+  description String? @db.Text
+  keyPoints   Json?
 
   // ── exercise ──
   statement       String? @db.Text
@@ -222,7 +226,7 @@ model Content {
   resourceType String? @db.VarChar(20)
   resourceUrl  String? @db.VarChar(500)
 
-  subTheme SubTheme       @relation(fields: [subThemeId], references: [id], onDelete: Cascade)
+  subTheme SubTheme         @relation(fields: [subThemeId], references: [id], onDelete: Cascade)
   blocks   ContentBlock[]
   attempts ContentAttempt[]
 
@@ -234,9 +238,9 @@ model Content {
 model ContentBlock {
   id          String   @id @default(cuid())
   contentId   String
-  sectionType String   @db.VarChar(30)  // introduction | lesson | example | key_point | summary
-  blockType   String   @db.VarChar(20)  // text | video | audio | pdf | image
-  content     String   @db.Text         // texte brut OU url selon blockType
+  sectionType String   @db.VarChar(30) // introduction | lesson | example | key_point | summary
+  blockType   String   @db.VarChar(20) // text | video | audio | pdf | image
+  content     String   @db.Text // texte brut OU url selon blockType
   caption     String?  @db.VarChar(500)
   index       Int      @default(0)
   createdAt   DateTime @default(now())
@@ -508,21 +512,21 @@ model SubAccountControl {
 }
 
 model SubscriptionPlan {
-  id             String         @id @default(cuid())
-  planCode       String         @unique @db.VarChar(50)
-  planName       String         @db.VarChar(100)
-  description    String?        @db.Text
-  priceMonthly   Decimal?       @db.Decimal(10, 2)
-  priceYearly    Decimal?       @db.Decimal(10, 2)
-  reducePrice    Decimal?       @db.Decimal(10, 2)
-  percentage     Decimal?       @db.Decimal(5, 2)
-  currency       String         @default("EUR") @db.VarChar(3)
-  coinPrice      Int?
-  features       Json
-  maxSubAccounts Int            @default(0)
-  isActive       Boolean        @default(true)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id              String           @id @default(cuid())
+  planCode        String           @unique @db.VarChar(50)
+  planName        String           @db.VarChar(100)
+  description     String?          @db.Text
+  priceMonthly    Decimal?         @db.Decimal(10, 2)
+  priceYearly     Decimal?         @db.Decimal(10, 2)
+  reducePrice     Decimal?         @db.Decimal(10, 2)
+  percentage      Decimal?         @db.Decimal(5, 2)
+  currency        String           @default("EUR") @db.VarChar(3)
+  coinPrice       Int?
+  features        Json
+  maxSubAccounts  Int              @default(0)
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   subscriptions   Subscription[]
   paymentRequests PaymentRequest[]
 
@@ -777,24 +781,24 @@ model DeviceToken {
 // ==================== PAIEMENT ====================
 
 model PaymentRequest {
-  id            String    @id @default(cuid())
+  id            String           @id @default(cuid())
   userId        String
   planId        String
-  billingCycle  String    @default("monthly") @db.VarChar(20)
-  paymentMethod String    @db.VarChar(30)
-  phoneNumber   String    @db.VarChar(20)
-  amount        Decimal   @db.Decimal(10, 2)
-  currency      String    @default("XOF") @db.VarChar(3)
-  otpCode       String?   @db.VarChar(10)
-  providerRef   String?   @db.VarChar(255)
+  billingCycle  String           @default("monthly") @db.VarChar(20)
+  paymentMethod String           @db.VarChar(30)
+  phoneNumber   String           @db.VarChar(20)
+  amount        Decimal          @db.Decimal(10, 2)
+  currency      String           @default("XOF") @db.VarChar(3)
+  otpCode       String?          @db.VarChar(10)
+  providerRef   String?          @db.VarChar(255)
   otpExpiresAt  DateTime?
-  otpVerified   Boolean   @default(false)
-  status        String    @default("pending") @db.VarChar(20)
-  failureReason String?   @db.VarChar(255)
+  otpVerified   Boolean          @default(false)
+  status        String           @default("pending") @db.VarChar(20)
+  failureReason String?          @db.VarChar(255)
   confirmedAt   DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan          SubscriptionPlan @relation(fields: [planId], references: [id])
 
   @@index([userId, status])
@@ -835,4 +839,3 @@ model MediaAsset {
   @@index([status])
   @@map("media_assets")
 }
-

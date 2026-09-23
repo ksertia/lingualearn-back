@@ -28,7 +28,7 @@ async function getDashboardStats(filters = {}) {
     // All counts run in parallel — single round-trip per query, none sequential
     const [
       totalUsers, activeUsers, verifiedUsers, adminUsers, subAccounts, usersWithSubscription,
-      totalLevels, totalModules, totalThemes, totalSubThemes, totalContents, totalEvaluations
+      totalLevels, totalThemes, totalSubThemes, totalContents, totalEvaluations
     ] = await Promise.all([
       prisma.user.count({ where: userWhere }),
       prisma.user.count({ where: { ...userWhere, isActive: true } }),
@@ -37,7 +37,6 @@ async function getDashboardStats(filters = {}) {
       prisma.user.count({ where: { ...userWhere, accountType: 'sub_account' } }),
       prisma.user.count({ where: { ...userWhere, subscriptionId: { not: null } } }),
       prisma.level.count(),
-      prisma.module.count(),
       prisma.theme.count(),
       prisma.subTheme.count(),
       prisma.content.count(),
@@ -47,7 +46,6 @@ async function getDashboardStats(filters = {}) {
     return {
       users: { total: totalUsers, active: activeUsers, verified: verifiedUsers, admin: adminUsers, subAccounts, withSubscription: usersWithSubscription },
       levels: totalLevels,
-      modules: totalModules,
       themes: totalThemes,
       subThemes: totalSubThemes,
       contents: totalContents,

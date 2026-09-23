@@ -1,5 +1,5 @@
 const { prisma } = require('../../config/prisma');
-const { deriveState, recalculateThemeProgress, recalculateModuleAndLevelProgress } = require('../progress/progress.service');
+const { deriveState, recalculateThemeProgress, recalculateLevelProgress } = require('../progress/progress.service');
 const { cacheInvalidatePattern } = require('../../utils/cache');
 
 const CONTENT_SELECT = {
@@ -106,11 +106,11 @@ exports.startSubThemeForUser = async (userId, subThemeId) => {
 };
 
 // Marque un sous-thème comme complété pour un utilisateur — force progressPercentage à 100
-// et completedAt, puis propage le recalcul au thème, au module et au niveau.
+// et completedAt, puis propage le recalcul au thème et au niveau.
 exports.completeSubThemeForUser = async (userId, subThemeId) => {
   const subTheme = await prisma.subTheme.findUnique({
     where: { id: subThemeId },
-    select: { themeId: true, theme: { select: { moduleId: true } } }
+    select: { themeId: true, theme: { select: { levelId: true } } }
   });
   if (!subTheme) throw new Error('Sous-thème non trouvé');
 
@@ -123,7 +123,7 @@ exports.completeSubThemeForUser = async (userId, subThemeId) => {
   });
 
   await recalculateThemeProgress(userId, subTheme.themeId);
-  if (subTheme.theme?.moduleId) await recalculateModuleAndLevelProgress(userId, subTheme.theme.moduleId);
+  if (subTheme.theme?.levelId) await recalculateLevelProgress(userId, subTheme.theme.levelId);
 
   return { ...progress, state: deriveState(progress) };
 };
@@ -131,7 +131,7 @@ exports.completeSubThemeForUser = async (userId, subThemeId) => {
 exports.updateSubTheme = async (id, data) => {
   const subTheme = await prisma.subTheme.findUnique({
     where: { id },
-    include: { theme: { select: { module: { select: { level: { select: { language: { select: { id: true, code: true } } } } } } } } }
+    include: { theme: { select: { level: { select: { language: { select: { id: true, code: true } } } } } } }
   });
   if (!subTheme) throw new Error('Sous-thème non trouvé');
 
@@ -140,7 +140,7 @@ exports.updateSubTheme = async (id, data) => {
     if (data[f] !== undefined) validData[f] = data[f];
   });
 
-  const language = subTheme.theme.module.level.language;
+  const language = subTheme.theme.level.language;
 
   // Un seul sous-thème démo par langue — évite l'ambiguïté sur GET /discover/languages/:code/demo
   if (validData.isDemo === true) {
@@ -148,7 +148,7 @@ exports.updateSubTheme = async (id, data) => {
       where: {
         isDemo: true,
         id: { not: id },
-        theme: { module: { level: { languageId: language.id } } }
+        theme: { level: { languageId: language.id } }
       },
       data: { isDemo: false }
     });

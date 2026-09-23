@@ -2,18 +2,18 @@ const { prisma } = require('../../config/prisma');
 const { deriveState } = require('../progress/progress.service');
 
 exports.createTheme = async (data) => {
-  const module_ = await prisma.module.findUnique({ where: { id: data.moduleId } });
-  if (!module_) throw new Error('Module non trouvé');
+  const level = await prisma.level.findUnique({ where: { id: data.levelId } });
+  if (!level) throw new Error('Niveau non trouvé');
 
   let index = data.index;
   if (index === undefined) {
-    const last = await prisma.theme.findFirst({ where: { moduleId: data.moduleId }, orderBy: { index: 'desc' } });
+    const last = await prisma.theme.findFirst({ where: { levelId: data.levelId }, orderBy: { index: 'desc' } });
     index = last ? last.index + 1 : 0;
   }
 
   return prisma.theme.create({
     data: {
-      moduleId:    data.moduleId,
+      levelId:     data.levelId,
       title:       data.title,
       description: data.description || null,
       iconUrl:     data.iconUrl || null,
@@ -24,9 +24,9 @@ exports.createTheme = async (data) => {
 };
 
 exports.getThemes = async (filters = {}) => {
-  const { page = 1, limit = 20, search, moduleId, sortBy = 'index', sortOrder = 'asc' } = filters;
+  const { page = 1, limit = 20, search, levelId, sortBy = 'index', sortOrder = 'asc' } = filters;
   const where = {};
-  if (moduleId) where.moduleId = moduleId;
+  if (levelId) where.levelId = levelId;
   if (search) where.title = { contains: search };
 
   const skip = (page - 1) * limit;
@@ -39,14 +39,14 @@ exports.getThemes = async (filters = {}) => {
 
 // userId optionnel : si fourni, enrichit chaque thème avec une progression calculée à la volée
 // (moyenne des UserSubThemeProgress de ses sous-thèmes actifs) — pas de table UserThemeProgress dédiée,
-// même logique que Module/Level mais sans persistance puisque le volume par thème reste faible.
-exports.getThemesByModuleId = async (moduleId, userId = null) => {
+// même logique que Level mais sans persistance puisque le volume par thème reste faible.
+exports.getThemesByLevelId = async (levelId, userId = null) => {
   if (!userId) {
-    return prisma.theme.findMany({ where: { moduleId, isActive: true }, orderBy: { index: 'asc' } });
+    return prisma.theme.findMany({ where: { levelId, isActive: true }, orderBy: { index: 'asc' } });
   }
 
   const themes = await prisma.theme.findMany({
-    where: { moduleId, isActive: true },
+    where: { levelId, isActive: true },
     orderBy: { index: 'asc' },
     include: {
       subThemes: {
@@ -70,7 +70,7 @@ exports.getThemesByModuleId = async (moduleId, userId = null) => {
 
     return {
       id: theme.id,
-      moduleId: theme.moduleId,
+      levelId: theme.levelId,
       title: theme.title,
       description: theme.description,
       iconUrl: theme.iconUrl,
@@ -103,7 +103,7 @@ exports.startThemeForUser = async (userId, themeId) => {
 
 // Marque un thème comme complété pour un utilisateur — force progressPercentage à 100
 // et completedAt. Ne propage pas vers les sous-thèmes (action explicite de l'utilisateur
-// au niveau thème) ni vers le module (le module reste calculé depuis les sous-thèmes réels).
+// au niveau thème) ni vers le niveau (le niveau reste calculé depuis les sous-thèmes réels).
 exports.completeThemeForUser = async (userId, themeId) => {
   const theme = await prisma.theme.findUnique({ where: { id: themeId }, select: { id: true } });
   if (!theme) throw new Error('Thème non trouvé');

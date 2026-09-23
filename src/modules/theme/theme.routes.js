@@ -6,7 +6,7 @@ const router = express.Router();
  * @swagger
  * tags:
  *   name: Theme
- *   description: Gestion des thèmes (regroupement de sous-thèmes au sein d'un Module)
+ *   description: Gestion des thèmes (regroupement de sous-thèmes au sein d'un Level)
  */
 
 /**
@@ -17,7 +17,7 @@ const router = express.Router();
  *       type: object
  *       properties:
  *         id:          { type: string }
- *         moduleId:    { type: string }
+ *         levelId:     { type: string }
  *         title:       { type: string }
  *         description: { type: string, nullable: true }
  *         iconUrl:     { type: string, nullable: true }
@@ -26,9 +26,9 @@ const router = express.Router();
  *
  *     ThemeCreate:
  *       type: object
- *       required: [moduleId, title]
+ *       required: [levelId, title]
  *       properties:
- *         moduleId:    { type: string }
+ *         levelId:     { type: string }
  *         title:       { type: string, maxLength: 200 }
  *         description: { type: string, nullable: true }
  *         iconUrl:     { type: string, nullable: true }
@@ -51,7 +51,7 @@ const router = express.Router();
  *         name: search
  *         schema: { type: string }
  *       - in: query
- *         name: moduleId
+ *         name: levelId
  *         schema: { type: string }
  *     responses:
  *       200:
@@ -61,17 +61,17 @@ router.get('/', controller.getThemes);
 
 /**
  * @swagger
- * /api/v1/themes/module/{moduleId}:
+ * /api/v1/themes/level/{levelId}:
  *   get:
- *     summary: Thèmes d'un module
+ *     summary: Thèmes d'un niveau
  *     description: |
  *       Si userId est fourni, chaque thème est enrichi avec une progression (state,
  *       progressPercentage) calculée à la volée — moyenne des sous-thèmes de ce thème
- *       pour cet utilisateur. Pas de table dédiée, même principe que Module/Level.
+ *       pour cet utilisateur. Pas de table dédiée, même principe que Level.
  *     tags: [Theme]
  *     parameters:
  *       - in: path
- *         name: moduleId
+ *         name: levelId
  *         required: true
  *         schema: { type: string }
  *       - in: query
@@ -80,9 +80,9 @@ router.get('/', controller.getThemes);
  *         description: Optionnel — enrichit la réponse avec la progression de cet utilisateur
  *     responses:
  *       200:
- *         description: Liste des thèmes du module
+ *         description: Liste des thèmes du niveau
  */
-router.get('/module/:moduleId', controller.getThemesByModuleId);
+router.get('/level/:levelId', controller.getThemesByLevelId);
 
 /**
  * @swagger
@@ -185,7 +185,7 @@ router.delete('/:id', controller.deleteTheme);
  *     summary: Marquer un thème comme complété pour un utilisateur
  *     description: |
  *       Force progressPercentage à 100 et completedAt sur UserThemeProgress.
- *       Ne propage pas vers les sous-thèmes ni vers le module (le module reste
+ *       Ne propage pas vers les sous-thèmes ni vers le niveau (le niveau reste
  *       calculé à partir des sous-thèmes réels). Route montée dans src/routes/index.js.
  *     tags: [Theme]
  *     parameters:

@@ -33,10 +33,10 @@ const getNextRecommended = async (req, res, next) => {
   }
 };
 
-const recalculateModule = async (req, res, next) => {
+const recalculateLevel = async (req, res, next) => {
   try {
-    const { userId, moduleId } = req.params;
-    const result = await progressService.recalculateModuleAndLevelProgress(userId, moduleId);
+    const { userId, levelId } = req.params;
+    const result = await progressService.recalculateLevelProgress(userId, levelId);
     res.status(200).json({ success: true, data: result, message: 'Progression recalculée.' });
   } catch (err) {
     const status = err.message?.includes('non trouvé') ? 404 : 400;
@@ -44,4 +44,4 @@ const recalculateModule = async (req, res, next) => {
   }
 };
 
-module.exports = { getUserLevelProgress, getUserSubThemeProgress, getNextRecommended, recalculateModule };
+module.exports = { getUserLevelProgress, getUserSubThemeProgress, getNextRecommended, recalculateLevel };

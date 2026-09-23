@@ -111,9 +111,9 @@ exports.unassignLanguageFromChild = async (parentId, childId, languageId) => {
     });
     if (!existing) throw new AppError(404, 'This language is not assigned to this child');
 
-    // Supprimer en cascade : sous-thème → module → niveau → langue
-    await prisma.userSubThemeProgress.deleteMany({ where: { userId: childId, subTheme: { theme: { module: { level: { languageId } } } } } });
-    await prisma.userModuleProgress.deleteMany({ where: { userId: childId, module: { level: { languageId } } } });
+    // Supprimer en cascade : sous-thème → thème → niveau → langue
+    await prisma.userSubThemeProgress.deleteMany({ where: { userId: childId, subTheme: { theme: { level: { languageId } } } } });
+    await prisma.userThemeProgress.deleteMany({ where: { userId: childId, theme: { level: { languageId } } } });
     await prisma.userLevelProgress.deleteMany({ where: { userId: childId, level: { languageId } } });
     await prisma.userLanguageProgress.delete({ where: { userId_languageId: { userId: childId, languageId } } });
 
@@ -157,7 +157,7 @@ exports.getChildLanguages = async (parentId, childId) => {
     };
 };
 
-// Calcul de la progression par langue (niveau/module/parcours/étape en cours + taux)
+// Calcul de la progression par langue (niveau/thème/sous-thème en cours + taux)
 // Utilisé par le parent (pour son enfant) ET par l'enfant lui-même
 async function computeCurrentProgress(userId) {
     return cacheWrap(`user:${userId}:progress`, async () => _computeCurrentProgress(userId), TTL.SHORT);
@@ -176,30 +176,30 @@ async function _computeCurrentProgress(userId) {
 
     const languageIds = allLangs.map(l => l.languageId);
 
-    // Batch load level/module/sub-theme progress for all languages at once — accès libre, aucun filtre de statut
-    const [allLevelProgs, allModuleProgs, allSubThemeProgs] = await Promise.all([
+    // Batch load level/theme/sub-theme progress for all languages at once — accès libre, aucun filtre de statut
+    const [allLevelProgs, allThemeProgs, allSubThemeProgs] = await Promise.all([
         // Niveaux : trier par index ASC pour prendre le plus bas (Débutant avant Intermédiaire)
         prisma.userLevelProgress.findMany({
             where: { userId, level: { languageId: { in: languageIds } } },
             orderBy: { level: { index: 'asc' } },
             include: { level: { select: { id: true, name: true, code: true, languageId: true, index: true } } }
         }),
-        prisma.userModuleProgress.findMany({
+        prisma.userThemeProgress.findMany({
             where: { userId },
-            orderBy: [{ lastAccessedAt: 'desc' }, { module: { index: 'asc' } }],
-            include: { module: { select: { id: true, title: true, levelId: true } } }
+            orderBy: [{ lastAccessedAt: 'desc' }, { theme: { index: 'asc' } }],
+            include: { theme: { select: { id: true, title: true, levelId: true } } }
         }),
         prisma.userSubThemeProgress.findMany({
             where: { userId },
             orderBy: [{ lastAccessedAt: 'desc' }, { subTheme: { index: 'asc' } }],
-            include: { subTheme: { select: { id: true, title: true, themeId: true, theme: { select: { moduleId: true } } } } }
+            include: { subTheme: { select: { id: true, title: true, themeId: true } } }
         }),
     ]);
 
-    // Build maps for O(1) lookup per language/level/module
+    // Build maps for O(1) lookup per language/level/theme
     const levelByLang     = new Map(); // languageId → niveau le plus récemment accédé
-    const moduleByLevel   = new Map(); // levelId    → module le plus récemment accédé
-    const subThemeByModule = new Map(); // moduleId  → sous-thème le plus récemment accédé
+    const themeByLevel    = new Map(); // levelId    → thème le plus récemment accédé
+    const subThemeByTheme = new Map(); // themeId    → sous-thème le plus récemment accédé
 
     for (const lp of allLevelProgs) {
         const langId = lp.level.languageId;
@@ -215,46 +215,46 @@ async function _computeCurrentProgress(userId) {
 
     const validLevelIds = new Set([...levelByLang.values()].map(lp => lp.levelId));
 
-    for (const mp of allModuleProgs) {
-        if (validLevelIds.has(mp.module.levelId) && !moduleByLevel.has(mp.module.levelId))
-            moduleByLevel.set(mp.module.levelId, mp);
+    for (const tp of allThemeProgs) {
+        if (validLevelIds.has(tp.theme.levelId) && !themeByLevel.has(tp.theme.levelId))
+            themeByLevel.set(tp.theme.levelId, tp);
     }
 
-    const validModuleIds = new Set([...moduleByLevel.values()].map(mp => mp.moduleId));
+    const validThemeIds = new Set([...themeByLevel.values()].map(tp => tp.themeId));
 
     for (const sp of allSubThemeProgs) {
-        const modId = sp.subTheme.theme.moduleId;
-        if (validModuleIds.has(modId) && !subThemeByModule.has(modId))
-            subThemeByModule.set(modId, sp);
+        const themeId = sp.subTheme.themeId;
+        if (validThemeIds.has(themeId) && !subThemeByTheme.has(themeId))
+            subThemeByTheme.set(themeId, sp);
     }
 
     // Collect all IDs we need counts for, then batch-fetch counts
-    const levelIds  = [...new Set(allLevelProgs.map(l => l.levelId))];
-    const moduleIds = [...new Set(allModuleProgs.map(m => m.moduleId))];
+    const levelIds = [...new Set(allLevelProgs.map(l => l.levelId))];
+    const themeIds  = [...new Set(allThemeProgs.map(t => t.themeId))];
 
-    const [modCountByLevel, subThemeCountByModule] = await Promise.all([
-        // total modules per level
-        prisma.module.groupBy({ by: ['levelId'], where: { levelId: { in: levelIds } }, _count: { id: true } }),
-        // total sub-themes per module (via theme)
-        prisma.subTheme.findMany({ where: { theme: { moduleId: { in: moduleIds } } }, select: { theme: { select: { moduleId: true } } } })
+    const [themeCountByLevel, subThemeCountByTheme] = await Promise.all([
+        // total thèmes per level
+        prisma.theme.groupBy({ by: ['levelId'], where: { levelId: { in: levelIds } }, _count: { id: true } }),
+        // total sub-themes per theme
+        prisma.subTheme.findMany({ where: { themeId: { in: themeIds } }, select: { themeId: true } })
             .then(rows => {
                 const acc = new Map();
-                for (const r of rows) acc.set(r.theme.moduleId, (acc.get(r.theme.moduleId) ?? 0) + 1);
+                for (const r of rows) acc.set(r.themeId, (acc.get(r.themeId) ?? 0) + 1);
                 return acc;
             }),
     ]);
 
-    const totalModMap = new Map(modCountByLevel.map(r => [r.levelId, r._count.id]));
+    const totalThemeMap = new Map(themeCountByLevel.map(r => [r.levelId, r._count.id]));
 
     // Build per-language result from pre-fetched data (zero extra DB queries)
     const languages = allLangs.map(lp => {
-        const languageId     = lp.languageId;
-        const currentLevel   = levelByLang.get(languageId) || null;
-        const currentModule  = currentLevel ? moduleByLevel.get(currentLevel.levelId) || null : null;
-        const currentSubTheme = currentModule ? subThemeByModule.get(currentModule.moduleId) || null : null;
+        const languageId      = lp.languageId;
+        const currentLevel    = levelByLang.get(languageId) || null;
+        const currentTheme    = currentLevel ? themeByLevel.get(currentLevel.levelId) || null : null;
+        const currentSubTheme = currentTheme ? subThemeByTheme.get(currentTheme.themeId) || null : null;
 
-        const totalModules   = currentLevel  ? (totalModMap.get(currentLevel.levelId) ?? 0) : 0;
-        const totalSubThemes = currentModule ? (subThemeCountByModule.get(currentModule.moduleId) ?? 0) : 0;
+        const totalThemes    = currentLevel ? (totalThemeMap.get(currentLevel.levelId) ?? 0) : 0;
+        const totalSubThemes = currentTheme ? (subThemeCountByTheme.get(currentTheme.themeId) ?? 0) : 0;
 
         return {
             language: {
@@ -263,11 +263,11 @@ async function _computeCurrentProgress(userId) {
             },
             level: currentLevel ? {
                 id: currentLevel.level.id, name: currentLevel.level.name, code: currentLevel.level.code,
-                totalModules, progressPercentage: pct(currentLevel.progressPercentage),
+                totalThemes, progressPercentage: pct(currentLevel.progressPercentage),
             } : null,
-            module: currentModule ? {
-                id: currentModule.module.id, title: currentModule.module.title,
-                totalSubThemes, progressPercentage: pct(currentModule.progressPercentage),
+            theme: currentTheme ? {
+                id: currentTheme.theme.id, title: currentTheme.theme.title,
+                totalSubThemes, progressPercentage: pct(currentTheme.progressPercentage),
             } : null,
             subTheme: currentSubTheme ? {
                 id: currentSubTheme.subTheme.id, title: currentSubTheme.subTheme.title,
@@ -469,16 +469,13 @@ exports.getLanguageLevels = async (languageId) => {
 		});
 		if (!language) return null;
 
-		// Charger levels, puis modules+thèmes+sous-thèmes en parallèle dès qu'on a les IDs
+		// Charger levels, puis thèmes+sous-thèmes en parallèle dès qu'on a les IDs
 		const levels = await prisma.level.findMany({ where: { languageId }, orderBy: { index: 'asc' }, select: { id: true, name: true, code: true, index: true, isActive: true } });
 		if (levels.length === 0) return [];
 
 		const levelIds = levels.map(l => l.id);
 
-		const modules = await prisma.module.findMany({ where: { levelId: { in: levelIds } }, orderBy: { index: 'asc' } });
-
-		const moduleIds = modules.map(m => m.id);
-		const themes = moduleIds.length > 0 ? await prisma.theme.findMany({ where: { moduleId: { in: moduleIds } }, orderBy: { index: 'asc' } }) : [];
+		const themes = await prisma.theme.findMany({ where: { levelId: { in: levelIds } }, orderBy: { index: 'asc' } });
 
 		const themeIds = themes.map(t => t.id);
 		const allSubThemes = themeIds.length > 0 ? await prisma.subTheme.findMany({ where: { themeId: { in: themeIds } }, orderBy: { index: 'asc' } }) : [];
@@ -488,16 +485,13 @@ exports.getLanguageLevels = async (languageId) => {
 		allSubThemes.forEach(s => { if (!subThemesMap.has(s.themeId)) subThemesMap.set(s.themeId, []); subThemesMap.get(s.themeId).push(s); });
 
 		const themesMap = new Map();
-		themes.forEach(t => { if (!themesMap.has(t.moduleId)) themesMap.set(t.moduleId, []); themesMap.get(t.moduleId).push({ ...t, subThemes: subThemesMap.get(t.id) || [] }); });
+		themes.forEach(t => { if (!themesMap.has(t.levelId)) themesMap.set(t.levelId, []); themesMap.get(t.levelId).push({ ...t, subThemes: subThemesMap.get(t.id) || [] }); });
 
-		const modulesMap = new Map();
-		modules.forEach(m => { if (!modulesMap.has(m.levelId)) modulesMap.set(m.levelId, []); modulesMap.get(m.levelId).push({ ...m, themes: themesMap.get(m.id) || [] }); });
-
-		return levels.map(level => ({ ...level, modules: modulesMap.get(level.id) || [] }));
+		return levels.map(level => ({ ...level, themes: themesMap.get(level.id) || [] }));
 	}, TTL.LONG);
 };
 
-exports.getLevelModules = async (languageId, levelId) => {
+exports.getLevelThemes = async (languageId, levelId) => {
 	// Valider langue + niveau en parallèle
 	const [language, level] = await Promise.all([
 		prisma.language.findUnique({ where: { id: languageId }, select: { id: true } }),
@@ -505,38 +499,8 @@ exports.getLevelModules = async (languageId, levelId) => {
 	]);
 	if (!language || !level) return null;
 
-	const modules = await prisma.module.findMany({ where: { levelId: level.id }, orderBy: { index: 'asc' } });
-	if (modules.length === 0) return { levelName: level.name, modules: [] };
-
-	const moduleIds = modules.map(m => m.id);
-	const themes = await prisma.theme.findMany({ where: { moduleId: { in: moduleIds } }, orderBy: { index: 'asc' } });
-
-	const themeIds = themes.map(t => t.id);
-	const subThemes = themeIds.length > 0 ? await prisma.subTheme.findMany({ where: { themeId: { in: themeIds } }, orderBy: { index: 'asc' } }) : [];
-
-	const subThemesMap = new Map();
-	subThemes.forEach(s => { if (!subThemesMap.has(s.themeId)) subThemesMap.set(s.themeId, []); subThemesMap.get(s.themeId).push(s); });
-
-	const themesMap = new Map();
-	themes.forEach(t => { if (!themesMap.has(t.moduleId)) themesMap.set(t.moduleId, []); themesMap.get(t.moduleId).push({ ...t, subThemes: subThemesMap.get(t.id) || [] }); });
-
-	return {
-		levelName: level.name,
-		modules: modules.map(m => ({ ...m, themes: themesMap.get(m.id) || [] }))
-	};
-};
-
-exports.getModuleThemes = async (languageId, levelId, moduleId) => {
-	// Valider langue + niveau + module en parallèle (les 3 sont indépendants par ID)
-	const [language, level, module] = await Promise.all([
-		prisma.language.findUnique({ where: { id: languageId }, select: { id: true } }),
-		prisma.level.findFirst({ where: { id: levelId, languageId }, select: { id: true } }),
-		prisma.module.findFirst({ where: { id: moduleId, levelId }, select: { id: true, title: true } }),
-	]);
-	if (!language || !level || !module) return null;
-
-	const themes = await prisma.theme.findMany({ where: { moduleId: module.id }, orderBy: { index: 'asc' } });
-	if (themes.length === 0) return { moduleName: module.title, themes: [] };
+	const themes = await prisma.theme.findMany({ where: { levelId: level.id }, orderBy: { index: 'asc' } });
+	if (themes.length === 0) return { levelName: level.name, themes: [] };
 
 	const themeIds = themes.map(t => t.id);
 	const subThemes = await prisma.subTheme.findMany({ where: { themeId: { in: themeIds } }, orderBy: { index: 'asc' } });
@@ -545,18 +509,18 @@ exports.getModuleThemes = async (languageId, levelId, moduleId) => {
 	subThemes.forEach(s => { if (!subThemesMap.has(s.themeId)) subThemesMap.set(s.themeId, []); subThemesMap.get(s.themeId).push(s); });
 
 	return {
-		moduleName: module.title,
+		levelName: level.name,
 		themes: themes.map(t => ({ ...t, subThemes: subThemesMap.get(t.id) || [] }))
 	};
 };
 
-exports.getThemeSubThemes = async (languageId, levelId, moduleId, themeId) => {
+exports.getThemeSubThemes = async (languageId, levelId, themeId) => {
 	// Valider toute la hiérarchie en 1 seule requête via relations imbriquées
 	const theme = await prisma.theme.findFirst({
 		where: {
 			id: themeId,
-			moduleId,
-			module: { id: moduleId, levelId, level: { id: levelId, languageId } }
+			levelId,
+			level: { id: levelId, languageId }
 		},
 		select: { id: true, title: true }
 	});
@@ -566,13 +530,13 @@ exports.getThemeSubThemes = async (languageId, levelId, moduleId, themeId) => {
 	return { themeName: theme.title, subThemes };
 };
 
-exports.getSubThemeContent = async (languageId, levelId, moduleId, themeId, subThemeId) => {
+exports.getSubThemeContent = async (languageId, levelId, themeId, subThemeId) => {
 	// Valider toute la hiérarchie + charger le sous-thème en 1 requête
 	const subTheme = await prisma.subTheme.findFirst({
 		where: {
 			id: subThemeId,
 			themeId,
-			theme: { id: themeId, moduleId, module: { id: moduleId, levelId, level: { id: levelId, languageId } } }
+			theme: { id: themeId, levelId, level: { id: levelId, languageId } }
 		}
 	});
 	if (!subTheme) return null;
@@ -636,7 +600,7 @@ exports.getAvailableLevels = async (languageId) => {
 				levels: {
 					where: { isActive: true },
 					orderBy: { index: 'asc' },
-					select: { id: true, code: true, name: true, description: true, index: true, isActive: true, _count: { select: { modules: true } } }
+					select: { id: true, code: true, name: true, description: true, index: true, isActive: true, _count: { select: { themes: true } } }
 				}
 			}
 		});

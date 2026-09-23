@@ -54,11 +54,11 @@ const options = {
       },
       {
         name: 'Languages',
-        description: 'Gestion des langues et de leurs niveaux/modules'
+        description: 'Gestion des langues et de leurs niveaux/thèmes'
       },
       {
         name: 'Theme',
-        description: 'Gestion des thèmes (regroupement de sous-thèmes au sein d\'un Module)'
+        description: 'Gestion des thèmes (regroupement de sous-thèmes au sein d\'un Level)'
       },
       {
         name: 'SubTheme',
@@ -111,7 +111,6 @@ const options = {
     './src/modules/notification/notification.routes.js',
     './src/modules/gamification/gamification.routes.js',
     './src/modules/upload/upload.routes.js',
-    './src/modules/module/module.routes.js',
     './src/modules/language/language.routes.js',
     './src/modules/discover/discover.routes.js',
     './src/modules/app_setting/app_setting.routes.js',

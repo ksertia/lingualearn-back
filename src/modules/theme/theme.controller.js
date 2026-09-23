@@ -7,7 +7,7 @@ const getThemes = async (req, res, next) => {
       page:      parseInt(req.query.page)  || 1,
       limit:     parseInt(req.query.limit) || 20,
       search:    req.query.search,
-      moduleId:  req.query.moduleId,
+      levelId:   req.query.levelId,
       sortBy:    req.query.sortBy    || 'index',
       sortOrder: req.query.sortOrder || 'asc'
     };
@@ -16,9 +16,9 @@ const getThemes = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-const getThemesByModuleId = async (req, res, next) => {
+const getThemesByLevelId = async (req, res, next) => {
   try {
-    const themes = await themeService.getThemesByModuleId(req.params.moduleId, req.query.userId || null);
+    const themes = await themeService.getThemesByLevelId(req.params.levelId, req.query.userId || null);
     res.status(200).json({ success: true, data: themes });
   } catch (err) { next(err); }
 };
@@ -89,4 +89,4 @@ const completeTheme = async (req, res, next) => {
   }
 };
 
-module.exports = { getThemes, getThemesByModuleId, getTheme, createTheme, updateTheme, deleteTheme, startTheme, completeTheme };
+module.exports = { getThemes, getThemesByLevelId, getTheme, createTheme, updateTheme, deleteTheme, startTheme, completeTheme };

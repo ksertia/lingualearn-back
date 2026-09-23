@@ -171,27 +171,14 @@ exports.getLanguageLevels = async (req, res, next) => {
 	}
 };
 
-exports.getLevelModules = async (req, res, next) => {
+exports.getLevelThemes = async (req, res, next) => {
 	try {
 		const { languageId, levelId } = req.params;
-		const modules = await service.getLevelModules(languageId, levelId);
-		if (!modules) {
+		const themes = await service.getLevelThemes(languageId, levelId);
+		if (!themes) {
 			return res.status(404).json({ success: false, error: 'Langue ou niveau non trouvé' });
 		}
-		res.json({ success: true, data: { languageId, levelId, levelName: modules.levelName, modules: modules.modules } });
-	} catch (err) {
-		next(err);
-	}
-};
-
-exports.getModuleThemes = async (req, res, next) => {
-	try {
-		const { languageId, levelId, moduleId } = req.params;
-		const themes = await service.getModuleThemes(languageId, levelId, moduleId);
-		if (!themes) {
-			return res.status(404).json({ success: false, error: 'Langue, niveau ou module non trouvé' });
-		}
-		res.json({ success: true, data: { languageId, levelId, moduleId, moduleName: themes.moduleName, themes: themes.themes } });
+		res.json({ success: true, data: { languageId, levelId, levelName: themes.levelName, themes: themes.themes } });
 	} catch (err) {
 		next(err);
 	}
@@ -199,12 +186,12 @@ exports.getModuleThemes = async (req, res, next) => {
 
 exports.getThemeSubThemes = async (req, res, next) => {
 	try {
-		const { languageId, levelId, moduleId, themeId } = req.params;
-		const subThemes = await service.getThemeSubThemes(languageId, levelId, moduleId, themeId);
+		const { languageId, levelId, themeId } = req.params;
+		const subThemes = await service.getThemeSubThemes(languageId, levelId, themeId);
 		if (!subThemes) {
-			return res.status(404).json({ success: false, error: 'Langue, niveau, module ou thème non trouvé' });
+			return res.status(404).json({ success: false, error: 'Langue, niveau ou thème non trouvé' });
 		}
-		res.json({ success: true, data: { languageId, levelId, moduleId, themeId, themeName: subThemes.themeName, subThemes: subThemes.subThemes } });
+		res.json({ success: true, data: { languageId, levelId, themeId, themeName: subThemes.themeName, subThemes: subThemes.subThemes } });
 	} catch (err) {
 		next(err);
 	}
@@ -212,12 +199,12 @@ exports.getThemeSubThemes = async (req, res, next) => {
 
 exports.getSubThemeContent = async (req, res, next) => {
 	try {
-		const { languageId, levelId, moduleId, themeId, subThemeId } = req.params;
-		const content = await service.getSubThemeContent(languageId, levelId, moduleId, themeId, subThemeId);
+		const { languageId, levelId, themeId, subThemeId } = req.params;
+		const content = await service.getSubThemeContent(languageId, levelId, themeId, subThemeId);
 		if (!content) {
-			return res.status(404).json({ success: false, error: 'Langue, niveau, module, thème ou sous-thème non trouvé' });
+			return res.status(404).json({ success: false, error: 'Langue, niveau, thème ou sous-thème non trouvé' });
 		}
-		res.json({ success: true, data: { languageId, levelId, moduleId, themeId, subThemeId, subThemeName: content.subThemeName, subTheme: content.subTheme, contents: content.contents, evaluation: content.evaluation } });
+		res.json({ success: true, data: { languageId, levelId, themeId, subThemeId, subThemeName: content.subThemeName, subTheme: content.subTheme, contents: content.contents, evaluation: content.evaluation } });
 	} catch (err) {
 		next(err);
 	}

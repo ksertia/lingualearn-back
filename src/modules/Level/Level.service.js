@@ -61,7 +61,7 @@ class LevelService {
                 },
                 _count: {
                     select: {
-                        modules: {
+                        themes: {
                             where: { isActive: true }
                         }
                     }
@@ -77,7 +77,7 @@ class LevelService {
             index: level.index,
             isActive: level.isActive,
             languageId: level.languageId,
-            totalModules: level._count.modules,
+            totalThemes: level._count.themes,
             
             // Progression (peut être null si jamais touché)
             progress: level.userProgress[0] || null,
@@ -149,7 +149,7 @@ class LevelService {
                 },
                 _count: {
                     select: {
-                        modules: {
+                        themes: {
                             where: { isActive: true }
                         }
                     }
@@ -165,7 +165,7 @@ class LevelService {
         const cached = await cacheGet(`level:${id}`);
         if (cached !== null) return cached;
 
-        const level = await prisma.level.findUnique({ 
+        const level = await prisma.level.findUnique({
             where: { id },
             include: {
                 language: {
@@ -175,7 +175,7 @@ class LevelService {
                         name: true
                     }
                 },
-                modules: {
+                themes: {
                     where: { isActive: true },
                     orderBy: { index: 'asc' },
                     select: {
@@ -185,7 +185,7 @@ class LevelService {
                         isActive: true,
                         _count: {
                             select: {
-                                themes: {
+                                subThemes: {
                                     where: { isActive: true }
                                 }
                             }
@@ -207,8 +207,8 @@ class LevelService {
     }
 
     async deleteLevel(id) {
-        const modules = await prisma.module.findFirst({ where: { levelId: id }, select: { id: true } });
-        if (modules) throw new Error('Impossible de supprimer un niveau qui contient des modules');
+        const themes = await prisma.theme.findFirst({ where: { levelId: id }, select: { id: true } });
+        if (themes) throw new Error('Impossible de supprimer un niveau qui contient des thèmes');
 
         const level = await prisma.level.delete({ where: { id } });
         await this.invalidateCache(id, level.languageId);

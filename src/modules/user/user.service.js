@@ -66,14 +66,14 @@ class UserService {
             if (!user) throw new AppError(404, 'User not found');
 
             // Progressions langues + toutes progressions en parallèle (1 requête chacune)
-            const [rawLangProgressList, levelProgress, moduleProgress, subThemeProgress] = await Promise.all([
+            const [rawLangProgressList, levelProgress, themeProgress, subThemeProgress] = await Promise.all([
                 prisma.userLanguageProgress.findMany({
                     where: { userId },
                     include: { language: { select: { id: true, code: true, name: true, description: true, isActive: true } } },
                     orderBy: [{ lastAccessedAt: 'desc' }, { startedAt: 'desc' }]
                 }),
                 prisma.userLevelProgress.findMany({ where: { userId }, select: { levelId: true, progressPercentage: true, startedAt: true, completedAt: true, lastAccessedAt: true } }),
-                prisma.userModuleProgress.findMany({ where: { userId }, select: { moduleId: true, progressPercentage: true } }),
+                prisma.userThemeProgress.findMany({ where: { userId }, select: { themeId: true, progressPercentage: true } }),
                 prisma.userSubThemeProgress.findMany({ where: { userId }, select: { subThemeId: true, progressPercentage: true, evaluationScore: true } }),
             ]);
 
@@ -82,13 +82,13 @@ class UserService {
 
             // Maps pour accès O(1)
             const levelMap    = new Map(levelProgress.map(p => [p.levelId, p]));
-            const moduleMap   = new Map(moduleProgress.map(p => [p.moduleId, p]));
+            const themeMap    = new Map(themeProgress.map(p => [p.themeId, p]));
             const subThemeMap = new Map(subThemeProgress.map(p => [p.subThemeId, p]));
 
             return serializeBigInt({
                 user,
                 langProgressList,
-                progressMaps: { levelMap, moduleMap, subThemeMap },
+                progressMaps: { levelMap, themeMap, subThemeMap },
                 currentLanguageId: langProgressList[0]?.languageId || null,
                 totalLanguages: langProgressList.length
             });
@@ -154,7 +154,7 @@ class UserService {
         return result;
     }
 
-    // ─── ÉTAT COURANT (level/module/thème/sous-thème actif) ────────────────────
+    // ─── ÉTAT COURANT (level/thème/sous-thème actif) ────────────────────
     async _getCurrentState(userId, languageId) {
         return cacheWrap(`user:${userId}:state:${languageId}`, async () => {
             const levelProg = await prisma.userLevelProgress.findFirst({
@@ -165,14 +165,14 @@ class UserService {
 
             if (!levelProg) return null;
 
-            const moduleProg = await prisma.userModuleProgress.findFirst({
-                where: { userId, module: { levelId: levelProg.levelId } },
+            const themeProg = await prisma.userThemeProgress.findFirst({
+                where: { userId, theme: { levelId: levelProg.levelId } },
                 orderBy: { lastAccessedAt: 'desc' },
-                include: { module: { select: { id: true, title: true, index: true } } }
+                include: { theme: { select: { id: true, title: true, index: true } } }
             });
 
-            const subThemeProg = moduleProg ? await prisma.userSubThemeProgress.findFirst({
-                where: { userId, subTheme: { theme: { moduleId: moduleProg.moduleId } } },
+            const subThemeProg = themeProg ? await prisma.userSubThemeProgress.findFirst({
+                where: { userId, subTheme: { themeId: themeProg.themeId } },
                 orderBy: { lastAccessedAt: 'desc' },
                 include: { subTheme: { select: { id: true, title: true, index: true, themeId: true } } }
             }) : null;
@@ -194,7 +194,7 @@ class UserService {
 
             return {
                 currentLevel:     levelProg?.level      || null,
-                currentModule:    moduleProg?.module    || null,
+                currentTheme:     themeProg?.theme      || null,
                 currentSubTheme:  subThemeProg?.subTheme || null,
                 currentContents,
                 currentEvaluation

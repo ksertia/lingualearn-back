@@ -2,7 +2,7 @@ const Joi = require('joi');
 const { mediaUrl } = require('../../utils/validators');
 
 const createThemeSchema = Joi.object({
-  moduleId:    Joi.string().required(),
+  levelId:     Joi.string().required(),
   title:       Joi.string().max(200).required(),
   description: Joi.string().allow('', null).optional(),
   iconUrl:     mediaUrl().allow('', null).optional(),
