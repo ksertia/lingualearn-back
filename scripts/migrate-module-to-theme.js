@@ -246,7 +246,7 @@ function mergeProgressRows(a, b, evaluationWasMerged) {
 }
 
 async function execute(plan) {
-  const touchedSubThemes = new Set(); // "userId|newSubThemeId"
+  const touchedSubThemes = new Map(); // "userId|newSubThemeId" -> wasManuallyCompleted (bool)
   const touchedThemes = new Set();    // "userId|newThemeId"
   const touchedLevels = new Set();    // "userId|levelId"
 
@@ -387,6 +387,14 @@ async function execute(plan) {
             mergedProgress++;
           }
 
+          // Une ancienne ligne peut avoir été marquée "complétée" manuellement
+          // (endpoint /complete) sans que completedContentIds ait jamais été
+          // renseigné — le recalcul automatique post-commit ne verrait alors
+          // rien à compléter et repartirait de 0%. On garde cette trace pour
+          // forcer 100%/completedAt après le recalcul dans ce cas précis,
+          // afin de ne jamais régresser une progression déjà validée.
+          const wasManuallyCompleted = rows.some((r) => r.completedAt != null);
+
           await tx.userSubThemeProgress.create({
             data: {
               userId,
@@ -401,25 +409,41 @@ async function execute(plan) {
           });
           createdProgress++;
 
-          touchedSubThemes.add(`${userId}|${newSubTheme.id}`);
+          touchedSubThemes.set(`${userId}|${newSubTheme.id}`, wasManuallyCompleted);
           touchedThemes.add(`${userId}|${newThemeId}`);
           touchedLevels.add(`${userId}|${entry.newTheme.levelId}`);
         }
       }
     }
-  }, { timeout: 30000, maxWait: 10000 });
+  }, { timeout: 300000, maxWait: 30000 });
 
   console.log(`\n✅ Restructuration commitée : ${createdThemes} Theme, ${createdSubThemes} SubTheme, ${movedContents} Content déplacés, ${createdEvaluations} Evaluation créées, ${movedAttempts} EvaluationAttempt réattribués, ${createdProgress} UserSubThemeProgress (dont ${mergedProgress} fusionnées).`);
 
   await recalcTouched(touchedSubThemes, touchedThemes, touchedLevels);
 }
 
+// touchedSubThemes est une Map "userId|subThemeId" -> wasManuallyCompleted (bool).
+// Après le recalcul automatique (qui ne connaît que completedContentIds/evaluation),
+// on force 100%/completedAt pour les lignes qui étaient déjà marquées complétées
+// manuellement avant fusion, afin de ne jamais régresser une progression validée.
 async function recalcTouched(touchedSubThemes, touchedThemes, touchedLevels) {
   console.log('\n⏳ Recalcul de la progression (hors transaction, via les fonctions existantes)...');
 
-  for (const key of touchedSubThemes) {
+  let forcedCompleted = 0;
+  for (const [key, wasManuallyCompleted] of touchedSubThemes) {
     const [userId, subThemeId] = key.split('|');
     await recalculateSubThemeProgress(userId, subThemeId);
+
+    if (wasManuallyCompleted) {
+      const row = await prisma.userSubThemeProgress.findUnique({ where: { userId_subThemeId: { userId, subThemeId } } });
+      if (row && Number(row.progressPercentage) < 100) {
+        await prisma.userSubThemeProgress.update({
+          where: { userId_subThemeId: { userId, subThemeId } },
+          data: { progressPercentage: 100, completedAt: row.completedAt || new Date() },
+        });
+        forcedCompleted++;
+      }
+    }
   }
   for (const key of touchedThemes) {
     const [userId, themeId] = key.split('|');
@@ -430,11 +454,13 @@ async function recalcTouched(touchedSubThemes, touchedThemes, touchedLevels) {
     await recalculateLevelProgress(userId, levelId);
   }
 
-  console.log(`✅ Recalcul terminé : ${touchedSubThemes.size} SubTheme, ${touchedThemes.size} Theme, ${touchedLevels.size} Level.`);
+  console.log(`✅ Recalcul terminé : ${touchedSubThemes.size} SubTheme (dont ${forcedCompleted} remis à 100% car déjà complétés manuellement avant fusion), ${touchedThemes.size} Theme, ${touchedLevels.size} Level.`);
 }
 
 // Reprise ciblée : relit tous les nouveaux SubTheme (moduleId=null sur leur Theme parent, levelId set)
 // et relance le recalcul pour tous les utilisateurs ayant une UserSubThemeProgress dessus.
+// wasManuallyCompleted est déduit de l'état actuel de la ligne (completedAt déjà copié
+// depuis l'ancienne progression lors de la création par execute()).
 async function recalcOnly() {
   const newSubThemes = await prisma.subTheme.findMany({
     where: { theme: { moduleId: null, levelId: { not: null } } },
@@ -445,14 +471,14 @@ async function recalcOnly() {
     return;
   }
 
-  const touchedSubThemes = new Set();
+  const touchedSubThemes = new Map();
   const touchedThemes = new Set();
   const touchedLevels = new Set();
 
   for (const st of newSubThemes) {
-    const rows = await prisma.userSubThemeProgress.findMany({ where: { subThemeId: st.id }, select: { userId: true } });
+    const rows = await prisma.userSubThemeProgress.findMany({ where: { subThemeId: st.id }, select: { userId: true, completedAt: true } });
     for (const row of rows) {
-      touchedSubThemes.add(`${row.userId}|${st.id}`);
+      touchedSubThemes.set(`${row.userId}|${st.id}`, row.completedAt != null);
       touchedThemes.add(`${row.userId}|${st.theme.id}`);
       touchedLevels.add(`${row.userId}|${st.theme.levelId}`);
     }
