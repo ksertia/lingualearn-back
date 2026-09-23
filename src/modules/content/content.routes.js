@@ -229,7 +229,7 @@ router.post('/:id/submit', controller.submitExercise);
  *     description: |
  *       Pour les contenus non-exercice, qui n'ont pas de notion de "bonne réponse".
  *       Ajoute ce contenu à completedContentIds du sous-thème et recalcule le %
- *       de progression jusqu'au module et au niveau. Un exercise doit passer par
+ *       de progression jusqu'au thème et au niveau. Un exercise doit passer par
  *       /submit à la place (409 sinon).
  *     tags: [Content]
  *     parameters:

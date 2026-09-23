@@ -47,7 +47,7 @@ router.get('/my-children', allowRoles('learner'), (req, res, next) => { res.set(
  * /api/v1/users/my-progress:
  *   get:
  *     summary: Progression actuelle de l'enfant connecté
- *     description: Retourne la langue/niveau/module/parcours/étape en cours + taux de finition. Accessible au parent et à l'enfant.
+ *     description: Retourne la langue/niveau/thème/sous-thème en cours + taux de finition. Accessible au parent et à l'enfant.
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []

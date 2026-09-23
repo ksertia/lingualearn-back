@@ -198,7 +198,7 @@ router.delete('/:id', controller.deleteSubTheme);
  *     summary: Marquer un sous-thème comme complété pour un utilisateur
  *     description: |
  *       Force progressPercentage à 100 et completedAt sur UserSubThemeProgress,
- *       puis propage le recalcul au thème, au module et au niveau.
+ *       puis propage le recalcul au thème et au niveau.
  *       Route montée dans src/routes/index.js.
  *     tags: [SubTheme]
  *     parameters:
