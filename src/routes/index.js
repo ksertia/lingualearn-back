@@ -25,6 +25,7 @@ const uploadRoutes = require('../modules/upload/upload.routes');
 const paymentRoutes = require('../modules/payment/payment.routes');
 const transactionRoutes = require('../modules/transaction/transaction.routes');
 const referralRoutes = require('../modules/referral/referral.routes');
+const standardRoutes = require('../modules/standard/standard.routes');
 const languageController = require('../modules/language/language.controller');
 const levelController = require('../modules/Level/Level.controller');
 const themeController = require('../modules/theme/theme.controller');
@@ -56,6 +57,7 @@ router.use('/evaluations',   authMiddleware, requireSubscription, subThemeEvalua
 router.use('/progress',      authMiddleware, requireSubscription, progressRoutes);
 router.use('/gamification',  authMiddleware, requireSubscription, gamificationRoutes);
 router.use('/referral',      authMiddleware, referralRoutes);
+router.use('/standard',      authMiddleware, requireSubscription, standardRoutes);
 
 // ─── Routes utilisateur : languages, levels, thèmes, sous-thèmes ─────────────
 // allowSelfOrRoles : l'utilisateur ne peut agir que sur son propre userId (ou un

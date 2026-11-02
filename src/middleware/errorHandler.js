@@ -1,10 +1,11 @@
 const { logger } = require('../utils/logger');
 
 class AppError extends Error {
-    constructor(statusCode, message, isOperational = true) {
+    constructor(statusCode, message, isOperational = true, code) {
         super(message);
         this.statusCode = statusCode;
         this.isOperational = isOperational;
+        this.code = code;
         Object.setPrototypeOf(this, AppError.prototype);
     }
 }
@@ -20,6 +21,7 @@ const errorHandler = (err, req, res, next) => {
         return res.status(err.statusCode).json({
             success: false,
             error: err.message,
+            ...(err.code && { code: err.code }),
             ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
         });
     }

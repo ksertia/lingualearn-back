@@ -123,6 +123,9 @@ app.use('/media', express.static(__dirname + '/../storage/uploads', {
     setHeaders: (res, filePath) => {
         if (filePath.endsWith('.m3u8')) res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
         if (filePath.endsWith('.ts')) res.setHeader('Content-Type', 'video/mp2t');
+        // Fichiers audio (ex. Mode Standard) : nommage unique par upload, jamais réécrits
+        // en place — cache long côté client pour économiser les données mobiles.
+        if (/\/audios\//.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     },
 }));
 

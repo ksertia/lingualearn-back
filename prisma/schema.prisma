@@ -8,26 +8,26 @@ datasource db {
 }
 
 model User {
-  id                  String                 @id @default(cuid())
+  id                  String                  @id @default(cuid())
   parentId            String?
-  accountType         String                 @db.VarChar(20)
-  email               String?                @unique @db.VarChar(255)
-  phone               String?                @unique @db.VarChar(20)
-  passwordHash        String                 @db.VarChar(255)
-  username            String?                @unique @db.VarChar(100)
-  firstLogin          Boolean                @default(true)
-  isVerified          Boolean                @default(true)
-  isActive            Boolean                @default(true)
+  accountType         String                  @db.VarChar(20)
+  email               String?                 @unique @db.VarChar(255)
+  phone               String?                 @unique @db.VarChar(20)
+  passwordHash        String                  @db.VarChar(255)
+  username            String?                 @unique @db.VarChar(100)
+  firstLogin          Boolean                 @default(true)
+  isVerified          Boolean                 @default(true)
+  isActive            Boolean                 @default(true)
   subscriptionId      String?
   subscriptionEndsAt  DateTime?
   createdBy           String?
-  createdAt           DateTime               @default(now())
+  createdAt           DateTime                @default(now())
   lastLogin           DateTime?
   lastActive          DateTime?
-  referralCode        String?                @unique @db.VarChar(20)
+  referralCode        String?                 @unique @db.VarChar(20)
   referredBy          String?
-  reportsSent         AccountReport[]        @relation("ReportsSent")
-  reportsGenerated    AccountReport[]        @relation("ReportsGenerated")
+  reportsSent         AccountReport[]         @relation("ReportsSent")
+  reportsGenerated    AccountReport[]         @relation("ReportsGenerated")
   contentAttempts     ContentAttempt[]
   evaluationAttempts  EvaluationAttempt[]
   loginAttempts       LoginAttempt[]
@@ -36,8 +36,8 @@ model User {
   profile             Profile?
   refreshTokens       RefreshToken[]
   sessions            Session[]
-  subAccountControls  SubAccountControl[]    @relation("ParentControls")
-  controlledByParent  SubAccountControl[]    @relation("SubAccountControlled")
+  subAccountControls  SubAccountControl[]     @relation("ParentControls")
+  controlledByParent  SubAccountControl[]     @relation("SubAccountControlled")
   subscription        Subscription?
   transactions        Transaction[]
   paymentRequests     PaymentRequest[]
@@ -50,16 +50,18 @@ model User {
   themeProgress       UserThemeProgress[]
   subThemeProgress    UserSubThemeProgress[]
   stats               UserStats?
-  createdByUser       User?                  @relation("CreatedBy", fields: [createdBy], references: [id])
-  createdUsers        User[]                 @relation("CreatedBy")
-  parentUser          User?                  @relation("ParentToSubAccounts", fields: [parentId], references: [id])
-  subAccounts         User[]                 @relation("ParentToSubAccounts")
+  createdByUser       User?                   @relation("CreatedBy", fields: [createdBy], references: [id])
+  createdUsers        User[]                  @relation("CreatedBy")
+  parentUser          User?                   @relation("ParentToSubAccounts", fields: [parentId], references: [id])
+  subAccounts         User[]                  @relation("ParentToSubAccounts")
   verificationCodes   VerificationCode[]
-  sentMessages        Message[]              @relation("SentMessages")
-  receivedMessages    Message[]              @relation("ReceivedMessages")
+  sentMessages        Message[]               @relation("SentMessages")
+  receivedMessages    Message[]               @relation("ReceivedMessages")
   deviceTokens        DeviceToken[]
-  referralsSent       Referral[]             @relation("ReferralParrain")
-  referralReceived    Referral?              @relation("ReferralFilleul")
+  referralsSent       Referral[]              @relation("ReferralParrain")
+  referralReceived    Referral?               @relation("ReferralFilleul")
+  standardProgress    StandardProgress[]
+  standardResults     StandardSessionResult[]
 
   @@index([parentId])
   @@index([accountType])
@@ -99,19 +101,22 @@ model Profile {
 }
 
 model Language {
-  id           String                 @id @default(cuid())
-  code         String                 @unique @db.VarChar(10)
-  name         String                 @db.VarChar(100)
-  description  String?                @db.Text
-  iconUrl      String?                @db.VarChar(500)
-  isActive     Boolean                @default(true)
-  index        Int                    @default(0)
-  createdAt    DateTime               @default(now())
-  updatedAt    DateTime               @updatedAt
-  flagUrl      String?                @db.VarChar(500)
-  certificates Certificate[]
-  levels       Level[]
-  userProgress UserLanguageProgress[]
+  id               String                  @id @default(cuid())
+  code             String                  @unique @db.VarChar(10)
+  name             String                  @db.VarChar(100)
+  description      String?                 @db.Text
+  iconUrl          String?                 @db.VarChar(500)
+  isActive         Boolean                 @default(true)
+  index            Int                     @default(0)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  flagUrl          String?                 @db.VarChar(500)
+  certificates     Certificate[]
+  levels           Level[]
+  userProgress     UserLanguageProgress[]
+  standardSessions StandardSession[]
+  standardProgress StandardProgress[]
+  standardResults  StandardSessionResult[]
 
   @@index([index])
   @@map("languages")
@@ -838,4 +843,89 @@ model MediaAsset {
 
   @@index([status])
   @@map("media_assets")
+}
+
+// ==================== MODE STANDARD ====================
+
+// Une session du catalogue d'une langue (3-4 min, apprise dans l'ordre).
+model StandardSession {
+  id               String                  @id @default(cuid())
+  languageId       String
+  position         Int
+  title            String                  @db.VarChar(200)
+  estimatedMinutes Int                     @default(3)
+  isPublished      Boolean                 @default(false)
+  reviewedBy       String?                 @db.VarChar(100)
+  reviewedAt       DateTime?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  language         Language                @relation(fields: [languageId], references: [id], onDelete: Cascade)
+  items            StandardItem[]
+  results          StandardSessionResult[]
+
+  @@unique([languageId, position])
+  @@index([languageId, isPublished, position])
+  @@map("standard_sessions")
+}
+
+// Un élément d'une session (vocabulary | phrase | quiz | translate), à plat.
+model StandardItem {
+  id                 String          @id @default(cuid())
+  sessionId          String
+  position           Int
+  type               String          @db.VarChar(20) // vocabulary | phrase | quiz | translate
+  term               String?         @db.VarChar(255)
+  translation        String?         @db.VarChar(255)
+  example            String?         @db.VarChar(500)
+  exampleTranslation String?         @db.VarChar(500)
+  audioUrl           String?         @db.VarChar(500)
+  question           String?         @db.VarChar(500)
+  options            Json?
+  answerIndex        Int?
+  sentence           String?         @db.VarChar(500)
+  answerWords        Json?
+  distractors        Json?
+  fromFrench         Boolean?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  session            StandardSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, position])
+  @@map("standard_items")
+}
+
+// Curseur de progression d'un utilisateur dans le catalogue d'une langue.
+model StandardProgress {
+  id           String   @id @default(cuid())
+  userId       String
+  languageId   String
+  nextPosition Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  language     Language @relation(fields: [languageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, languageId])
+  @@map("standard_progress")
+}
+
+// Historique des sessions terminées (une ligne par session jouée), dédupliqué par requestId.
+model StandardSessionResult {
+  id              String          @id @default(cuid())
+  userId          String
+  languageId      String
+  sessionId       String
+  requestId       String          @unique @db.VarChar(100)
+  correctAnswers  Int
+  exerciseCount   Int
+  stars           Int
+  durationSeconds Int
+  completedAt     DateTime        @default(now())
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  language        Language        @relation(fields: [languageId], references: [id], onDelete: Cascade)
+  session         StandardSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, languageId])
+  @@index([sessionId])
+  @@map("standard_session_results")
 }

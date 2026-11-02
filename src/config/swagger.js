@@ -117,6 +117,7 @@ const options = {
     './src/modules/referral/referral.routes.js',
     './src/modules/transaction/transaction.routes.js',
     './src/modules/payment/payment.routes.js',
+    './src/modules/standard/standard.routes.js',
   ],
 };
 
