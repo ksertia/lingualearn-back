@@ -228,7 +228,8 @@ const httpsOptions = {
 const httpsServer = https.createServer(httpsOptions, app);
 httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
     console.log(`✅ HTTPS server running on port ${HTTPS_PORT}`);
-    console.log(`🔗 Swagger UI: https://213.32.120.11:${HTTPS_PORT}/api-docs`);
+    console.log(`🔗 Swagger UI: https://api.tibi.sahelys.com/api-docs/`);
+    console.log(`🔗 Swagger UI: http://localhost:${HTTPS_PORT}/api-docs`);
 });
 // WebSocket (Socket.IO) sur HTTPS
 setupWebSocket(httpsServer);
@@ -238,7 +239,7 @@ setupWebSocket(httpsServer);
 // =====================
 http.createServer(app).listen(HTTP_PORT, '0.0.0.0', () => {
     console.log(`⚡ HTTP server running on port ${HTTP_PORT}`);
-    console.log(`🔗 API endpoints (HTTP): http://213.32.120.11:${HTTP_PORT}/api/${appConfig.apiVersion}`);
+    console.log(`🔗 API endpoints (HTTPS):https://api.tibi.sahelys.com/api/v1`);
 });
 
 

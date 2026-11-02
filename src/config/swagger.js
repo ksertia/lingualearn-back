@@ -16,12 +16,16 @@ const options = {
     },
     servers: [
       {
+        url: 'https://api.tibi.sahelys.com',
+        description: 'Production (domaine)',
+      },
+      {
         url: 'https://localhost:4000',
         description: 'Développement local (HTTPS)',
       },
       {
         url: 'https://213.32.120.11:4000',
-        description: 'Production (VPS)',
+        description: 'Production (VPS, IP directe)',
       },
       {
         url: 'https://lingualearn-back-second-1.onrender.com',

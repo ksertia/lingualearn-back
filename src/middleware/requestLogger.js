@@ -5,7 +5,7 @@ const requestLogger = (req, res, next) => {
     
     res.on('finish', () => {
         const duration = Date.now() - start;
-        logger.info(`${req.method} ${req.url} → ${res.statusCode} (${duration}ms)`);
+        logger.info(`${req.method} ${req.url} ← ${req.ip} → ${res.statusCode} (${duration}ms)`);
     });
     
     next();
